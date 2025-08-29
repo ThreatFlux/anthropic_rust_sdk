@@ -1,0 +1,74 @@
+# Configuration for cargo-deny
+# More detailed docs can be found at https://embarkstudios.github.io/cargo-deny/
+
+[bans]
+multiple-versions = "warn"
+wildcards = "allow"
+highlight = "all"
+skip = []
+skip-tree = []
+
+[licenses]
+# The confidence threshold for detecting a license from license text.
+confidence-threshold = 0.8
+# Allow only these licenses
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-DFS-2016",
+]
+# List of explicitly disallowed licenses
+deny = [
+    "GPL-2.0",
+    "GPL-3.0",
+    "AGPL-3.0",
+    "LGPL-2.1",
+    "LGPL-3.0",
+]
+# Lint level for when a crate is not in the allow list
+unlicensed = "deny"
+# Copyleft licenses to reject
+copyleft = "deny"
+# Allow licenses if they are OSI or FSF approved
+allow-osi-fsf-free = "neither"
+# Lint level for default features
+default = "deny"
+
+[[licenses.exceptions]]
+# ring uses a custom license
+name = "ring"
+allow = ["MIT", "ISC", "OpenSSL"]
+
+[[licenses.exceptions]]
+# webpki uses a custom license
+name = "webpki"
+allow = ["ISC"]
+
+[sources]
+# Lint level for what to happen when a crate from a crate registry that is not in the allow list is encountered
+unknown-registry = "warn"
+# Lint level for what to happen when a crate from a git repository that is not in the allow list is encountered
+unknown-git = "warn"
+# A list of allowed crate registries
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+# A list of allowed Git repositories
+allow-git = []
+
+[advisories]
+# The path where the advisory database is cloned/fetched into
+db-path = "~/.cargo/advisory-db"
+# The url(s) of the advisory databases to use
+db-urls = ["https://github.com/rustsec/advisory-db"]
+# The lint level for security vulnerabilities
+vulnerability = "deny"
+# The lint level for unmaintained crates
+unmaintained = "warn"
+# The lint level for crates that have been yanked from their source registry
+yanked = "warn"
+# The lint level for crates with security notices
+notice = "warn"
+# A list of advisory IDs to ignore
+ignore = []

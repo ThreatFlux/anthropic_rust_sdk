@@ -1,0 +1,205 @@
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+
+# Cargo
+Cargo.lock
+.cargo/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# nyc test coverage
+.nyc_output
+
+# Dependency directories
+node_modules/
+
+# Optional npm cache directory
+.npm
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variables file
+.env
+
+# Temporary folders
+tmp/
+temp/
+
+# Test outputs
+test-results/
+test-output/
+
+# Build artifacts
+dist/
+build/
+out/
+
+# Editor files
+*.sublime-project
+*.sublime-workspace
+
+# JetBrains
+.idea/
+*.iml
+*.iws
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# Vim
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# Project-specific
+/examples/output/
+/examples/temp/
+/docs/build/
+/bench_results/
+
+# API keys and secrets
+*.key
+*.pem
+*.crt
+*.cert
+secrets.json
+credentials.json
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Documentation build
+/docs/_build/
+/docs/.doctrees/
+
+# Python (for any Python tooling)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Local development
+/.local/
+/sandbox/
+/scratch/
+
+# Performance data
+flame*.svg
+perf.data*
+
+# Profiling
+*.prof
+
+# Memory dumps
+*.hprof
+
+# Docker
+.dockerignore
+
+# Kubernetes
+*.yaml
+*.yml
+!Cargo.yml
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+
+# Generated files
+/generated/
+*.generated.*
+
+# Package managers
+package-lock.json
+yarn.lock
+
+# Rust analyzer
+rust-project.json
+
+# Local configuration overrides
+config.local.toml
+settings.local.json
+
+# Benchmark results
+/criterion/
+
+# Flamegraph outputs
+flamegraph.svg
+perf.data
+
+# Coverage reports
+tarpaulin-report.html
+cobertura.xml
+lcov.info
+
+# Examples with API keys
+examples/.env
