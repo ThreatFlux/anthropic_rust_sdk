@@ -5,7 +5,10 @@
 //! Usage: cargo run --example basic_message
 
 use std::error::Error;
-use threatflux::{Client, MessageBuilder};
+use threatflux::{
+    builders::{MessageBuilder, ParameterBuilder},
+    Client,
+};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {

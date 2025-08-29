@@ -7,7 +7,10 @@
 use futures::StreamExt;
 use std::error::Error;
 use std::io::{self, Write};
-use threatflux::{Client, MessageBuilder, StreamEvent};
+use threatflux::{
+    builders::{MessageBuilder, ParameterBuilder},
+    Client, StreamEvent,
+};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {

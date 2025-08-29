@@ -37,7 +37,7 @@ impl FilesApi {
     ///     .purpose("user_data");
     ///
     /// let file = client.files().upload(request, None).await?;
-    /// println!("Uploaded file: {}", file.id);
+    /// println!("Uploaded file: {}", file.file.id);
     /// # Ok(())
     /// # }
     /// ```
@@ -108,7 +108,7 @@ impl FilesApi {
     ///     None,
     ///     None
     /// ).await?;
-    /// println!("Uploaded file: {}", file.id);
+    /// println!("Uploaded file: {}", file.file.id);
     /// # Ok(())
     /// # }
     /// ```

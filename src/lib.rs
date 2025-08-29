@@ -76,12 +76,15 @@
 //! use threatflux::{Client, Config};
 //! use std::time::Duration;
 //!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let config = Config::from_env()?
 //!     .with_timeout(Duration::from_secs(30))
 //!     .with_max_retries(3)
 //!     .with_rate_limit_rps(50);
 //!     
-//! let client = Client::new(config);
+//! let client = Client::try_new(config)?;
+//! # Ok(())
+//! # }
 //! ```
 
 pub mod api;

@@ -46,7 +46,7 @@ impl RetryClient {
     {
         let _start_time = std::time::Instant::now();
         let mut backoff = self.create_backoff();
-        
+
         // Update total requests stat
         {
             let mut stats = self.stats.lock().unwrap();

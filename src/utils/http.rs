@@ -79,10 +79,7 @@ impl HttpClient {
             request_builder
         };
 
-        let response = request_builder
-            .send()
-            .await
-            .map_err(AnthropicError::Http)?;
+        let response = request_builder.send().await.map_err(AnthropicError::Http)?;
         self.handle_response(response).await
     }
 
@@ -102,10 +99,7 @@ impl HttpClient {
             request_builder
         };
 
-        request_builder
-            .send()
-            .await
-            .map_err(AnthropicError::Http)
+        request_builder.send().await.map_err(AnthropicError::Http)
     }
 
     /// Make a multipart form request (for file uploads)
@@ -133,10 +127,7 @@ impl HttpClient {
         let request_builder = self.build_request_builder(method, url, headers, timeout);
         let request_builder = request_builder.multipart(form);
 
-        let response = request_builder
-            .send()
-            .await
-            .map_err(AnthropicError::Http)?;
+        let response = request_builder.send().await.map_err(AnthropicError::Http)?;
         self.handle_response(response).await
     }
 
