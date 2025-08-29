@@ -1,0 +1,142 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Get version from tag
+        id: get_version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+          body: |
+            ## Changes in this Release
+            
+            ### Features
+            - Feature 1
+            - Feature 2
+            
+            ### Bug Fixes
+            - Fix 1
+            - Fix 2
+            
+            ### Breaking Changes
+            - None
+            
+            See [CHANGELOG.md](https://github.com/ThreatFlux/anthropic_rust_sdk/blob/main/CHANGELOG.md) for details.
+
+  build-release:
+    name: Build Release
+    needs: create-release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: anthropic_rust_sdk-linux-amd64
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            artifact_name: anthropic_rust_sdk-linux-musl-amd64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: anthropic_rust_sdk-windows-amd64.exe
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: anthropic_rust_sdk-macos-amd64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: anthropic_rust_sdk-macos-arm64
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      
+      - name: Install musl tools
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+      
+      - name: Package binary
+        shell: bash
+        run: |
+          cd target/${{ matrix.target }}/release
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            7z a ../../../${{ matrix.artifact_name }}.zip anthropic_rust_sdk.exe
+          else
+            tar czf ../../../${{ matrix.artifact_name }}.tar.gz anthropic_rust_sdk
+          fi
+          cd -
+      
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./${{ matrix.artifact_name }}${{ matrix.os == 'windows-latest' && '.zip' || '.tar.gz' }}
+          asset_name: ${{ matrix.artifact_name }}${{ matrix.os == 'windows-latest' && '.zip' || '.tar.gz' }}
+          asset_content_type: ${{ matrix.os == 'windows-latest' && 'application/zip' || 'application/gzip' }}
+
+  publish-crate:
+    name: Publish to crates.io
+    needs: [create-release, build-release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Verify version matches
+        run: |
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          CARGO_VERSION=$(grep "^version" Cargo.toml | head -n1 | cut -d'"' -f2)
+          if [ "$TAG_VERSION" != "$CARGO_VERSION" ]; then
+            echo "Tag version ($TAG_VERSION) does not match Cargo.toml version ($CARGO_VERSION)"
+            exit 1
+          fi
+      
+      - name: Login to crates.io
+        run: cargo login ${{ secrets.CRATES_IO_TOKEN }}
+      
+      - name: Publish to crates.io
+        run: cargo publish --dry-run  # Remove --dry-run when ready to publish
+      
+      - name: Wait for crates.io to index
+        run: sleep 30
+      
+      - name: Verify publication
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          cargo search anthropic_rust_sdk --limit 1 | grep -q "$VERSION" || echo "Version not yet indexed"
