@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["HAIKU_3_5","OPUS_3","OPUS_4","OPUS_4_1","SONNET_3_5","SONNET_3_7","SONNET_4"],"fn":["all_models","is_valid_model","max_thinking_tokens","supports_1m_context","supports_thinking"]};

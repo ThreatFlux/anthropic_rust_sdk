@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["build_paginated_path","build_pagination_query","build_path_with_query","create_default_pagination"]};
