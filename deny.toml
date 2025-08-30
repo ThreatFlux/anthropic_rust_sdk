@@ -30,6 +30,7 @@ allow = [
     "CC0-1.0",
     "MPL-2.0",
     "OpenSSL",
+    "Zlib",
 ]
 
 # Skip this crate when checking licenses

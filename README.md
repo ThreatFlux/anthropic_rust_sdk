@@ -5,7 +5,7 @@
 [![Crates.io](https://img.shields.io/crates/v/anthropic_rust_sdk.svg)](https://crates.io/crates/anthropic_rust_sdk)
 [![Documentation](https://docs.rs/anthropic_rust_sdk/badge.svg)](https://docs.rs/anthropic_rust_sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Rust](https://img.shields.io/badge/rust-1.81%2B-blue.svg)](https://www.rust-lang.org/)
+[![Rust](https://img.shields.io/badge/rust-1.82%2B-blue.svg)](https://www.rust-lang.org/)
 [![Security Audit](https://github.com/ThreatFlux/anthropic_rust_sdk/workflows/Security%20Audit/badge.svg)](https://github.com/ThreatFlux/anthropic_rust_sdk/security)
 [![Dependency Status](https://deps.rs/repo/github/ThreatFlux/anthropic_rust_sdk/status.svg)](https://deps.rs/repo/github/ThreatFlux/anthropic_rust_sdk)
 

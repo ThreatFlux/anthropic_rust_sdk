@@ -134,10 +134,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Install Rust 1.81.0
+      - name: Install Rust 1.82.0
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.81.0"
+          toolchain: "1.82.0"
       
       - name: Check MSRV
         run: cargo check --all-features

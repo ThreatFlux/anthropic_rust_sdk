@@ -136,6 +136,12 @@ async fn test_streaming_responses() -> Result<(), Box<dyn Error>> {
 /// Test batch processing
 #[tokio::test]
 async fn test_batch_processing() -> Result<(), Box<dyn Error>> {
+    // Skip test if no API key is provided
+    if std::env::var("ANTHROPIC_API_KEY").is_err() {
+        eprintln!("Skipping test: ANTHROPIC_API_KEY not set");
+        return Ok(());
+    }
+
     let client = Client::from_env()?;
 
     println!("\n=== Testing Batch Processing ===\n");
