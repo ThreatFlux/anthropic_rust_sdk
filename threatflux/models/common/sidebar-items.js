@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Capability","ContentBlock","ImageSource","Role","StopReason","ToolChoice"],"struct":["Metadata","Tool","Usage"],"trait":["VecPush"]};

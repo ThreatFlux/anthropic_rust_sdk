@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["MessageBatchStatus"],"struct":["BatchError","BatchRequestItem","BatchResult","BatchResultError","MessageBatch","MessageBatchCreateRequest","RequestCounts"],"type":["MessageBatchListResponse","MessageBatchRequest"]};
