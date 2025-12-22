@@ -14,14 +14,14 @@ categories = ["api-bindings", "web-programming::http-client"]
 
 [dependencies]
 # HTTP client
-reqwest = { version = "0.11", features = ["json", "stream", "multipart"] }
+reqwest = { version = "0.12", features = ["json", "stream", "multipart"] }
 # Async runtime
 tokio = { version = "1.0", features = ["full"] }
 # JSON serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 # Error handling
-thiserror = "1.0"
+thiserror = "2.0"
 anyhow = "1.0"
 # Environment variables
 dotenv = "0.15"
@@ -31,7 +31,7 @@ tracing-subscriber = "0.3"
 # URL handling
 url = "2.4"
 # Base64 encoding/decoding
-base64 = "0.21"
+base64 = "0.22"
 # UUID generation
 uuid = { version = "1.0", features = ["v4", "serde"] }
 # Date/time handling
@@ -42,10 +42,10 @@ tokio-stream = "0.1"
 # Retry logic
 backoff = "0.4"
 # Rate limiting
-governor = "0.5"
+governor = "0.10"
 nonzero_ext = "0.3"
 # HTTP headers
-http = "0.2"
+http = "1.4"
 # Mime types
 mime = "0.3"
 # Mime guessing
@@ -55,7 +55,7 @@ mime_guess = "2.0"
 tokio-test = "0.4"
 mockito = "1.0"
 tempfile = "3.0"
-wiremock = "0.5"
+wiremock = "0.6"
 pretty_assertions = "1.4"
 serde_json = "1.0"
 tokio = { version = "1.0", features = ["full", "test-util"] }
