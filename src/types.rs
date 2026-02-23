@@ -44,6 +44,8 @@ pub struct RequestOptions {
     pub enable_1m_context: bool,
     /// Enable extended thinking with tools
     pub enable_extended_thinking_tools: bool,
+    /// Enable Skills API beta feature
+    pub enable_skills_api: bool,
     /// Additional beta features to enable (will be comma-joined)
     pub beta_features: Vec<String>,
 }
@@ -99,6 +101,12 @@ impl RequestOptions {
     /// Enable extended thinking with tools
     pub fn with_extended_thinking_tools(mut self) -> Self {
         self.enable_extended_thinking_tools = true;
+        self
+    }
+
+    /// Enable Skills API beta feature
+    pub fn with_skills_api(mut self) -> Self {
+        self.enable_skills_api = true;
         self
     }
 

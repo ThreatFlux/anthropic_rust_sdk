@@ -2,8 +2,8 @@
 
 use crate::builders::common::{FluentBuilder, ParameterBuilder, ValidatedBuilder, ValidationUtils};
 use crate::models::{
-    common::{ContentBlock, ImageSource, Metadata, Role, Tool, ToolChoice},
-    message::{Message, MessageRequest, ThinkingConfig},
+    common::{ContentBlock, DocumentSource, ImageSource, Metadata, Role, Tool, ToolChoice},
+    message::{Message, MessageRequest, OutputConfig, ThinkingConfig},
 };
 use std::path::Path;
 
@@ -157,6 +157,57 @@ impl MessageBuilder {
         self
     }
 
+    /// Set service tier (e.g. `auto`, `standard_only`)
+    pub fn service_tier(mut self, tier: impl Into<String>) -> Self {
+        self.request.service_tier = Some(tier.into());
+        self
+    }
+
+    /// Set inference geography routing preference
+    pub fn inference_geo(mut self, inference_geo: impl Into<String>) -> Self {
+        self.request.inference_geo = Some(inference_geo.into());
+        self
+    }
+
+    /// Set output configuration.
+    pub fn output_config(mut self, output_config: OutputConfig) -> Self {
+        self.request.output_config = Some(output_config);
+        self
+    }
+
+    /// Configure JSON-schema constrained output.
+    pub fn output_json_schema(mut self, schema: serde_json::Value) -> Self {
+        self.request.output_config = Some(OutputConfig::json_schema(schema));
+        self
+    }
+
+    /// Set container configuration object as raw JSON
+    pub fn container(mut self, container: serde_json::Value) -> Self {
+        self.request.container = Some(container);
+        self
+    }
+
+    /// Set context management configuration object as raw JSON
+    pub fn context_management(mut self, context_management: serde_json::Value) -> Self {
+        self.request.context_management = Some(context_management);
+        self
+    }
+
+    /// Set MCP server configuration list as raw JSON objects
+    pub fn mcp_servers(mut self, mcp_servers: Vec<serde_json::Value>) -> Self {
+        self.request.mcp_servers = Some(mcp_servers);
+        self
+    }
+
+    /// Add one MCP server configuration object
+    pub fn add_mcp_server(mut self, mcp_server: serde_json::Value) -> Self {
+        self.request
+            .mcp_servers
+            .get_or_insert_with(Vec::new)
+            .push(mcp_server);
+        self
+    }
+
     /// Add a message
     pub fn message(mut self, message: Message) -> Self {
         self.request.messages.push(message);
@@ -225,6 +276,65 @@ impl MessageBuilder {
             .to_string();
 
         Ok(self.user_with_image(text, image_data, media_type))
+    }
+
+    /// Add a user message with a document source.
+    pub fn user_with_document(mut self, text: impl Into<String>, source: DocumentSource) -> Self {
+        let mut message = Message::user(text);
+        message.content.push(ContentBlock::document(source));
+        self.request.messages.push(message);
+        self
+    }
+
+    /// Add a user message with base64 document content.
+    pub fn user_with_base64_document(
+        self,
+        text: impl Into<String>,
+        base64_data: impl Into<String>,
+        media_type: impl Into<String>,
+    ) -> Self {
+        let source = DocumentSource::base64(media_type, base64_data);
+        self.user_with_document(text, source)
+    }
+
+    /// Add a user message with a document URL.
+    pub fn user_with_document_url(
+        self,
+        text: impl Into<String>,
+        document_url: impl Into<String>,
+    ) -> Self {
+        let source = DocumentSource::url(document_url);
+        self.user_with_document(text, source)
+    }
+
+    /// Add a user message with an uploaded document file id.
+    pub fn user_with_document_file_id(
+        self,
+        text: impl Into<String>,
+        file_id: impl Into<String>,
+    ) -> Self {
+        let source = DocumentSource::file(file_id);
+        self.user_with_document(text, source)
+    }
+
+    /// Add a user message with document bytes from a local file path.
+    pub async fn user_with_document_file(
+        self,
+        text: impl Into<String>,
+        document_path: impl AsRef<Path>,
+    ) -> Result<Self, crate::error::AnthropicError> {
+        use base64::prelude::*;
+
+        let path = document_path.as_ref();
+        let bytes = tokio::fs::read(path).await.map_err(|e| {
+            crate::error::AnthropicError::file_error(format!("Failed to read document: {}", e))
+        })?;
+        let media_type = mime_guess::from_path(path)
+            .first_or_octet_stream()
+            .to_string();
+        let data = BASE64_STANDARD.encode(bytes);
+
+        Ok(self.user_with_base64_document(text, data, media_type))
     }
 
     /// Add conversation history

@@ -24,6 +24,16 @@ impl AdminApi {
         organization::OrganizationApi::new(self.client.clone())
     }
 
+    /// Access organization user/invite endpoints.
+    pub fn users(&self) -> organization::OrganizationApi {
+        self.organization()
+    }
+
+    /// Backwards-compatible alias for user/member management.
+    pub fn members(&self) -> organization::OrganizationApi {
+        self.organization()
+    }
+
     /// Access workspace endpoints  
     pub fn workspaces(&self) -> workspace::WorkspaceApi {
         workspace::WorkspaceApi::new(self.client.clone())

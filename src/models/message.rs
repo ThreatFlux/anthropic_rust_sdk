@@ -1,6 +1,8 @@
 //! Message-related data models
 
-use super::common::{ContentBlock, Metadata, Role, StopReason, Tool, ToolChoice, Usage, VecPush};
+use super::common::{
+    ContentBlock, Metadata, Role, StopReason, TextCitation, Tool, ToolChoice, Usage, VecPush,
+};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -107,6 +109,70 @@ impl ThinkingConfig {
     }
 }
 
+/// Output quality effort level.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OutputEffort {
+    /// Lower effort / latency.
+    Low,
+    /// Medium effort / latency.
+    Medium,
+    /// High effort / latency.
+    High,
+    /// Maximum effort / latency.
+    Max,
+}
+
+/// Output format configuration.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum OutputFormat {
+    /// Structured JSON output with a JSON Schema.
+    JsonSchema { schema: serde_json::Value },
+}
+
+impl OutputFormat {
+    /// Create a JSON-schema output format.
+    pub fn json_schema(schema: serde_json::Value) -> Self {
+        Self::JsonSchema { schema }
+    }
+}
+
+/// Output configuration for generated responses.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct OutputConfig {
+    /// Model effort level for response generation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effort: Option<OutputEffort>,
+    /// Structured output format settings.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub format: Option<OutputFormat>,
+}
+
+impl OutputConfig {
+    /// Create a new empty output configuration.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set output effort.
+    pub fn with_effort(mut self, effort: OutputEffort) -> Self {
+        self.effort = Some(effort);
+        self
+    }
+
+    /// Set output format.
+    pub fn with_format(mut self, format: OutputFormat) -> Self {
+        self.format = Some(format);
+        self
+    }
+
+    /// Create a configuration for JSON-schema constrained output.
+    pub fn json_schema(schema: serde_json::Value) -> Self {
+        Self::new().with_format(OutputFormat::json_schema(schema))
+    }
+}
+
 /// Cache control for prompt caching
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CacheControl {
@@ -163,6 +229,24 @@ pub struct MessageRequest {
     /// Request metadata
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<Metadata>,
+    /// Service tier selection (e.g. `auto`, `standard_only`)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub service_tier: Option<String>,
+    /// Inference geography routing preference
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inference_geo: Option<String>,
+    /// Output configuration (structured outputs and effort settings)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_config: Option<OutputConfig>,
+    /// Reusable execution container configuration (beta)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub container: Option<serde_json::Value>,
+    /// Context management configuration (beta)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_management: Option<serde_json::Value>,
+    /// MCP server configuration list (beta)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_servers: Option<Vec<serde_json::Value>>,
 }
 
 impl MessageRequest {
@@ -182,6 +266,12 @@ impl MessageRequest {
             tool_choice: None,
             thinking: None,
             metadata: None,
+            service_tier: None,
+            inference_geo: None,
+            output_config: None,
+            container: None,
+            context_management: None,
+            mcp_servers: None,
         }
     }
 
@@ -266,6 +356,54 @@ impl MessageRequest {
     /// Set metadata
     pub fn metadata(mut self, metadata: Metadata) -> Self {
         self.metadata = Some(metadata);
+        self
+    }
+
+    /// Set service tier
+    pub fn service_tier(mut self, tier: impl Into<String>) -> Self {
+        self.service_tier = Some(tier.into());
+        self
+    }
+
+    /// Set inference geography preference
+    pub fn inference_geo(mut self, inference_geo: impl Into<String>) -> Self {
+        self.inference_geo = Some(inference_geo.into());
+        self
+    }
+
+    /// Set output config.
+    pub fn output_config(mut self, output_config: OutputConfig) -> Self {
+        self.output_config = Some(output_config);
+        self
+    }
+
+    /// Configure JSON-schema constrained output.
+    pub fn output_json_schema(mut self, schema: serde_json::Value) -> Self {
+        self.output_config = Some(OutputConfig::json_schema(schema));
+        self
+    }
+
+    /// Set container configuration as raw JSON
+    pub fn container(mut self, container: serde_json::Value) -> Self {
+        self.container = Some(container);
+        self
+    }
+
+    /// Set context management configuration as raw JSON
+    pub fn context_management(mut self, context_management: serde_json::Value) -> Self {
+        self.context_management = Some(context_management);
+        self
+    }
+
+    /// Replace MCP servers list with raw JSON objects
+    pub fn mcp_servers(mut self, mcp_servers: Vec<serde_json::Value>) -> Self {
+        self.mcp_servers = Some(mcp_servers);
+        self
+    }
+
+    /// Add a single MCP server config object
+    pub fn add_mcp_server(mut self, mcp_server: serde_json::Value) -> Self {
+        self.mcp_servers.push_item(mcp_server);
         self
     }
 
@@ -403,9 +541,14 @@ pub struct TokenCountResponse {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MessageDelta {
     /// Stop reason if the message is complete
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub stop_reason: Option<StopReason>,
     /// Stop sequence that caused the message to stop
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub stop_sequence: Option<String>,
+    /// Additional delta fields for forward compatibility
+    #[serde(flatten, default)]
+    pub extra: HashMap<String, serde_json::Value>,
 }
 
 /// Content block delta for streaming
@@ -415,7 +558,23 @@ pub struct ContentBlockDelta {
     #[serde(rename = "type")]
     pub block_type: String,
     /// Text delta (for text blocks)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
+    /// Partial JSON delta (for tool/server tool input streaming)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub partial_json: Option<String>,
+    /// Thinking text delta
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thinking: Option<String>,
+    /// Signature delta for thinking blocks
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signature: Option<String>,
+    /// Citation delta (for text citations during streaming)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub citation: Option<TextCitation>,
+    /// Additional delta fields for forward compatibility
+    #[serde(flatten, default)]
+    pub extra: HashMap<String, serde_json::Value>,
 }
 
 /// Streaming event types
@@ -446,4 +605,58 @@ pub enum StreamEvent {
     Error {
         error: HashMap<String, serde_json::Value>,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_output_config_json_schema_serialization() {
+        let request = MessageRequest::new()
+            .add_user_message("Return JSON")
+            .output_json_schema(json!({
+                "type": "object",
+                "properties": {
+                    "answer": { "type": "string" }
+                },
+                "required": ["answer"],
+                "additionalProperties": false
+            }));
+
+        let value = serde_json::to_value(request).unwrap();
+        assert_eq!(value["output_config"]["format"]["type"], "json_schema");
+        assert_eq!(
+            value["output_config"]["format"]["schema"]["properties"]["answer"]["type"],
+            "string"
+        );
+    }
+
+    #[test]
+    fn test_output_config_effort_serialization() {
+        let request = MessageRequest::new()
+            .add_user_message("Summarize this")
+            .output_config(OutputConfig::new().with_effort(OutputEffort::High));
+        let value = serde_json::to_value(request).unwrap();
+
+        assert_eq!(value["output_config"]["effort"], "high");
+    }
+
+    #[test]
+    fn test_content_block_delta_with_citation() {
+        let delta: ContentBlockDelta = serde_json::from_value(json!({
+            "type": "citations_delta",
+            "citation": {
+                "type": "search_result_location",
+                "search_result_index": 0,
+                "source": "web_search",
+                "title": "Example",
+                "cited_text": "snippet"
+            }
+        }))
+        .unwrap();
+
+        assert!(delta.citation.is_some());
+    }
 }

@@ -243,6 +243,7 @@ struct MessageDeltaData {
     #[serde(rename = "type")]
     _type: String,
     delta: crate::models::message::MessageDelta,
+    #[serde(default)]
     usage: crate::models::common::Usage,
 }
 
@@ -271,3 +272,74 @@ struct ContentBlockStopData {
 
 // Type alias for convenience
 pub use crate::models::message::StreamEvent;
+
+#[cfg(test)]
+mod tests {
+    use super::EventParser;
+    use crate::models::{StreamEvent, TextCitation};
+
+    #[test]
+    fn test_parse_content_block_delta_with_citation() {
+        let parser = EventParser::new();
+        let event = parser
+            .parse_event(
+                "content_block_delta",
+                r#"{
+                    "type":"content_block_delta",
+                    "index":0,
+                    "delta":{
+                        "type":"citations_delta",
+                        "citation":{
+                            "type":"search_result_location",
+                            "search_result_index":1,
+                            "source":"web_search",
+                            "title":"Result"
+                        }
+                    }
+                }"#,
+            )
+            .unwrap();
+
+        match event {
+            StreamEvent::ContentBlockDelta { delta, .. } => {
+                assert!(matches!(
+                    delta.citation,
+                    Some(TextCitation::SearchResultLocation { .. })
+                ));
+            }
+            _ => panic!("Expected ContentBlockDelta"),
+        }
+    }
+
+    #[test]
+    fn test_parse_message_delta_with_extended_usage() {
+        let parser = EventParser::new();
+        let event = parser
+            .parse_event(
+                "message_delta",
+                r#"{
+                    "type":"message_delta",
+                    "delta":{"stop_reason":"end_turn"},
+                    "usage":{
+                        "output_tokens":5,
+                        "cache_creation_input_tokens":3,
+                        "cache_read_input_tokens":7,
+                        "server_tool_use":{"web_search_requests":2},
+                        "service_tier":"standard"
+                    }
+                }"#,
+            )
+            .unwrap();
+
+        match event {
+            StreamEvent::MessageDelta { usage, .. } => {
+                assert_eq!(usage.output_tokens, 5);
+                assert_eq!(usage.cache_creation_input_tokens, 3);
+                assert_eq!(usage.cache_read_input_tokens, 7);
+                assert_eq!(usage.server_tool_use.unwrap().web_search_requests, 2);
+                assert_eq!(usage.service_tier.as_deref(), Some("standard"));
+            }
+            _ => panic!("Expected MessageDelta"),
+        }
+    }
+}

@@ -2,10 +2,12 @@
 
 use crate::{
     error::{AnthropicError, Result},
+    models::common::{CacheCreationUsage, ContentBlock, ServerToolUsage, ToolResultContent},
     models::message::{MessageResponse, StreamEvent},
     streaming::event_parser::EventParser,
 };
 use futures::{Stream, StreamExt};
+use std::collections::HashMap;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::sync::mpsc;
@@ -84,6 +86,7 @@ impl MessageStream {
     pub async fn collect_message(mut self) -> Result<MessageResponse> {
         let mut message_response = None;
         let mut content_blocks = Vec::new();
+        let mut input_json_buffers: HashMap<usize, String> = HashMap::new();
 
         while let Some(event_result) = self.next().await {
             let event = event_result?;
@@ -103,19 +106,97 @@ impl MessageStream {
                     content_blocks[index] = Some(content_block);
                 }
                 StreamEvent::ContentBlockDelta { index, delta } => {
-                    if let (
-                        Some(Some(crate::models::common::ContentBlock::Text {
+                    if let Some(text) = delta.text {
+                        if let Some(Some(ContentBlock::Text {
                             text: ref mut block_text,
-                        })),
-                        Some(text),
-                    ) = (content_blocks.get_mut(index), &delta.text)
-                    {
-                        block_text.push_str(text);
+                            ..
+                        })) = content_blocks.get_mut(index)
+                        {
+                            block_text.push_str(&text);
+                        }
+                    }
+
+                    if let Some(thinking_delta) = delta.thinking {
+                        if let Some(Some(ContentBlock::Thinking {
+                            thinking: ref mut block_thinking,
+                            ..
+                        })) = content_blocks.get_mut(index)
+                        {
+                            block_thinking.push_str(&thinking_delta);
+                        }
+                    }
+
+                    if let Some(signature_delta) = delta.signature {
+                        if let Some(Some(ContentBlock::Thinking { signature, .. })) =
+                            content_blocks.get_mut(index)
+                        {
+                            signature
+                                .get_or_insert_with(String::new)
+                                .push_str(&signature_delta);
+                        }
+                    }
+
+                    if let Some(partial_json) = delta.partial_json {
+                        input_json_buffers
+                            .entry(index)
+                            .and_modify(|buffer| buffer.push_str(&partial_json))
+                            .or_insert(partial_json);
+                    }
+
+                    if let Some(citation_delta) = delta.citation {
+                        if let Some(Some(ContentBlock::Text { citations, .. })) =
+                            content_blocks.get_mut(index)
+                        {
+                            citations.get_or_insert_with(Vec::new).push(citation_delta);
+                        }
                     }
                 }
                 StreamEvent::MessageDelta { delta, usage } => {
                     if let Some(ref mut message) = message_response {
-                        message.usage = usage;
+                        // Streaming usage payloads can be partial; keep the max observed values.
+                        message.usage.input_tokens =
+                            message.usage.input_tokens.max(usage.input_tokens);
+                        message.usage.output_tokens =
+                            message.usage.output_tokens.max(usage.output_tokens);
+                        message.usage.cache_creation_input_tokens = message
+                            .usage
+                            .cache_creation_input_tokens
+                            .max(usage.cache_creation_input_tokens);
+                        message.usage.cache_read_input_tokens = message
+                            .usage
+                            .cache_read_input_tokens
+                            .max(usage.cache_read_input_tokens);
+
+                        if let Some(incoming_cache_creation) = usage.cache_creation {
+                            let cache_creation = message
+                                .usage
+                                .cache_creation
+                                .get_or_insert_with(CacheCreationUsage::default);
+                            cache_creation.ephemeral_5m_input_tokens = cache_creation
+                                .ephemeral_5m_input_tokens
+                                .max(incoming_cache_creation.ephemeral_5m_input_tokens);
+                            cache_creation.ephemeral_1h_input_tokens = cache_creation
+                                .ephemeral_1h_input_tokens
+                                .max(incoming_cache_creation.ephemeral_1h_input_tokens);
+                        }
+
+                        if let Some(incoming_server_tool_use) = usage.server_tool_use {
+                            let server_tool_use = message
+                                .usage
+                                .server_tool_use
+                                .get_or_insert_with(ServerToolUsage::default);
+                            server_tool_use.web_search_requests = server_tool_use
+                                .web_search_requests
+                                .max(incoming_server_tool_use.web_search_requests);
+                        }
+
+                        if usage.inference_geo.is_some() {
+                            message.usage.inference_geo = usage.inference_geo;
+                        }
+                        if usage.service_tier.is_some() {
+                            message.usage.service_tier = usage.service_tier;
+                        }
+
                         if let Some(stop_reason) = delta.stop_reason {
                             message.stop_reason = Some(stop_reason);
                         }
@@ -127,8 +208,25 @@ impl MessageStream {
                 StreamEvent::MessageStop => {
                     break;
                 }
-                StreamEvent::ContentBlockStop { .. } => {
-                    // Content block finished
+                StreamEvent::ContentBlockStop { index } => {
+                    if let Some(partial_json) = input_json_buffers.remove(&index) {
+                        let parsed = serde_json::from_str::<serde_json::Value>(&partial_json)
+                            .unwrap_or(serde_json::Value::String(partial_json));
+
+                        if let Some(Some(ContentBlock::ToolUse { input, .. })) =
+                            content_blocks.get_mut(index)
+                        {
+                            *input = parsed.clone();
+                        } else if let Some(Some(ContentBlock::ServerToolUse { input, .. })) =
+                            content_blocks.get_mut(index)
+                        {
+                            *input = Some(parsed.clone());
+                        } else if let Some(Some(ContentBlock::ToolResult { content, .. })) =
+                            content_blocks.get_mut(index)
+                        {
+                            *content = Some(ToolResultContent::Json(parsed));
+                        }
+                    }
                 }
                 StreamEvent::Ping => {
                     // Keep-alive ping, ignore

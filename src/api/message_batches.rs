@@ -5,7 +5,8 @@ use crate::{
     client::Client,
     error::Result,
     models::batch::{
-        MessageBatch, MessageBatchCreateRequest, MessageBatchListResponse, MessageBatchStatus,
+        MessageBatch, MessageBatchCreateRequest, MessageBatchListResponse, MessageBatchResultEntry,
+        MessageBatchStatus,
     },
     types::{HttpMethod, Pagination, RequestOptions},
 };
@@ -149,6 +150,79 @@ impl MessageBatchesApi {
             .request(HttpMethod::Delete, &path, None, options)
             .await?;
         Ok(())
+    }
+
+    /// Retrieve raw batch results (JSONL) for a completed batch.
+    ///
+    /// This hits `/messages/batches/{batch_id}/results` and returns the raw bytes.
+    pub async fn results_raw(
+        &self,
+        batch_id: &str,
+        options: Option<RequestOptions>,
+    ) -> Result<Vec<u8>> {
+        let path = format!("/messages/batches/{}/results", batch_id);
+        let response = self
+            .client
+            .request_stream(HttpMethod::Get, &path, None, options)
+            .await?;
+        let status = response.status();
+
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            return Err(crate::error::AnthropicError::api_error(
+                status.as_u16(),
+                error_text,
+                None,
+            ));
+        }
+
+        let bytes = response.bytes().await?;
+        Ok(bytes.to_vec())
+    }
+
+    /// Retrieve batch results as UTF-8 text (JSONL).
+    pub async fn results_text(
+        &self,
+        batch_id: &str,
+        options: Option<RequestOptions>,
+    ) -> Result<String> {
+        let bytes = self.results_raw(batch_id, options).await?;
+        String::from_utf8(bytes).map_err(|e| {
+            crate::error::AnthropicError::invalid_input(format!(
+                "Batch results are not valid UTF-8: {}",
+                e
+            ))
+        })
+    }
+
+    /// Retrieve and parse batch results into structured entries.
+    ///
+    /// The endpoint returns one JSON object per line.
+    pub async fn results(
+        &self,
+        batch_id: &str,
+        options: Option<RequestOptions>,
+    ) -> Result<Vec<MessageBatchResultEntry>> {
+        let text = self.results_text(batch_id, options).await?;
+        let mut parsed = Vec::new();
+
+        for (idx, line) in text.lines().enumerate() {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+
+            let item: MessageBatchResultEntry = serde_json::from_str(trimmed).map_err(|e| {
+                crate::error::AnthropicError::json(format!(
+                    "Failed to parse batch result line {}: {}",
+                    idx + 1,
+                    e
+                ))
+            })?;
+            parsed.push(item);
+        }
+
+        Ok(parsed)
     }
 
     /// Wait for a batch to complete processing

@@ -64,7 +64,7 @@ impl FilesApi {
         // For file uploads, we need to use multipart form data instead of JSON
         let mut url = self.client.config().base_url.clone();
         url.set_path("/v1/files");
-        let headers = self.client.build_admin_headers(&options)?;
+        let headers = self.client.build_headers(&options)?;
 
         let mut request_builder = reqwest::Client::new()
             .post(url)

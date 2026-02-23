@@ -9,6 +9,9 @@ use std::collections::HashMap;
 /// Organization information
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Organization {
+    /// Object type, typically `organization`.
+    #[serde(rename = "type", default)]
+    pub object_type: Option<String>,
     /// Organization ID
     pub id: String,
     /// Organization name
@@ -20,9 +23,12 @@ pub struct Organization {
     /// Organization settings
     pub settings: Option<OrganizationSettings>,
     /// When the organization was created
-    pub created_at: DateTime<Utc>,
+    pub created_at: Option<DateTime<Utc>>,
     /// When the organization was last updated
-    pub updated_at: DateTime<Utc>,
+    pub updated_at: Option<DateTime<Utc>>,
+    /// Additional fields not yet modeled explicitly.
+    #[serde(flatten, default)]
+    pub extra: HashMap<String, serde_json::Value>,
 }
 
 /// Organization settings
@@ -36,6 +42,119 @@ pub struct OrganizationSettings {
     pub features: Option<Vec<String>>,
 }
 
+/// Organization user.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct User {
+    /// Object type.
+    #[serde(rename = "type")]
+    pub object_type: String,
+    /// User ID.
+    pub id: String,
+    /// User email.
+    pub email: String,
+    /// Optional user display name.
+    #[serde(default)]
+    pub name: Option<String>,
+    /// Organization role.
+    pub role: UserRole,
+    /// Time this user was added to the organization.
+    pub added_at: DateTime<Utc>,
+}
+
+/// Role values for organization users.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UserRole {
+    User,
+    Developer,
+    Billing,
+    Admin,
+    ClaudeCodeUser,
+    Managed,
+}
+
+/// Role values accepted by user update endpoints.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UserUpdateRole {
+    User,
+    Developer,
+    Billing,
+    ClaudeCodeUser,
+    Managed,
+}
+
+/// Request body for updating an organization user.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UserUpdateRequest {
+    /// New organization role.
+    pub role: UserUpdateRole,
+}
+
+impl UserUpdateRequest {
+    /// Create a new user update request.
+    pub fn new(role: UserUpdateRole) -> Self {
+        Self { role }
+    }
+}
+
+/// User deletion response payload.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UserDeleteResponse {
+    /// Deleted user ID.
+    pub id: String,
+    /// Object type.
+    #[serde(rename = "type")]
+    pub object_type: String,
+}
+
+/// Query parameters for listing users.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct UserListParams {
+    /// Number of items to return.
+    pub limit: Option<u32>,
+    /// Cursor for forward pagination.
+    pub after_id: Option<String>,
+    /// Cursor for reverse pagination.
+    pub before_id: Option<String>,
+    /// Filter by exact user email.
+    pub email: Option<String>,
+}
+
+impl UserListParams {
+    /// Create empty list params.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set page size limit.
+    pub fn with_limit(mut self, limit: u32) -> Self {
+        self.limit = Some(limit);
+        self
+    }
+
+    /// Set forward pagination cursor.
+    pub fn with_after_id(mut self, after_id: impl Into<String>) -> Self {
+        self.after_id = Some(after_id.into());
+        self
+    }
+
+    /// Set reverse pagination cursor.
+    pub fn with_before_id(mut self, before_id: impl Into<String>) -> Self {
+        self.before_id = Some(before_id.into());
+        self
+    }
+
+    /// Filter by email.
+    pub fn with_email(mut self, email: impl Into<String>) -> Self {
+        self.email = Some(email.into());
+        self
+    }
+}
+
+/// Response when listing users.
+pub type UserListResponse = PaginatedResponse<User>;
+
 /// Organization member
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Member {
@@ -44,16 +163,20 @@ pub struct Member {
     /// Member email
     pub email: String,
     /// Member name
+    #[serde(default)]
     pub name: Option<String>,
     /// Member role
     pub role: MemberRole,
     /// Member status
     pub status: MemberStatus,
     /// When the member was invited
+    #[serde(default)]
     pub invited_at: Option<DateTime<Utc>>,
     /// When the member joined
+    #[serde(default)]
     pub joined_at: Option<DateTime<Utc>>,
     /// When the member was last active
+    #[serde(default)]
     pub last_active_at: Option<DateTime<Utc>>,
 }
 
@@ -63,10 +186,16 @@ pub struct Member {
 pub enum MemberRole {
     /// Organization owner
     Owner,
+    /// Organization billing admin
+    Billing,
+    /// Organization developer
+    Developer,
     /// Organization admin
     Admin,
     /// Organization member
     Member,
+    /// Claude Code seat
+    ClaudeCodeUser,
     /// Read-only access
     Viewer,
 }
@@ -79,8 +208,12 @@ pub enum MemberStatus {
     Active,
     /// Invited but not yet joined
     Invited,
+    /// Pending invitation
+    Pending,
     /// Suspended member
     Suspended,
+    /// Inactive user
+    Inactive,
 }
 
 /// Request to create a new member
@@ -160,27 +293,181 @@ impl Default for MemberUpdateRequest {
 /// Response when listing members
 pub type MemberListResponse = PaginatedResponse<Member>;
 
+/// Organization invite information.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Invite {
+    /// Object type.
+    #[serde(rename = "type")]
+    pub object_type: String,
+    /// Invite ID.
+    pub id: String,
+    /// Invitee email.
+    pub email: String,
+    /// Invite expiration timestamp.
+    pub expires_at: DateTime<Utc>,
+    /// Invite creation timestamp.
+    pub invited_at: DateTime<Utc>,
+    /// Role granted when accepted.
+    pub role: UserRole,
+    /// Invite status.
+    pub status: InviteStatus,
+}
+
+/// Invite status values.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InviteStatus {
+    Accepted,
+    Expired,
+    Deleted,
+    Pending,
+}
+
+/// Role values accepted by invite creation endpoint.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InviteCreateRole {
+    User,
+    Developer,
+    Billing,
+    ClaudeCodeUser,
+    Managed,
+}
+
+/// Request to create an organization invite.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct InviteCreateRequest {
+    /// Invitee email.
+    pub email: String,
+    /// Role to grant.
+    pub role: InviteCreateRole,
+}
+
+impl InviteCreateRequest {
+    /// Create a new invite request.
+    pub fn new(email: impl Into<String>, role: InviteCreateRole) -> Self {
+        Self {
+            email: email.into(),
+            role,
+        }
+    }
+}
+
+/// Invite deletion response payload.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct InviteDeleteResponse {
+    /// Deleted invite ID.
+    pub id: String,
+    /// Object type.
+    #[serde(rename = "type")]
+    pub object_type: String,
+}
+
+/// Query parameters for listing invites.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct InviteListParams {
+    /// Number of items to return.
+    pub limit: Option<u32>,
+    /// Cursor for forward pagination.
+    pub after_id: Option<String>,
+    /// Cursor for reverse pagination.
+    pub before_id: Option<String>,
+}
+
+impl InviteListParams {
+    /// Create empty list params.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set page size.
+    pub fn with_limit(mut self, limit: u32) -> Self {
+        self.limit = Some(limit);
+        self
+    }
+
+    /// Set forward cursor.
+    pub fn with_after_id(mut self, after_id: impl Into<String>) -> Self {
+        self.after_id = Some(after_id.into());
+        self
+    }
+
+    /// Set reverse cursor.
+    pub fn with_before_id(mut self, before_id: impl Into<String>) -> Self {
+        self.before_id = Some(before_id.into());
+        self
+    }
+}
+
+/// Response when listing invites.
+pub type InviteListResponse = PaginatedResponse<Invite>;
+
+/// Workspace data residency settings.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct WorkspaceDataResidency {
+    /// Allowed inference geographies (ISO-3166-1 alpha-2 country codes).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inference_geographies: Option<Vec<String>>,
+    /// Additional data residency fields not yet modeled explicitly.
+    #[serde(flatten, default)]
+    pub extra: HashMap<String, serde_json::Value>,
+}
+
+impl WorkspaceDataResidency {
+    /// Create a new empty data residency configuration.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set allowed inference geographies.
+    pub fn inference_geographies(
+        mut self,
+        inference_geographies: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        self.inference_geographies = Some(
+            inference_geographies
+                .into_iter()
+                .map(|v| v.into())
+                .collect(),
+        );
+        self
+    }
+}
+
 /// Workspace information
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Workspace {
+    /// Object type, typically `workspace`.
+    #[serde(rename = "type", default)]
+    pub object_type: Option<String>,
     /// Workspace ID
     pub id: String,
     /// Workspace name
     pub name: String,
     /// Workspace display name
     pub display_name: Option<String>,
+    /// Workspace display color.
+    #[serde(default)]
+    pub display_color: Option<String>,
     /// Workspace description
     pub description: Option<String>,
     /// Workspace settings
     pub settings: Option<WorkspaceSettings>,
     /// Workspace status
-    pub status: WorkspaceStatus,
+    #[serde(default)]
+    pub status: Option<WorkspaceStatus>,
+    /// Region/residency setting for workspace data.
+    #[serde(default)]
+    pub data_residency: Option<WorkspaceDataResidency>,
     /// When the workspace was created
-    pub created_at: DateTime<Utc>,
+    pub created_at: Option<DateTime<Utc>>,
     /// When the workspace was last updated
-    pub updated_at: DateTime<Utc>,
+    pub updated_at: Option<DateTime<Utc>>,
     /// When the workspace was archived (if applicable)
     pub archived_at: Option<DateTime<Utc>>,
+    /// Additional fields not yet modeled explicitly.
+    #[serde(flatten, default)]
+    pub extra: HashMap<String, serde_json::Value>,
 }
 
 /// Workspace status
@@ -217,6 +504,9 @@ pub struct WorkspaceCreateRequest {
     pub description: Option<String>,
     /// Workspace settings
     pub settings: Option<WorkspaceSettings>,
+    /// Region/residency setting for this workspace.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data_residency: Option<WorkspaceDataResidency>,
 }
 
 impl WorkspaceCreateRequest {
@@ -227,6 +517,7 @@ impl WorkspaceCreateRequest {
             display_name: None,
             description: None,
             settings: None,
+            data_residency: None,
         }
     }
 
@@ -247,6 +538,22 @@ impl WorkspaceCreateRequest {
         self.settings = Some(settings);
         self
     }
+
+    /// Set data residency value (for example `us` or `eu`).
+    pub fn data_residency(mut self, data_residency: WorkspaceDataResidency) -> Self {
+        self.data_residency = Some(data_residency);
+        self
+    }
+
+    /// Set data residency inference geographies convenience helper.
+    pub fn data_residency_inference_geographies(
+        self,
+        inference_geographies: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        self.data_residency(
+            WorkspaceDataResidency::new().inference_geographies(inference_geographies),
+        )
+    }
 }
 
 /// Request to update a workspace
@@ -260,6 +567,8 @@ pub struct WorkspaceUpdateRequest {
     pub description: Option<String>,
     /// New settings (optional)
     pub settings: Option<WorkspaceSettings>,
+    /// New data residency value (optional).
+    pub data_residency: Option<WorkspaceDataResidency>,
 }
 
 impl WorkspaceUpdateRequest {
@@ -270,6 +579,7 @@ impl WorkspaceUpdateRequest {
             display_name: None,
             description: None,
             settings: None,
+            data_residency: None,
         }
     }
 
@@ -296,6 +606,21 @@ impl WorkspaceUpdateRequest {
         self.settings = Some(settings);
         self
     }
+
+    /// Set data residency.
+    pub fn data_residency(mut self, data_residency: WorkspaceDataResidency) -> Self {
+        self.data_residency = Some(data_residency);
+        self
+    }
+    /// Set data residency inference geographies convenience helper.
+    pub fn data_residency_inference_geographies(
+        self,
+        inference_geographies: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        self.data_residency(
+            WorkspaceDataResidency::new().inference_geographies(inference_geographies),
+        )
+    }
 }
 
 impl Default for WorkspaceUpdateRequest {
@@ -307,17 +632,201 @@ impl Default for WorkspaceUpdateRequest {
 /// Response when listing workspaces
 pub type WorkspaceListResponse = PaginatedResponse<Workspace>;
 
+/// Workspace list query parameters.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct WorkspaceListParams {
+    /// Number of items to return.
+    pub limit: Option<u32>,
+    /// Pagination cursor for forward traversal.
+    pub after_id: Option<String>,
+    /// Pagination cursor for backward traversal.
+    pub before_id: Option<String>,
+    /// Include archived workspaces.
+    pub include_archived: Option<bool>,
+}
+
+impl WorkspaceListParams {
+    /// Create empty list params.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set limit.
+    pub fn with_limit(mut self, limit: u32) -> Self {
+        self.limit = Some(limit);
+        self
+    }
+
+    /// Set after cursor.
+    pub fn with_after_id(mut self, after_id: impl Into<String>) -> Self {
+        self.after_id = Some(after_id.into());
+        self
+    }
+
+    /// Set before cursor.
+    pub fn with_before_id(mut self, before_id: impl Into<String>) -> Self {
+        self.before_id = Some(before_id.into());
+        self
+    }
+
+    /// Include archived workspaces.
+    pub fn include_archived(mut self, include_archived: bool) -> Self {
+        self.include_archived = Some(include_archived);
+        self
+    }
+}
+
+/// Workspace member object.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WorkspaceMember {
+    /// Object type.
+    #[serde(rename = "type")]
+    pub object_type: String,
+    /// User ID.
+    pub user_id: String,
+    /// Workspace ID.
+    pub workspace_id: String,
+    /// Workspace-scoped role.
+    pub workspace_role: WorkspaceMemberRole,
+}
+
+/// Role values for workspace members.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkspaceMemberRole {
+    WorkspaceUser,
+    WorkspaceDeveloper,
+    WorkspaceAdmin,
+    WorkspaceBilling,
+}
+
+/// Role values accepted by workspace-member creation endpoint.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkspaceMemberCreateRole {
+    WorkspaceUser,
+    WorkspaceDeveloper,
+    WorkspaceAdmin,
+}
+
+/// Request body for adding a workspace member.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WorkspaceMemberCreateRequest {
+    /// User ID to add.
+    pub user_id: String,
+    /// Role to assign.
+    pub workspace_role: WorkspaceMemberCreateRole,
+}
+
+impl WorkspaceMemberCreateRequest {
+    /// Create a new workspace-member create request.
+    pub fn new(user_id: impl Into<String>, workspace_role: WorkspaceMemberCreateRole) -> Self {
+        Self {
+            user_id: user_id.into(),
+            workspace_role,
+        }
+    }
+}
+
+/// Request body for updating a workspace member role.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WorkspaceMemberUpdateRequest {
+    /// New role to assign.
+    pub workspace_role: WorkspaceMemberRole,
+}
+
+impl WorkspaceMemberUpdateRequest {
+    /// Create a new workspace-member update request.
+    pub fn new(workspace_role: WorkspaceMemberRole) -> Self {
+        Self { workspace_role }
+    }
+}
+
+/// Workspace-member deletion response payload.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WorkspaceMemberDeleteResponse {
+    /// Object type.
+    #[serde(rename = "type")]
+    pub object_type: String,
+    /// Deleted user ID.
+    pub user_id: String,
+    /// Workspace ID.
+    pub workspace_id: String,
+}
+
+/// Query parameters for listing workspace members.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct WorkspaceMemberListParams {
+    /// Number of items to return.
+    pub limit: Option<u32>,
+    /// Cursor for forward pagination.
+    pub after_id: Option<String>,
+    /// Cursor for reverse pagination.
+    pub before_id: Option<String>,
+}
+
+impl WorkspaceMemberListParams {
+    /// Create empty list params.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set page size.
+    pub fn with_limit(mut self, limit: u32) -> Self {
+        self.limit = Some(limit);
+        self
+    }
+
+    /// Set forward cursor.
+    pub fn with_after_id(mut self, after_id: impl Into<String>) -> Self {
+        self.after_id = Some(after_id.into());
+        self
+    }
+
+    /// Set reverse cursor.
+    pub fn with_before_id(mut self, before_id: impl Into<String>) -> Self {
+        self.before_id = Some(before_id.into());
+        self
+    }
+}
+
+/// Response when listing workspace members.
+pub type WorkspaceMemberListResponse = PaginatedResponse<WorkspaceMember>;
+
+/// API key creator actor.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ApiKeyActor {
+    /// Actor ID.
+    pub id: String,
+    /// Actor type.
+    #[serde(rename = "type")]
+    pub object_type: String,
+}
+
 /// API key information
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ApiKey {
+    /// Object type, typically `api_key`.
+    #[serde(rename = "type", default)]
+    pub object_type: Option<String>,
     /// API key ID
     pub id: String,
     /// API key name
     pub name: String,
+    /// Actor that created this API key.
+    #[serde(default)]
+    pub created_by: Option<ApiKeyActor>,
+    /// Workspace that owns this key.
+    #[serde(default)]
+    pub workspace_id: Option<String>,
     /// API key description
     pub description: Option<String>,
-    /// Partial API key value (for display)
-    pub partial_key: String,
+    /// Partial API key value (for display).
+    ///
+    /// The current Admin API field is `partial_key_hint`; `partial_key` is accepted
+    /// for backwards compatibility.
+    #[serde(rename = "partial_key_hint", alias = "partial_key", default)]
+    pub partial_key_hint: Option<String>,
     /// API key status
     pub status: Option<String>,
     /// API key permissions
@@ -325,11 +834,14 @@ pub struct ApiKey {
     /// Rate limits for this key
     pub rate_limits: Option<HashMap<String, u32>>,
     /// When the key was created
-    pub created_at: DateTime<Utc>,
+    pub created_at: Option<DateTime<Utc>>,
     /// When the key was last used
     pub last_used_at: Option<DateTime<Utc>>,
     /// When the key expires
     pub expires_at: Option<DateTime<Utc>>,
+    /// Additional fields not yet modeled explicitly.
+    #[serde(flatten, default)]
+    pub extra: HashMap<String, serde_json::Value>,
 }
 
 /// Request to create a new API key
@@ -446,6 +958,66 @@ impl Default for ApiKeyUpdateRequest {
 
 /// Response when listing API keys
 pub type ApiKeyListResponse = PaginatedResponse<ApiKey>;
+
+/// API key list query parameters for Admin API.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct ApiKeyListParams {
+    /// Number of items to return.
+    pub limit: Option<u32>,
+    /// Pagination cursor for forward traversal.
+    pub after_id: Option<String>,
+    /// Pagination cursor for backward traversal.
+    pub before_id: Option<String>,
+    /// Filter by workspace.
+    pub workspace_id: Option<String>,
+    /// Filter by status.
+    pub status: Option<String>,
+    /// Filter by creator user.
+    pub created_by_user_id: Option<String>,
+}
+
+impl ApiKeyListParams {
+    /// Create a new empty list params object.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set limit.
+    pub fn with_limit(mut self, limit: u32) -> Self {
+        self.limit = Some(limit);
+        self
+    }
+
+    /// Set after cursor.
+    pub fn with_after_id(mut self, after_id: impl Into<String>) -> Self {
+        self.after_id = Some(after_id.into());
+        self
+    }
+
+    /// Set before cursor.
+    pub fn with_before_id(mut self, before_id: impl Into<String>) -> Self {
+        self.before_id = Some(before_id.into());
+        self
+    }
+
+    /// Filter by workspace ID.
+    pub fn with_workspace_id(mut self, workspace_id: impl Into<String>) -> Self {
+        self.workspace_id = Some(workspace_id.into());
+        self
+    }
+
+    /// Filter by status.
+    pub fn with_status(mut self, status: impl Into<String>) -> Self {
+        self.status = Some(status.into());
+        self
+    }
+
+    /// Filter by creator user ID.
+    pub fn with_created_by_user_id(mut self, created_by_user_id: impl Into<String>) -> Self {
+        self.created_by_user_id = Some(created_by_user_id.into());
+        self
+    }
+}
 
 /// Usage report
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -581,6 +1153,491 @@ impl Default for UsageQuery {
 /// Response when listing usage reports
 pub type UsageReportListResponse = PaginatedResponse<UsageReport>;
 
+/// Query parameters for `/organizations/usage_report/messages`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MessageUsageReportParams {
+    /// Inclusive start timestamp for the report window.
+    pub starting_at: DateTime<Utc>,
+    /// Exclusive end timestamp for the report window.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ending_at: Option<DateTime<Utc>>,
+    /// Filter by API key IDs.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_key_ids: Option<Vec<String>>,
+    /// Optional report granularity / bucket width.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bucket_width: Option<String>,
+    /// Filter by context window.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_window: Option<Vec<String>>,
+    /// Optional fields to group by.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group_by: Option<Vec<String>>,
+    /// Filter by inference geography.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inference_geos: Option<Vec<String>>,
+    /// Filter by model IDs.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub models: Option<Vec<String>>,
+    /// Optional pagination token.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page: Option<String>,
+    /// Filter by service tiers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub service_tiers: Option<Vec<String>>,
+    /// Filter by speed category.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub speeds: Option<Vec<String>>,
+    /// Filter by workspace IDs.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workspace_ids: Option<Vec<String>>,
+    /// Optional item count limit.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u32>,
+}
+
+impl MessageUsageReportParams {
+    /// Create usage-report parameters.
+    pub fn new(starting_at: DateTime<Utc>) -> Self {
+        Self {
+            starting_at,
+            ending_at: None,
+            api_key_ids: None,
+            bucket_width: None,
+            context_window: None,
+            group_by: None,
+            inference_geos: None,
+            models: None,
+            page: None,
+            service_tiers: None,
+            speeds: None,
+            workspace_ids: None,
+            limit: None,
+        }
+    }
+
+    /// Set report ending timestamp.
+    pub fn ending_at(mut self, ending_at: DateTime<Utc>) -> Self {
+        self.ending_at = Some(ending_at);
+        self
+    }
+
+    /// Filter by API key IDs.
+    pub fn api_key_ids(mut self, api_key_ids: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        self.api_key_ids = Some(api_key_ids.into_iter().map(|v| v.into()).collect());
+        self
+    }
+
+    /// Set bucket width (for example `1h` or `1d`).
+    pub fn bucket_width(mut self, bucket_width: impl Into<String>) -> Self {
+        self.bucket_width = Some(bucket_width.into());
+        self
+    }
+
+    /// Filter by context window identifiers.
+    pub fn context_window(
+        mut self,
+        context_window: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        self.context_window = Some(context_window.into_iter().map(|v| v.into()).collect());
+        self
+    }
+
+    /// Set grouping dimensions.
+    pub fn group_by(mut self, group_by: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        self.group_by = Some(group_by.into_iter().map(|v| v.into()).collect());
+        self
+    }
+
+    /// Filter by inference geographies.
+    pub fn inference_geos(
+        mut self,
+        inference_geos: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        self.inference_geos = Some(inference_geos.into_iter().map(|v| v.into()).collect());
+        self
+    }
+
+    /// Filter by model IDs.
+    pub fn models(mut self, models: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        self.models = Some(models.into_iter().map(|v| v.into()).collect());
+        self
+    }
+
+    /// Set pagination token.
+    pub fn page(mut self, page: impl Into<String>) -> Self {
+        self.page = Some(page.into());
+        self
+    }
+
+    /// Filter by service tiers.
+    pub fn service_tiers(
+        mut self,
+        service_tiers: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        self.service_tiers = Some(service_tiers.into_iter().map(|v| v.into()).collect());
+        self
+    }
+
+    /// Filter by speeds.
+    pub fn speeds(mut self, speeds: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        self.speeds = Some(speeds.into_iter().map(|v| v.into()).collect());
+        self
+    }
+
+    /// Filter by workspace IDs.
+    pub fn workspace_ids(
+        mut self,
+        workspace_ids: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        self.workspace_ids = Some(workspace_ids.into_iter().map(|v| v.into()).collect());
+        self
+    }
+
+    /// Set result limit.
+    pub fn limit(mut self, limit: u32) -> Self {
+        self.limit = Some(limit);
+        self
+    }
+}
+
+/// Query parameters for `/organizations/cost_report`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MessageCostReportParams {
+    /// Inclusive start timestamp for the report window.
+    pub starting_at: DateTime<Utc>,
+    /// Exclusive end timestamp for the report window.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ending_at: Option<DateTime<Utc>>,
+    /// Optional report granularity / bucket width.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bucket_width: Option<String>,
+    /// Optional fields to group by.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group_by: Option<Vec<String>>,
+    /// Optional invoice ID filter.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub invoice_id: Option<String>,
+    /// Optional pagination token.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page: Option<String>,
+    /// Filter by service tiers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub service_tiers: Option<Vec<String>>,
+    /// Filter by workspace IDs.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workspace_ids: Option<Vec<String>>,
+    /// Optional item count limit.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u32>,
+}
+
+impl MessageCostReportParams {
+    /// Create cost-report parameters.
+    pub fn new(starting_at: DateTime<Utc>) -> Self {
+        Self {
+            starting_at,
+            ending_at: None,
+            bucket_width: None,
+            group_by: None,
+            invoice_id: None,
+            page: None,
+            service_tiers: None,
+            workspace_ids: None,
+            limit: None,
+        }
+    }
+
+    /// Set report ending timestamp.
+    pub fn ending_at(mut self, ending_at: DateTime<Utc>) -> Self {
+        self.ending_at = Some(ending_at);
+        self
+    }
+
+    /// Set bucket width (for example `1h` or `1d`).
+    pub fn bucket_width(mut self, bucket_width: impl Into<String>) -> Self {
+        self.bucket_width = Some(bucket_width.into());
+        self
+    }
+
+    /// Set grouping dimensions.
+    pub fn group_by(mut self, group_by: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        self.group_by = Some(group_by.into_iter().map(|v| v.into()).collect());
+        self
+    }
+
+    /// Filter by invoice ID.
+    pub fn invoice_id(mut self, invoice_id: impl Into<String>) -> Self {
+        self.invoice_id = Some(invoice_id.into());
+        self
+    }
+
+    /// Set pagination token.
+    pub fn page(mut self, page: impl Into<String>) -> Self {
+        self.page = Some(page.into());
+        self
+    }
+
+    /// Filter by service tiers.
+    pub fn service_tiers(
+        mut self,
+        service_tiers: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        self.service_tiers = Some(service_tiers.into_iter().map(|v| v.into()).collect());
+        self
+    }
+
+    /// Filter by workspace IDs.
+    pub fn workspace_ids(
+        mut self,
+        workspace_ids: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        self.workspace_ids = Some(workspace_ids.into_iter().map(|v| v.into()).collect());
+        self
+    }
+
+    /// Set result limit.
+    pub fn limit(mut self, limit: u32) -> Self {
+        self.limit = Some(limit);
+        self
+    }
+}
+
+/// Usage-report bucket for messages usage endpoint.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct MessageUsageReportBucket {
+    /// Bucket start timestamp.
+    #[serde(default)]
+    pub starting_at: Option<DateTime<Utc>>,
+    /// Bucket end timestamp.
+    #[serde(default)]
+    pub ending_at: Option<DateTime<Utc>>,
+    /// Message request count.
+    #[serde(default)]
+    pub request_count: Option<u64>,
+    /// Input tokens.
+    #[serde(default)]
+    pub input_tokens: Option<u64>,
+    /// Output tokens.
+    #[serde(default)]
+    pub output_tokens: Option<u64>,
+    /// Cache writes.
+    #[serde(default)]
+    pub cache_creation_input_tokens: Option<u64>,
+    /// Cache reads.
+    #[serde(default)]
+    pub cache_read_input_tokens: Option<u64>,
+    /// Additional fields returned by grouped reports.
+    #[serde(flatten)]
+    pub extra: HashMap<String, serde_json::Value>,
+}
+
+/// Cost-report bucket for messages cost endpoint.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct MessageCostReportBucket {
+    /// Bucket start timestamp.
+    #[serde(default)]
+    pub starting_at: Option<DateTime<Utc>>,
+    /// Bucket end timestamp.
+    #[serde(default)]
+    pub ending_at: Option<DateTime<Utc>>,
+    /// Additional dynamic cost breakdown fields.
+    #[serde(flatten)]
+    pub extra: HashMap<String, serde_json::Value>,
+}
+
+/// Query parameters for `/organizations/usage_report/claude_code`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ClaudeCodeUsageReportParams {
+    /// Inclusive report start date.
+    pub starting_at: chrono::NaiveDate,
+    /// Exclusive report end date.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ending_at: Option<chrono::NaiveDate>,
+    /// Optional page size.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u32>,
+    /// Optional pagination token.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page: Option<String>,
+    /// Optional customer organization filter.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub organization_id: Option<String>,
+    /// Optional customer type filter.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub customer_type: Option<String>,
+    /// Optional terminal type filter.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub terminal_type: Option<String>,
+}
+
+impl ClaudeCodeUsageReportParams {
+    /// Create params with a required start date.
+    pub fn new(starting_at: chrono::NaiveDate) -> Self {
+        Self {
+            starting_at,
+            ending_at: None,
+            limit: None,
+            page: None,
+            organization_id: None,
+            customer_type: None,
+            terminal_type: None,
+        }
+    }
+
+    /// Set report end date.
+    pub fn ending_at(mut self, ending_at: chrono::NaiveDate) -> Self {
+        self.ending_at = Some(ending_at);
+        self
+    }
+
+    /// Set pagination size.
+    pub fn limit(mut self, limit: u32) -> Self {
+        self.limit = Some(limit);
+        self
+    }
+
+    /// Set pagination token.
+    pub fn page(mut self, page: impl Into<String>) -> Self {
+        self.page = Some(page.into());
+        self
+    }
+
+    /// Filter by organization.
+    pub fn organization_id(mut self, organization_id: impl Into<String>) -> Self {
+        self.organization_id = Some(organization_id.into());
+        self
+    }
+
+    /// Filter by customer type.
+    pub fn customer_type(mut self, customer_type: impl Into<String>) -> Self {
+        self.customer_type = Some(customer_type.into());
+        self
+    }
+
+    /// Filter by terminal type.
+    pub fn terminal_type(mut self, terminal_type: impl Into<String>) -> Self {
+        self.terminal_type = Some(terminal_type.into());
+        self
+    }
+}
+
+/// Actor info for Claude Code usage reporting.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct ClaudeCodeUsageActor {
+    /// Actor type.
+    #[serde(rename = "type", default)]
+    pub actor_type: Option<String>,
+    /// User email address, when available.
+    #[serde(default)]
+    pub email_address: Option<String>,
+    /// API key name, when available.
+    #[serde(default)]
+    pub api_key_name: Option<String>,
+    /// Additional actor fields.
+    #[serde(flatten, default)]
+    pub extra: HashMap<String, serde_json::Value>,
+}
+
+/// Core Claude Code metrics.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct ClaudeCodeCoreMetrics {
+    /// Number of sessions.
+    #[serde(default)]
+    pub num_sessions: Option<u64>,
+    /// Number of lines of code added.
+    #[serde(default)]
+    pub num_lines_of_code_added: Option<u64>,
+    /// Number of lines of code removed.
+    #[serde(default)]
+    pub num_lines_of_code_removed: Option<u64>,
+    /// Number of commits made by Claude Code.
+    #[serde(default)]
+    pub num_commits_by_claude_code: Option<u64>,
+    /// Number of pull requests created by Claude Code.
+    #[serde(default)]
+    pub num_pull_requests_created_by_claude_code: Option<u64>,
+    /// Additional metrics not yet explicitly modeled.
+    #[serde(flatten, default)]
+    pub extra: HashMap<String, serde_json::Value>,
+}
+
+/// Per-tool accept/reject metrics in Claude Code reporting.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct ClaudeCodeToolMetric {
+    /// Accepted suggestion count.
+    #[serde(default, alias = "accepted")]
+    pub accepted_count: Option<u64>,
+    /// Rejected suggestion count.
+    #[serde(default, alias = "rejected")]
+    pub rejected_count: Option<u64>,
+    /// Additional tool metric fields.
+    #[serde(flatten, default)]
+    pub extra: HashMap<String, serde_json::Value>,
+}
+
+/// Claude Code usage report row.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct ClaudeCodeUsageReportRow {
+    /// Report date.
+    #[serde(default)]
+    pub date: Option<chrono::NaiveDate>,
+    /// Actor metadata.
+    #[serde(default)]
+    pub actor: Option<ClaudeCodeUsageActor>,
+    /// Core usage metrics.
+    #[serde(default)]
+    pub core_metrics: Option<ClaudeCodeCoreMetrics>,
+    /// Tool-level metrics.
+    #[serde(default)]
+    pub tool_metrics: Option<HashMap<String, ClaudeCodeToolMetric>>,
+    /// Additional row fields.
+    #[serde(flatten, default)]
+    pub extra: HashMap<String, serde_json::Value>,
+}
+
+/// Messages usage report response.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct MessageUsageReportResponse {
+    /// Report data buckets.
+    #[serde(default)]
+    pub data: Vec<MessageUsageReportBucket>,
+    /// Indicates whether another page is available.
+    #[serde(default)]
+    pub has_more: bool,
+    /// Pagination token for the next page.
+    #[serde(default)]
+    pub next_page: Option<String>,
+}
+
+/// Messages cost report response.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct MessageCostReportResponse {
+    /// Report data buckets.
+    #[serde(default)]
+    pub data: Vec<MessageCostReportBucket>,
+    /// Indicates whether another page is available.
+    #[serde(default)]
+    pub has_more: bool,
+    /// Pagination token for the next page.
+    #[serde(default)]
+    pub next_page: Option<String>,
+}
+
+/// Claude Code usage report response.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct ClaudeCodeUsageReportResponse {
+    /// Report data rows.
+    #[serde(default)]
+    pub data: Vec<ClaudeCodeUsageReportRow>,
+    /// Indicates whether another page is available.
+    #[serde(default)]
+    pub has_more: bool,
+    /// Pagination token for the next page.
+    #[serde(default)]
+    pub next_page: Option<String>,
+}
+
 /// API key usage information
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ApiKeyUsage {
@@ -592,4 +1649,151 @@ pub struct ApiKeyUsage {
     pub usage: ModelUsage,
     /// Cost information
     pub cost: Option<CostInfo>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{TimeZone, Utc};
+    use serde_json::json;
+
+    #[test]
+    fn test_message_usage_report_params_builder() {
+        let start = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        let end = Utc.with_ymd_and_hms(2026, 1, 2, 0, 0, 0).unwrap();
+
+        let params = MessageUsageReportParams::new(start)
+            .ending_at(end)
+            .bucket_width("1h")
+            .group_by(["model", "workspace_id"])
+            .models(["claude-sonnet-4-5"])
+            .page("page_1")
+            .limit(100);
+
+        assert_eq!(params.bucket_width.as_deref(), Some("1h"));
+        assert_eq!(params.group_by.unwrap().len(), 2);
+        assert_eq!(params.page.as_deref(), Some("page_1"));
+        assert_eq!(
+            params
+                .models
+                .as_ref()
+                .and_then(|m| m.first())
+                .map(|m| m.as_str()),
+            Some("claude-sonnet-4-5")
+        );
+        assert_eq!(params.limit, Some(100));
+    }
+
+    #[test]
+    fn test_message_usage_report_response_deserialization() {
+        let response: MessageUsageReportResponse = serde_json::from_value(json!({
+            "data": [{
+                "starting_at": "2026-01-01T00:00:00Z",
+                "ending_at": "2026-01-01T01:00:00Z",
+                "request_count": 42,
+                "input_tokens": 1200,
+                "output_tokens": 500,
+                "workspace_id": "ws_123"
+            }],
+            "has_more": false,
+            "next_page": "page_2"
+        }))
+        .unwrap();
+
+        assert_eq!(response.data.len(), 1);
+        assert_eq!(response.next_page.as_deref(), Some("page_2"));
+        assert_eq!(response.data[0].request_count, Some(42));
+        assert_eq!(
+            response.data[0].extra.get("workspace_id"),
+            Some(&json!("ws_123"))
+        );
+    }
+
+    #[test]
+    fn test_message_cost_report_response_deserialization() {
+        let response: MessageCostReportResponse = serde_json::from_value(json!({
+            "data": [{
+                "starting_at": "2026-01-01T00:00:00Z",
+                "ending_at": "2026-01-01T01:00:00Z",
+                "amount": "1.23",
+                "currency": "USD"
+            }],
+            "has_more": false,
+            "next_page": null
+        }))
+        .unwrap();
+
+        assert_eq!(response.data.len(), 1);
+        assert!(response.next_page.is_none());
+        assert_eq!(response.data[0].extra.get("currency"), Some(&json!("USD")));
+    }
+
+    #[test]
+    fn test_claude_code_usage_report_response_deserialization() {
+        let response: ClaudeCodeUsageReportResponse = serde_json::from_value(json!({
+            "data": [{
+                "date": "2026-01-01",
+                "actor": {
+                    "type": "user",
+                    "email_address": "dev@example.com"
+                },
+                "core_metrics": {
+                    "num_sessions": 4,
+                    "num_lines_of_code_added": 120
+                },
+                "tool_metrics": {
+                    "edit_file": {
+                        "accepted_count": 8,
+                        "rejected_count": 1
+                    }
+                }
+            }],
+            "has_more": false
+        }))
+        .unwrap();
+
+        assert_eq!(response.data.len(), 1);
+        assert_eq!(
+            response.data[0]
+                .actor
+                .as_ref()
+                .and_then(|a| a.email_address.as_deref()),
+            Some("dev@example.com")
+        );
+    }
+
+    #[test]
+    fn test_invite_create_request_serialization() {
+        let req = InviteCreateRequest::new("user@example.com", InviteCreateRole::Developer);
+        let json = serde_json::to_value(req).unwrap();
+
+        assert_eq!(json["email"], "user@example.com");
+        assert_eq!(json["role"], "developer");
+    }
+
+    #[test]
+    fn test_user_list_params_builder() {
+        let params = UserListParams::new()
+            .with_limit(10)
+            .with_after_id("after_1")
+            .with_before_id("before_1")
+            .with_email("user@example.com");
+
+        assert_eq!(params.limit, Some(10));
+        assert_eq!(params.after_id.as_deref(), Some("after_1"));
+        assert_eq!(params.before_id.as_deref(), Some("before_1"));
+        assert_eq!(params.email.as_deref(), Some("user@example.com"));
+    }
+
+    #[test]
+    fn test_workspace_member_create_request_serialization() {
+        let req = WorkspaceMemberCreateRequest::new(
+            "usr_123",
+            WorkspaceMemberCreateRole::WorkspaceDeveloper,
+        );
+        let json = serde_json::to_value(req).unwrap();
+
+        assert_eq!(json["user_id"], "usr_123");
+        assert_eq!(json["workspace_role"], "workspace_developer");
+    }
 }

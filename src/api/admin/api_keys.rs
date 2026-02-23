@@ -1,10 +1,12 @@
 //! API Keys Admin API implementation
 
 use crate::{
-    api::utils::{build_paginated_path, create_default_pagination},
+    api::utils::build_path_with_query,
     client::Client,
-    error::Result,
-    models::admin::{ApiKey, ApiKeyCreateRequest, ApiKeyListResponse, ApiKeyUpdateRequest},
+    error::{AnthropicError, Result},
+    models::admin::{
+        ApiKey, ApiKeyCreateRequest, ApiKeyListParams, ApiKeyListResponse, ApiKeyUpdateRequest,
+    },
     types::{HttpMethod, Pagination, RequestOptions},
 };
 
@@ -27,16 +29,54 @@ impl ApiKeysApi {
         pagination: Option<Pagination>,
         options: Option<RequestOptions>,
     ) -> Result<ApiKeyListResponse> {
-        let base_path = if let Some(workspace_id) = workspace_id {
-            format!("/organization/workspaces/{}/api_keys", workspace_id)
-        } else {
-            "/organization/api_keys".to_string()
-        };
+        let mut params = ApiKeyListParams::new();
+        if let Some(workspace_id) = workspace_id {
+            params = params.with_workspace_id(workspace_id);
+        }
+        if let Some(pagination) = pagination {
+            if let Some(limit) = pagination.limit {
+                params = params.with_limit(limit);
+            }
+            if let Some(after) = pagination.after {
+                params = params.with_after_id(after);
+            }
+            if let Some(before) = pagination.before {
+                params = params.with_before_id(before);
+            }
+        }
 
-        let path = build_paginated_path(&base_path, pagination.as_ref());
+        self.list_with_params(params, options).await
+    }
 
+    /// List API keys with full Admin API filters.
+    pub async fn list_with_params(
+        &self,
+        params: ApiKeyListParams,
+        options: Option<RequestOptions>,
+    ) -> Result<ApiKeyListResponse> {
+        let mut query = Vec::new();
+        if let Some(limit) = params.limit {
+            query.push(format!("limit={}", limit));
+        }
+        if let Some(after_id) = params.after_id {
+            query.push(format!("after_id={}", after_id));
+        }
+        if let Some(before_id) = params.before_id {
+            query.push(format!("before_id={}", before_id));
+        }
+        if let Some(workspace_id) = params.workspace_id {
+            query.push(format!("workspace_id={}", workspace_id));
+        }
+        if let Some(status) = params.status {
+            query.push(format!("status={}", status));
+        }
+        if let Some(created_by_user_id) = params.created_by_user_id {
+            query.push(format!("created_by_user_id={}", created_by_user_id));
+        }
+
+        let path = build_path_with_query("/organizations/api_keys", query);
         self.client
-            .request(HttpMethod::Get, &path, None, options)
+            .request_admin(HttpMethod::Get, &path, None, options)
             .await
     }
 
@@ -47,37 +87,28 @@ impl ApiKeysApi {
         workspace_id: Option<&str>,
         options: Option<RequestOptions>,
     ) -> Result<ApiKey> {
-        let path = if let Some(workspace_id) = workspace_id {
-            format!(
-                "/organization/workspaces/{}/api_keys/{}",
-                workspace_id, api_key_id
-            )
-        } else {
-            format!("/organization/api_keys/{}", api_key_id)
-        };
+        let _ = workspace_id;
+        let path = format!("/organizations/api_keys/{}", api_key_id);
 
         self.client
-            .request(HttpMethod::Get, &path, None, options)
+            .request_admin(HttpMethod::Get, &path, None, options)
             .await
     }
 
-    /// Create a new API key
+    /// Create a new API key.
+    ///
+    /// The current Admin API does not support API-key creation programmatically.
     pub async fn create(
         &self,
-        request: ApiKeyCreateRequest,
+        _request: ApiKeyCreateRequest,
         workspace_id: Option<&str>,
         options: Option<RequestOptions>,
     ) -> Result<ApiKey> {
-        let path = if let Some(workspace_id) = workspace_id {
-            format!("/organization/workspaces/{}/api_keys", workspace_id)
-        } else {
-            "/organization/api_keys".to_string()
-        };
-
-        let body = serde_json::to_value(request)?;
-        self.client
-            .request(HttpMethod::Post, &path, Some(body), options)
-            .await
+        let _ = workspace_id;
+        let _ = options;
+        Err(AnthropicError::invalid_input(
+            "Creating Admin API keys via API is not supported by the current Anthropic Admin API",
+        ))
     }
 
     /// Update an API key
@@ -88,63 +119,47 @@ impl ApiKeysApi {
         workspace_id: Option<&str>,
         options: Option<RequestOptions>,
     ) -> Result<ApiKey> {
-        let path = if let Some(workspace_id) = workspace_id {
-            format!(
-                "/organization/workspaces/{}/api_keys/{}",
-                workspace_id, api_key_id
-            )
-        } else {
-            format!("/organization/api_keys/{}", api_key_id)
-        };
+        let _ = workspace_id;
+        let path = format!("/organizations/api_keys/{}", api_key_id);
 
         let body = serde_json::to_value(request)?;
         self.client
-            .request(HttpMethod::Patch, &path, Some(body), options)
+            .request_admin(HttpMethod::Post, &path, Some(body), options)
             .await
     }
 
-    /// Rotate an API key
+    /// Rotate an API key.
+    ///
+    /// Not currently supported by the public Admin API.
     pub async fn rotate(
         &self,
         api_key_id: &str,
         workspace_id: Option<&str>,
         options: Option<RequestOptions>,
     ) -> Result<ApiKey> {
-        let path = if let Some(workspace_id) = workspace_id {
-            format!(
-                "/organization/workspaces/{}/api_keys/{}/rotate",
-                workspace_id, api_key_id
-            )
-        } else {
-            format!("/organization/api_keys/{}/rotate", api_key_id)
-        };
-
-        self.client
-            .request(HttpMethod::Post, &path, None, options)
-            .await
+        let _ = api_key_id;
+        let _ = workspace_id;
+        let _ = options;
+        Err(AnthropicError::invalid_input(
+            "Rotating Admin API keys via API is not supported by the current Anthropic Admin API",
+        ))
     }
 
-    /// Delete an API key
+    /// Delete an API key.
+    ///
+    /// Not currently supported by the public Admin API.
     pub async fn delete(
         &self,
         api_key_id: &str,
         workspace_id: Option<&str>,
         options: Option<RequestOptions>,
     ) -> Result<()> {
-        let path = if let Some(workspace_id) = workspace_id {
-            format!(
-                "/organization/workspaces/{}/api_keys/{}",
-                workspace_id, api_key_id
-            )
-        } else {
-            format!("/organization/api_keys/{}", api_key_id)
-        };
-
-        let _: serde_json::Value = self
-            .client
-            .request(HttpMethod::Delete, &path, None, options)
-            .await?;
-        Ok(())
+        let _ = api_key_id;
+        let _ = workspace_id;
+        let _ = options;
+        Err(AnthropicError::invalid_input(
+            "Deleting Admin API keys via API is not supported by the current Anthropic Admin API",
+        ))
     }
 
     /// List all API keys (convenience method)
@@ -154,13 +169,18 @@ impl ApiKeysApi {
         options: Option<RequestOptions>,
     ) -> Result<Vec<ApiKey>> {
         let mut all_keys = Vec::new();
-        let mut after = None;
+        let mut after_id: Option<String> = None;
 
         loop {
-            let pagination = create_default_pagination(after);
-            let response = self
-                .list(workspace_id, Some(pagination), options.clone())
-                .await?;
+            let mut params = ApiKeyListParams::new().with_limit(100);
+            if let Some(workspace_id) = workspace_id {
+                params = params.with_workspace_id(workspace_id);
+            }
+            if let Some(after_id_value) = &after_id {
+                params = params.with_after_id(after_id_value.clone());
+            }
+
+            let response = self.list_with_params(params, options.clone()).await?;
 
             all_keys.extend(response.data);
 
@@ -168,7 +188,7 @@ impl ApiKeysApi {
                 break;
             }
 
-            after = response.last_id;
+            after_id = response.last_id;
         }
 
         Ok(all_keys)

@@ -17,12 +17,15 @@ pub mod beta_headers {
     pub const CONTEXT_1M: &str = "context-1m-2025-08-07";
     /// Extended thinking with tools beta header
     pub const EXTENDED_THINKING_TOOLS: &str = "extended-thinking-tools-2025-05-01";
+    /// Skills API beta header
+    pub const SKILLS_API: &str = "skills-2025-10-02";
 }
 
 use crate::{
     api::{
-        admin::AdminApi, files::FilesApi, message_batches::MessageBatchesApi,
-        messages::MessagesApi, models::ModelsApi,
+        admin::AdminApi, completions::CompletionsApi, files::FilesApi,
+        message_batches::MessageBatchesApi, messages::MessagesApi, models::ModelsApi,
+        skills::SkillsApi,
     },
     config::Config,
     error::{AnthropicError, Result},
@@ -84,6 +87,11 @@ impl Client {
         MessagesApi::new(self.clone())
     }
 
+    /// Access the legacy Text Completions API.
+    pub fn completions(&self) -> CompletionsApi {
+        CompletionsApi::new(self.clone())
+    }
+
     /// Access the Models API
     pub fn models(&self) -> ModelsApi {
         ModelsApi::new(self.clone())
@@ -97,6 +105,11 @@ impl Client {
     /// Access the Files API
     pub fn files(&self) -> FilesApi {
         FilesApi::new(self.clone())
+    }
+
+    /// Access the Skills API
+    pub fn skills(&self) -> SkillsApi {
+        SkillsApi::new(self.clone())
     }
 
     /// Access the Admin API (requires admin key)
@@ -122,6 +135,35 @@ impl Client {
     {
         let url = self.build_url(path)?;
         let headers = self.build_headers(&options)?;
+        let timeout = options
+            .as_ref()
+            .and_then(|o| o.timeout)
+            .unwrap_or(self.config.timeout);
+
+        if options.as_ref().map(|o| o.no_retry).unwrap_or(false) {
+            self.http_client
+                .request(method, &url, body, headers, timeout)
+                .await
+        } else {
+            self.retry_client
+                .request(method, &url, body, headers, timeout)
+                .await
+        }
+    }
+
+    /// Make a raw HTTP request to Admin API endpoints using admin authentication.
+    pub async fn request_admin<T>(
+        &self,
+        method: HttpMethod,
+        path: &str,
+        body: Option<serde_json::Value>,
+        options: Option<RequestOptions>,
+    ) -> Result<T>
+    where
+        T: DeserializeOwned,
+    {
+        let url = self.build_url(path)?;
+        let headers = self.build_admin_headers(&options)?;
         let timeout = options
             .as_ref()
             .and_then(|o| o.timeout)
@@ -165,13 +207,14 @@ impl Client {
         } else {
             &format!("/{}", path)
         };
-        let url_str = format!("{}/v1{}", self.config.base_url, path);
+        let base = self.config.base_url.as_str().trim_end_matches('/');
+        let url_str = format!("{}/v1{}", base, path);
 
         Url::parse(&url_str).map_err(|e| Self::config_error("Invalid URL", e))
     }
 
     /// Build HTTP headers for requests
-    fn build_headers(&self, options: &Option<RequestOptions>) -> Result<HeaderMap> {
+    pub(crate) fn build_headers(&self, options: &Option<RequestOptions>) -> Result<HeaderMap> {
         let mut headers = HeaderMap::new();
 
         // Add authentication header
@@ -216,6 +259,9 @@ impl Client {
             if options.enable_extended_thinking_tools {
                 beta_features.push(beta_headers::EXTENDED_THINKING_TOOLS);
             }
+            if options.enable_skills_api {
+                beta_features.push(beta_headers::SKILLS_API);
+            }
 
             // Add custom beta features from options
             beta_features.extend(options.beta_features.iter().map(|s| s.as_str()));
@@ -252,15 +298,18 @@ impl Client {
     ) -> Result<HeaderMap> {
         let mut headers = self.build_headers(options)?;
 
-        // Add admin auth header
-        if let Some(admin_key) = &self.config.admin_key {
-            let admin_auth_value = format!("Bearer {}", admin_key);
-            headers.insert(
-                "Authorization",
-                HeaderValue::from_str(&admin_auth_value)
-                    .map_err(|e| Self::config_error("Invalid admin auth header", e))?,
-            );
-        }
+        headers.remove("Authorization");
+
+        let admin_key =
+            self.config.admin_key.as_ref().ok_or_else(|| {
+                AnthropicError::auth("Admin key is required for admin operations")
+            })?;
+
+        headers.insert(
+            "x-api-key",
+            HeaderValue::from_str(admin_key)
+                .map_err(|e| Self::config_error("Invalid admin API key header", e))?,
+        );
 
         Ok(headers)
     }

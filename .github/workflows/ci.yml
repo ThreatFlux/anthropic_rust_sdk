@@ -17,7 +17,7 @@ env:
 jobs:
   test:
     name: Test Suite
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && fromJSON('["self-hosted","linux"]') || matrix.os }}
     strategy:
       fail-fast: false
       matrix:
@@ -88,7 +88,7 @@ jobs:
 
   coverage:
     name: Code Coverage
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     if: github.event_name != 'schedule'
     steps:
       - uses: actions/checkout@v6
@@ -114,7 +114,7 @@ jobs:
 
   security_audit:
     name: Security Audit
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     if: github.event_name != 'schedule'
     steps:
       - uses: actions/checkout@v6
@@ -130,7 +130,7 @@ jobs:
 
   msrv:
     name: Minimum Supported Rust Version
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     steps:
       - uses: actions/checkout@v6
       
@@ -144,7 +144,7 @@ jobs:
 
   examples:
     name: Build Examples
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     steps:
       - uses: actions/checkout@v6
       
@@ -161,7 +161,7 @@ jobs:
 
   dependency_check:
     name: Dependency Check
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     if: github.event_name == 'schedule'
     steps:
       - uses: actions/checkout@v6
@@ -177,7 +177,7 @@ jobs:
 
   license_check:
     name: License Check
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     steps:
       - uses: actions/checkout@v6
       
