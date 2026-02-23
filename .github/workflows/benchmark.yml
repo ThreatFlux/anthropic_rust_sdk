@@ -35,16 +35,23 @@ jobs:
         run: cargo install cargo-criterion
       
       - name: Run benchmarks
+        id: run_benchmarks
         run: |
-          # Create benchmarks if they exist
+          set -euo pipefail
           if [ -d "benches" ]; then
             cargo criterion --message-format=json > benchmark-results.json
+            if [ -s "benchmark-results.json" ]; then
+              echo "has_results=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "has_results=false" >> "$GITHUB_OUTPUT"
+            fi
           else
             echo "No benchmarks found, skipping..."
+            echo "has_results=false" >> "$GITHUB_OUTPUT"
           fi
       
       - name: Store benchmark result
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && steps.run_benchmarks.outputs.has_results == 'true'
         uses: benchmark-action/github-action-benchmark@v1
         with:
           name: Rust Benchmarks
