@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["HttpMethod","ModelCapability","RequestPriority","StreamEventType"],"struct":["ApiErrorResponse","PaginatedResponse","Pagination","RequestOptions"],"type":["ProgressCallback"]};
