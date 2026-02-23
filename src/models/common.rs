@@ -174,21 +174,16 @@ impl Tool {
 }
 
 /// Tool choice options
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(untagged)]
 pub enum ToolChoice {
     /// Auto tool selection
+    #[default]
     Auto,
     /// Any tool can be used
     Any,
     /// Specific tool must be used
     Tool { name: String },
-}
-
-impl Default for ToolChoice {
-    fn default() -> Self {
-        Self::Auto
-    }
 }
 
 /// Message metadata

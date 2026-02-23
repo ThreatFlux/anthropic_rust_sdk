@@ -209,18 +209,13 @@ pub enum ModelCapability {
 }
 
 /// Request priority level
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum RequestPriority {
     Low,
+    #[default]
     Normal,
     High,
-}
-
-impl Default for RequestPriority {
-    fn default() -> Self {
-        Self::Normal
-    }
 }
 
 /// Stream event type

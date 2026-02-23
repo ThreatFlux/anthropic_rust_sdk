@@ -15,6 +15,10 @@ use threatflux::{
     Client,
 };
 
+fn has_nonempty_api_key() -> bool {
+    matches!(std::env::var("ANTHROPIC_API_KEY"), Ok(value) if !value.trim().is_empty())
+}
+
 /// Test all available models with basic messages
 async fn test_all_models_basic_messages() -> Result<(), Box<dyn Error>> {
     let client = Client::from_env()?;
@@ -137,8 +141,8 @@ async fn test_streaming_responses() -> Result<(), Box<dyn Error>> {
 #[tokio::test]
 async fn test_batch_processing() -> Result<(), Box<dyn Error>> {
     // Skip test if no API key is provided
-    if std::env::var("ANTHROPIC_API_KEY").is_err() {
-        eprintln!("Skipping test: ANTHROPIC_API_KEY not set");
+    if !has_nonempty_api_key() {
+        eprintln!("Skipping test: ANTHROPIC_API_KEY not set or empty");
         return Ok(());
     }
 
@@ -473,8 +477,8 @@ async fn test_complete_e2e_suite() -> Result<(), Box<dyn Error>> {
     println!("========================================\n");
 
     // Check for API key
-    if std::env::var("ANTHROPIC_API_KEY").is_err() {
-        println!("❌ ANTHROPIC_API_KEY not set!");
+    if !has_nonempty_api_key() {
+        println!("❌ ANTHROPIC_API_KEY not set or empty!");
         println!("   Please set: export ANTHROPIC_API_KEY=your_key");
         return Ok(());
     }

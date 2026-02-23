@@ -14,7 +14,7 @@ categories = ["api-bindings", "web-programming::http-client"]
 
 [dependencies]
 # HTTP client
-reqwest = { version = "0.13.2", features = ["json", "stream", "multipart"] }
+reqwest = { version = "0.13.2", default-features = false, features = ["json", "stream", "multipart", "charset", "http2", "system-proxy"] }
 # Async runtime
 tokio = { version = "1.49.0", features = ["full"] }
 # JSON serialization
