@@ -174,6 +174,21 @@ impl SkillsApi {
 
     /// Convert a local directory into skill upload files.
     fn collect_dir_files(root: &Path) -> Result<Vec<std::path::PathBuf>> {
+        let root_metadata = std::fs::symlink_metadata(root).map_err(|e| {
+            AnthropicError::file_error(format!(
+                "Failed to read directory metadata {}: {}",
+                root.display(),
+                e
+            ))
+        })?;
+
+        if root_metadata.file_type().is_symlink() {
+            return Err(AnthropicError::file_error(format!(
+                "Symlinks are not allowed in skill directories: {}",
+                root.display()
+            )));
+        }
+
         if !root.exists() {
             return Err(AnthropicError::file_error(format!(
                 "Directory does not exist: {}",
@@ -204,10 +219,24 @@ impl SkillsApi {
                     AnthropicError::file_error(format!("Failed to read directory entry: {}", e))
                 })?;
                 let path = entry.path();
+                let file_type = entry.file_type().map_err(|e| {
+                    AnthropicError::file_error(format!(
+                        "Failed to read file type for {}: {}",
+                        path.display(),
+                        e
+                    ))
+                })?;
 
-                if path.is_dir() {
+                if file_type.is_symlink() {
+                    return Err(AnthropicError::file_error(format!(
+                        "Symlinks are not allowed in skill directories: {}",
+                        path.display()
+                    )));
+                }
+
+                if file_type.is_dir() {
                     stack.push(path);
-                } else if path.is_file() {
+                } else if file_type.is_file() {
                     files.push(path);
                 }
             }
@@ -582,6 +611,9 @@ mod tests {
     use super::SkillsApi;
     use tempfile::tempdir;
 
+    #[cfg(unix)]
+    use std::os::unix::fs::symlink;
+
     #[tokio::test]
     async fn test_build_upload_files_from_dir_preserves_root_dir_prefix() {
         let dir = tempdir().unwrap();
@@ -598,5 +630,23 @@ mod tests {
 
         assert!(names.contains(&"my_skill/SKILL.md"));
         assert!(names.contains(&"my_skill/docs/notes.txt"));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_build_upload_files_from_dir_rejects_symlinks() {
+        let dir = tempdir().unwrap();
+        let root = dir.path().join("my_skill");
+        std::fs::create_dir_all(&root).unwrap();
+
+        let external_file = dir.path().join("secret.txt");
+        std::fs::write(&external_file, "secret").unwrap();
+        symlink(&external_file, root.join("leak.txt")).unwrap();
+
+        let err = SkillsApi::build_upload_files_from_dir(&root)
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("Symlinks are not allowed"));
     }
 }
