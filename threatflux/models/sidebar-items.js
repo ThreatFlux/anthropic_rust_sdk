@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["admin","batch","common","completion","file","message","model","skill"]};
