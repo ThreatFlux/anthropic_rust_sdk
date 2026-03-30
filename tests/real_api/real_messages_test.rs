@@ -7,7 +7,7 @@
 mod real_api_tests {
     use threatflux::{Client, builders::MessageBuilder};
     use std::env;
-    use dotenv::dotenv;
+    use dotenvy::dotenv;
 
     fn setup_client() -> Option<Client> {
         dotenv().ok(); // Load .env file if present

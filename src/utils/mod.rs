@@ -10,4 +10,4 @@ pub use rate_limit::{
     AdaptiveRateLimiter, RateLimitConfig, RateLimitError, RateLimitMiddleware, RateLimitStats,
     RateLimiter,
 };
-pub use retry::{RetryClient, RetryPolicy, RetryStats};
+pub use retry::{ExponentialBackoff, RetryClient, RetryPolicy, RetryStats};

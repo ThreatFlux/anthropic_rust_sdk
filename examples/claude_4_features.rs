@@ -19,7 +19,7 @@ use threatflux::{
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     // Load environment variables
-    dotenv::dotenv().ok();
+    dotenvy::dotenv().ok();
 
     // Create client
     let client = Client::from_env()?;

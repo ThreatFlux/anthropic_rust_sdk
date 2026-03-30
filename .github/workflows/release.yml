@@ -8,10 +8,15 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+permissions:
+  contents: read
+
 jobs:
   create-release:
     name: Create Release
     runs-on: [self-hosted, linux]
+    permissions:
+      contents: write
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
       version: ${{ steps.get_version.outputs.version }}
@@ -52,6 +57,8 @@ jobs:
     name: Build Release
     needs: create-release
     runs-on: ${{ (matrix.os == 'windows-latest' || matrix.os == 'macos-latest') && matrix.os || fromJSON('["self-hosted","linux"]') }}
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:

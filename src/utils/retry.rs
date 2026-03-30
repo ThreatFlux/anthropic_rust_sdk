@@ -6,11 +6,73 @@ use crate::{
     types::HttpMethod,
     utils::http::{HttpClient, RateLimitInfo},
 };
-use backoff::{backoff::Backoff, ExponentialBackoff};
 use reqwest::header::HeaderMap;
 use serde::de::DeserializeOwned;
 use std::{sync::Arc, time::Duration};
 use url::Url;
+
+/// A lightweight exponential backoff state machine used by the retry client.
+#[derive(Debug, Clone)]
+pub struct ExponentialBackoff {
+    /// Initial delay between retries.
+    pub initial_interval: Duration,
+    /// Maximum delay between retries.
+    pub max_interval: Duration,
+    /// Delay growth factor applied after each attempt.
+    pub multiplier: f64,
+    /// Maximum total time the backoff sequence may consume.
+    pub max_elapsed_time: Option<Duration>,
+    /// Delay that will be returned on the next retry.
+    pub current_interval: Duration,
+    /// Total time already spent in retry delays.
+    pub elapsed_time: Duration,
+}
+
+impl Default for ExponentialBackoff {
+    fn default() -> Self {
+        Self {
+            initial_interval: Duration::from_millis(500),
+            max_interval: Duration::from_secs(60),
+            multiplier: 1.5,
+            max_elapsed_time: Some(Duration::from_secs(900)),
+            current_interval: Duration::ZERO,
+            elapsed_time: Duration::ZERO,
+        }
+    }
+}
+
+impl ExponentialBackoff {
+    /// Return the next delay in the backoff sequence.
+    pub fn next_backoff(&mut self) -> Option<Duration> {
+        let base_interval = self.initial_interval.min(self.max_interval);
+        let delay = if self.current_interval == Duration::ZERO {
+            base_interval
+        } else {
+            self.current_interval.min(self.max_interval)
+        };
+
+        if let Some(limit) = self.max_elapsed_time {
+            if self.elapsed_time >= limit || self.elapsed_time.saturating_add(delay) > limit {
+                return None;
+            }
+        }
+
+        self.elapsed_time = self.elapsed_time.saturating_add(delay);
+
+        let multiplier = if self.multiplier.is_finite() && self.multiplier > 0.0 {
+            self.multiplier
+        } else {
+            1.0
+        };
+
+        let next_delay = Duration::from_secs_f64(
+            (delay.as_secs_f64() * multiplier).min(self.max_interval.as_secs_f64()),
+        );
+        self.current_interval = next_delay.max(base_interval);
+
+        Some(delay)
+    }
+}
 
 /// Client wrapper that adds retry logic to HTTP requests
 #[derive(Clone)]
