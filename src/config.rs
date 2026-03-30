@@ -111,7 +111,7 @@ impl Config {
 
     /// Create configuration from environment variables
     pub fn from_env() -> Result<Self> {
-        dotenv::dotenv().ok(); // Ignore errors if .env file doesn't exist
+        dotenvy::dotenv().ok(); // Ignore errors if .env file doesn't exist
 
         let api_key = std::env::var("ANTHROPIC_API_KEY").map_err(|_| {
             AnthropicError::config("ANTHROPIC_API_KEY environment variable not set")

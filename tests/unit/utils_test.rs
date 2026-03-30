@@ -87,7 +87,7 @@ mod http_utils_tests {
 #[cfg(test)]
 mod retry_logic_tests {
     use super::*;
-    use backoff::{ExponentialBackoff, backoff::Backoff};
+    use threatflux::utils::retry::ExponentialBackoff;
 
     #[test]
     fn test_exponential_backoff() {
