@@ -218,11 +218,10 @@ impl Client {
         let mut headers = HeaderMap::new();
 
         // Add authentication header
-        let auth_value = format!("Bearer {}", self.config.api_key);
         headers.insert(
-            "Authorization",
-            HeaderValue::from_str(&auth_value)
-                .map_err(|e| Self::config_error("Invalid auth header", e))?,
+            "x-api-key",
+            HeaderValue::from_str(&self.config.api_key)
+                .map_err(|e| Self::config_error("Invalid API key header", e))?,
         );
 
         // Add API version header
@@ -297,8 +296,6 @@ impl Client {
         options: &Option<RequestOptions>,
     ) -> Result<HeaderMap> {
         let mut headers = self.build_headers(options)?;
-
-        headers.remove("Authorization");
 
         let admin_key =
             self.config.admin_key.as_ref().ok_or_else(|| {

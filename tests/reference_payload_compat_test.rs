@@ -32,6 +32,31 @@ fn test_messages_reference_response_payload_deserializes() {
 }
 
 #[test]
+fn test_messages_current_response_payload_without_created_at_deserializes() {
+    let response: MessageResponse = serde_json::from_value(json!({
+        "id": "msg_01JmQEqMJNh4jT3ghowevkax",
+        "type": "message",
+        "role": "assistant",
+        "content": [{"type": "text", "text": "SAGE_ANTHROPIC_TENANT_OK"}],
+        "model": "claude-haiku-4-5-20251001",
+        "stop_reason": "end_turn",
+        "stop_sequence": null,
+        "usage": {
+            "input_tokens": 14,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "output_tokens": 10,
+            "service_tier": "standard"
+        }
+    }))
+    .unwrap();
+
+    assert_eq!(response.text(), "SAGE_ANTHROPIC_TENANT_OK");
+    assert_eq!(response.usage.input_tokens, 14);
+    assert_eq!(response.usage.output_tokens, 10);
+}
+
+#[test]
 fn test_stop_reason_reference_values_deserialize() {
     let pause_turn: StopReason = serde_json::from_str("\"pause_turn\"").unwrap();
     let refusal: StopReason = serde_json::from_str("\"refusal\"").unwrap();

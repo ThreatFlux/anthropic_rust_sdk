@@ -1,5 +1,5 @@
 use serde_json::json;
-use threatflux::{types::Pagination, Client, Config};
+use threatflux::{builders::MessageBuilder, types::Pagination, Client, Config};
 use wiremock::{
     matchers::{header, method, path, query_param},
     Mock, MockServer, ResponseTemplate,
@@ -11,6 +11,54 @@ fn setup_admin_client(mock_server: &MockServer) -> Client {
         .with_admin_key("admin-api-key")
         .with_base_url(mock_server.uri().parse().unwrap());
     Client::new(config)
+}
+
+#[tokio::test]
+async fn test_standard_auth_uses_x_api_key_only() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .and(header("x-api-key", "regular-api-key"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "id": "msg_123",
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "text", "text": "Hello!"}],
+            "model": "claude-haiku-4-5-20251001",
+            "stop_reason": "end_turn",
+            "stop_sequence": null,
+            "usage": {
+                "input_tokens": 1,
+                "output_tokens": 1
+            }
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let config = Config::new("regular-api-key")
+        .unwrap()
+        .with_base_url(mock_server.uri().parse().unwrap());
+    let client = Client::new(config);
+    let request = MessageBuilder::new()
+        .model("claude-haiku-4-5-20251001")
+        .max_tokens(16)
+        .user("hello")
+        .build();
+
+    let _ = client.messages().create(request, None).await.unwrap();
+
+    let requests = mock_server.received_requests().await.unwrap();
+    assert_eq!(
+        requests[0]
+            .headers
+            .get("x-api-key")
+            .unwrap()
+            .to_str()
+            .unwrap(),
+        "regular-api-key"
+    );
+    assert!(!requests[0].headers.contains_key("authorization"));
 }
 
 #[tokio::test]

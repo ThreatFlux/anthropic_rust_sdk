@@ -453,6 +453,7 @@ pub struct MessageResponse {
     /// Token usage information
     pub usage: Usage,
     /// When the message was created
+    #[serde(default = "Utc::now")]
     pub created_at: DateTime<Utc>,
 }
 

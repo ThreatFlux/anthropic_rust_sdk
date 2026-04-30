@@ -15,7 +15,7 @@ This document provides tested cURL examples for all Anthropic API endpoints. The
 
 ## Authentication
 
-All API requests require authentication via the `Authorization` header:
+All API requests require authentication via the `x-api-key` header:
 
 ```bash
 export ANTHROPIC_API_KEY="your_api_key_here"
@@ -23,7 +23,7 @@ export ANTHROPIC_ADMIN_KEY="your_admin_key_here"  # For admin endpoints
 ```
 
 **Headers required for all requests:**
-- `Authorization: Bearer $ANTHROPIC_API_KEY`
+- `x-api-key: $ANTHROPIC_API_KEY`
 - `Content-Type: application/json`
 - `anthropic-version: 2023-06-01`
 
@@ -50,7 +50,7 @@ The Messages API allows you to send messages to Claude and receive responses.
 
 ```bash
 curl -X POST "https://api.anthropic.com/v1/messages" \
-  -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "Content-Type: application/json" \
   -H "anthropic-version: 2023-06-01" \
   -d '{
@@ -91,7 +91,7 @@ curl -X POST "https://api.anthropic.com/v1/messages" \
 
 ```bash
 curl -X POST "https://api.anthropic.com/v1/messages" \
-  -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "Content-Type: application/json" \
   -H "anthropic-version: 2023-06-01" \
   -d '{
@@ -112,7 +112,7 @@ curl -X POST "https://api.anthropic.com/v1/messages" \
 
 ```bash
 curl -X POST "https://api.anthropic.com/v1/messages" \
-  -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "Content-Type: application/json" \
   -H "anthropic-version: 2023-06-01" \
   -d '{
@@ -135,7 +135,7 @@ curl -X POST "https://api.anthropic.com/v1/messages" \
 
 ```bash
 curl -X POST "https://api.anthropic.com/v1/messages" \
-  -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "Content-Type: application/json" \
   -H "anthropic-version: 2023-06-01" \
   -H "anthropic-beta: context-1m-2025-08-07" \
@@ -155,7 +155,7 @@ curl -X POST "https://api.anthropic.com/v1/messages" \
 
 ```bash
 curl -X POST "https://api.anthropic.com/v1/messages" \
-  -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "Content-Type: application/json" \
   -H "anthropic-version: 2023-06-01" \
   -d '{
@@ -182,7 +182,7 @@ curl -X POST "https://api.anthropic.com/v1/messages" \
 
 ```bash
 curl -X POST "https://api.anthropic.com/v1/messages" \
-  -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "Content-Type: application/json" \
   -H "anthropic-version: 2023-06-01" \
   -d '{
@@ -222,7 +222,7 @@ data: {"type": "message_stop"}
 
 ```bash
 curl -X POST "https://api.anthropic.com/v1/messages" \
-  -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "Content-Type: application/json" \
   -H "anthropic-version: 2023-06-01" \
   -d '{
@@ -254,7 +254,7 @@ curl -X POST "https://api.anthropic.com/v1/messages" \
 
 ```bash
 curl -X POST "https://api.anthropic.com/v1/messages/count_tokens" \
-  -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "Content-Type: application/json" \
   -H "anthropic-version: 2023-06-01" \
   -d '{
@@ -283,7 +283,7 @@ The Models API provides information about available models.
 
 ```bash
 curl -X GET "https://api.anthropic.com/v1/models" \
-  -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "anthropic-version: 2023-06-01"
 ```
 
@@ -311,7 +311,7 @@ curl -X GET "https://api.anthropic.com/v1/models" \
 
 ```bash
 curl -X GET "https://api.anthropic.com/v1/models?limit=2&after=claude-3-haiku" \
-  -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "anthropic-version: 2023-06-01"
 ```
 
@@ -319,7 +319,7 @@ curl -X GET "https://api.anthropic.com/v1/models?limit=2&after=claude-3-haiku" \
 
 ```bash
 curl -X GET "https://api.anthropic.com/v1/models/claude-3-5-haiku-20241022" \
-  -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "anthropic-version: 2023-06-01"
 ```
 
@@ -348,7 +348,7 @@ The Message Batches API allows you to process multiple messages in a single batc
 
 ```bash
 curl -X POST "https://api.anthropic.com/v1/messages/batches" \
-  -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "Content-Type: application/json" \
   -H "anthropic-version: 2023-06-01" \
   -d '{
@@ -404,7 +404,7 @@ curl -X POST "https://api.anthropic.com/v1/messages/batches" \
 
 ```bash
 curl -X GET "https://api.anthropic.com/v1/messages/batches/batch_01ABC123..." \
-  -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "anthropic-version: 2023-06-01"
 ```
 
@@ -412,7 +412,7 @@ curl -X GET "https://api.anthropic.com/v1/messages/batches/batch_01ABC123..." \
 
 ```bash
 curl -X GET "https://api.anthropic.com/v1/messages/batches" \
-  -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "anthropic-version: 2023-06-01"
 ```
 
@@ -420,7 +420,7 @@ curl -X GET "https://api.anthropic.com/v1/messages/batches" \
 
 ```bash
 curl -X POST "https://api.anthropic.com/v1/messages/batches/batch_01ABC123.../cancel" \
-  -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "anthropic-version: 2023-06-01"
 ```
 
@@ -428,7 +428,7 @@ curl -X POST "https://api.anthropic.com/v1/messages/batches/batch_01ABC123.../ca
 
 ```bash
 curl -X DELETE "https://api.anthropic.com/v1/messages/batches/batch_01ABC123..." \
-  -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "anthropic-version: 2023-06-01"
 ```
 
@@ -440,7 +440,7 @@ The Files API allows you to upload and manage files.
 
 ```bash
 curl -X POST "https://api.anthropic.com/v1/files" \
-  -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
   -F "file=@document.pdf" \
   -F "purpose=user_data"
 ```
@@ -464,7 +464,7 @@ curl -X POST "https://api.anthropic.com/v1/files" \
 ```bash
 echo "This is test content for the API" > test.txt
 curl -X POST "https://api.anthropic.com/v1/files" \
-  -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
   -F "file=@test.txt" \
   -F "purpose=user_data"
 ```
@@ -473,7 +473,7 @@ curl -X POST "https://api.anthropic.com/v1/files" \
 
 ```bash
 curl -X GET "https://api.anthropic.com/v1/files" \
-  -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "anthropic-version: 2023-06-01"
 ```
 
@@ -481,7 +481,7 @@ curl -X GET "https://api.anthropic.com/v1/files" \
 
 ```bash
 curl -X GET "https://api.anthropic.com/v1/files?limit=10&after=file_01ABC123" \
-  -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "anthropic-version: 2023-06-01"
 ```
 
@@ -489,7 +489,7 @@ curl -X GET "https://api.anthropic.com/v1/files?limit=10&after=file_01ABC123" \
 
 ```bash
 curl -X GET "https://api.anthropic.com/v1/files/file_01ABC123..." \
-  -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "anthropic-version: 2023-06-01"
 ```
 
@@ -497,7 +497,7 @@ curl -X GET "https://api.anthropic.com/v1/files/file_01ABC123..." \
 
 ```bash
 curl -X GET "https://api.anthropic.com/v1/files/file_01ABC123.../download" \
-  -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "anthropic-version: 2023-06-01" \
   -o downloaded_file.pdf
 ```
@@ -506,7 +506,7 @@ curl -X GET "https://api.anthropic.com/v1/files/file_01ABC123.../download" \
 
 ```bash
 curl -X DELETE "https://api.anthropic.com/v1/files/file_01ABC123..." \
-  -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "anthropic-version: 2023-06-01"
 ```
 
@@ -518,7 +518,7 @@ The Admin API requires an admin key and provides access to organization manageme
 
 ```bash
 curl -X GET "https://api.anthropic.com/v1/organization" \
-  -H "Authorization: Bearer $ANTHROPIC_ADMIN_KEY" \
+  -H "x-api-key: $ANTHROPIC_ADMIN_KEY" \
   -H "anthropic-version: 2023-06-01"
 ```
 
@@ -540,7 +540,7 @@ curl -X GET "https://api.anthropic.com/v1/organization" \
 
 ```bash
 curl -X GET "https://api.anthropic.com/v1/organization/members" \
-  -H "Authorization: Bearer $ANTHROPIC_ADMIN_KEY" \
+  -H "x-api-key: $ANTHROPIC_ADMIN_KEY" \
   -H "anthropic-version: 2023-06-01"
 ```
 
@@ -548,7 +548,7 @@ curl -X GET "https://api.anthropic.com/v1/organization/members" \
 
 ```bash
 curl -X POST "https://api.anthropic.com/v1/organization/members" \
-  -H "Authorization: Bearer $ANTHROPIC_ADMIN_KEY" \
+  -H "x-api-key: $ANTHROPIC_ADMIN_KEY" \
   -H "Content-Type: application/json" \
   -H "anthropic-version: 2023-06-01" \
   -d '{
@@ -562,7 +562,7 @@ curl -X POST "https://api.anthropic.com/v1/organization/members" \
 
 ```bash
 curl -X GET "https://api.anthropic.com/v1/organization/workspaces" \
-  -H "Authorization: Bearer $ANTHROPIC_ADMIN_KEY" \
+  -H "x-api-key: $ANTHROPIC_ADMIN_KEY" \
   -H "anthropic-version: 2023-06-01"
 ```
 
@@ -570,7 +570,7 @@ curl -X GET "https://api.anthropic.com/v1/organization/workspaces" \
 
 ```bash
 curl -X POST "https://api.anthropic.com/v1/organization/workspaces" \
-  -H "Authorization: Bearer $ANTHROPIC_ADMIN_KEY" \
+  -H "x-api-key: $ANTHROPIC_ADMIN_KEY" \
   -H "Content-Type: application/json" \
   -H "anthropic-version: 2023-06-01" \
   -d '{
@@ -584,7 +584,7 @@ curl -X POST "https://api.anthropic.com/v1/organization/workspaces" \
 
 ```bash
 curl -X GET "https://api.anthropic.com/v1/organization/api_keys" \
-  -H "Authorization: Bearer $ANTHROPIC_ADMIN_KEY" \
+  -H "x-api-key: $ANTHROPIC_ADMIN_KEY" \
   -H "anthropic-version: 2023-06-01"
 ```
 
@@ -592,7 +592,7 @@ curl -X GET "https://api.anthropic.com/v1/organization/api_keys" \
 
 ```bash
 curl -X POST "https://api.anthropic.com/v1/organization/api_keys" \
-  -H "Authorization: Bearer $ANTHROPIC_ADMIN_KEY" \
+  -H "x-api-key: $ANTHROPIC_ADMIN_KEY" \
   -H "Content-Type: application/json" \
   -H "anthropic-version: 2023-06-01" \
   -d '{
@@ -606,7 +606,7 @@ curl -X POST "https://api.anthropic.com/v1/organization/api_keys" \
 
 ```bash
 curl -X GET "https://api.anthropic.com/v1/organization/usage?start_date=2024-01-01&end_date=2024-01-31" \
-  -H "Authorization: Bearer $ANTHROPIC_ADMIN_KEY" \
+  -H "x-api-key: $ANTHROPIC_ADMIN_KEY" \
   -H "anthropic-version: 2023-06-01"
 ```
 
@@ -668,7 +668,7 @@ All API endpoints return structured error responses for failures.
 **Invalid API key:**
 ```bash
 curl -X POST "https://api.anthropic.com/v1/messages" \
-  -H "Authorization: Bearer invalid-key" \
+  -H "x-api-key: invalid-key" \
   -H "Content-Type: application/json" \
   -H "anthropic-version: 2023-06-01" \
   -d '{
@@ -681,7 +681,7 @@ curl -X POST "https://api.anthropic.com/v1/messages" \
 **Invalid model:**
 ```bash
 curl -X POST "https://api.anthropic.com/v1/messages" \
-  -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "Content-Type: application/json" \
   -H "anthropic-version: 2023-06-01" \
   -d '{
@@ -708,7 +708,7 @@ for i in {1..10}; do
   echo "Request $i:"
   curl -s -w "Status: %{http_code}, Rate Limit Remaining: %{header_x-ratelimit-remaining}\n" \
     -X POST "https://api.anthropic.com/v1/messages" \
-    -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+    -H "x-api-key: $ANTHROPIC_API_KEY" \
     -H "Content-Type: application/json" \
     -H "anthropic-version: 2023-06-01" \
     -d '{
@@ -733,7 +733,7 @@ To test these examples with your own API key:
 2. **Test basic message:**
    ```bash
    curl -X POST "https://api.anthropic.com/v1/messages" \
-     -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+     -H "x-api-key: $ANTHROPIC_API_KEY" \
      -H "Content-Type: application/json" \
      -H "anthropic-version: 2023-06-01" \
      -d '{
@@ -746,14 +746,14 @@ To test these examples with your own API key:
 3. **Test models endpoint:**
    ```bash
    curl -X GET "https://api.anthropic.com/v1/models" \
-     -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+     -H "x-api-key: $ANTHROPIC_API_KEY" \
      -H "anthropic-version: 2023-06-01"
    ```
 
 4. **Test token counting:**
    ```bash
    curl -X POST "https://api.anthropic.com/v1/messages/count_tokens" \
-     -H "Authorization: Bearer $ANTHROPIC_API_KEY" \
+     -H "x-api-key: $ANTHROPIC_API_KEY" \
      -H "Content-Type: application/json" \
      -H "anthropic-version: 2023-06-01" \
      -d '{

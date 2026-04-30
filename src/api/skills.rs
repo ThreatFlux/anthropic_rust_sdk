@@ -39,11 +39,10 @@ impl SkillsApi {
     fn build_skill_headers(&self, options: &Option<RequestOptions>) -> Result<HeaderMap> {
         let mut headers = HeaderMap::new();
 
-        let auth_value = format!("Bearer {}", self.client.config().api_key);
         headers.insert(
-            "Authorization",
-            HeaderValue::from_str(&auth_value)
-                .map_err(|e| AnthropicError::config(format!("Invalid auth header: {}", e)))?,
+            "x-api-key",
+            HeaderValue::from_str(&self.client.config().api_key)
+                .map_err(|e| AnthropicError::config(format!("Invalid API key header: {}", e)))?,
         );
 
         headers.insert("anthropic-version", HeaderValue::from_static(API_VERSION));

@@ -7,7 +7,7 @@ use threatflux::{
     Client, Config,
 };
 use wiremock::{
-    matchers::{method, path, query_param},
+    matchers::{header, method, path, query_param},
     Mock, MockServer, ResponseTemplate,
 };
 
@@ -123,6 +123,7 @@ async fn test_create_skill_multipart_upload() {
 
     Mock::given(method("POST"))
         .and(path("/v1/skills"))
+        .and(header("x-api-key", "test-key"))
         .respond_with(ResponseTemplate::new(200).set_body_json(sample_skill_payload()))
         .mount(&mock_server)
         .await;
@@ -147,6 +148,7 @@ async fn test_create_skill_multipart_upload() {
         .to_str()
         .unwrap();
     assert!(beta_header.contains("skills-2025-10-02"));
+    assert!(!requests[0].headers.contains_key("authorization"));
 }
 
 #[tokio::test]

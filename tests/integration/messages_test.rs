@@ -49,6 +49,13 @@ mod messages_api_tests {
         assert_eq!(response.text(), "Test response");
         assert_eq!(response.model, "claude-3-5-haiku-20241022");
         assert!(response.usage.total_tokens() > 0);
+
+        let requests = mock_server.received_requests().await.unwrap();
+        assert_eq!(
+            requests[0].headers.get("x-api-key").unwrap().to_str().unwrap(),
+            "test-key"
+        );
+        assert!(!requests[0].headers.contains_key("authorization"));
     }
 
     #[tokio::test]
