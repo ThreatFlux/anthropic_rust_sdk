@@ -10,7 +10,7 @@ The **Threatflux Rust SDK** has been successfully created and tested with compre
 - **Version**: 0.1.0
 - **Authors**: Wyatt Roersma (wyattroersma@gmail.com), Claude Code, Codex
 - **License**: MIT
-- **Rust Version**: 1.89.0 (tested on 1.87.0)
+- **Rust Version**: 1.95.0
 - **Build Status**: ✅ **Successfully Compiles**
 
 ## 📊 Test Coverage Summary
