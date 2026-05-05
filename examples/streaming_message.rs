@@ -59,15 +59,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     full_response.push_str(text);
                 }
             }
-            StreamEvent::MessageDelta { usage, delta } => {
-                if delta.stop_reason.is_some() {
-                    println!(
-                        "\n\n📊 Final usage: {} input + {} output = {} total tokens",
-                        usage.input_tokens,
-                        usage.output_tokens,
-                        usage.total_tokens()
-                    );
-                }
+            StreamEvent::MessageDelta { usage, delta } if delta.stop_reason.is_some() => {
+                println!(
+                    "\n\n📊 Final usage: {} input + {} output = {} total tokens",
+                    usage.input_tokens,
+                    usage.output_tokens,
+                    usage.total_tokens()
+                );
             }
             StreamEvent::MessageStop => {
                 println!("\n\n✅ Stream completed!");

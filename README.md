@@ -423,7 +423,7 @@ Available features:
 
 ## Requirements
 
-- **Rust**: 1.89.0 or later
+- **Rust**: 1.95.0 or later
 - **Anthropic API Key**: Get one from the [Anthropic Console](https://console.anthropic.com/)
 - **Tokio**: For async runtime
 
