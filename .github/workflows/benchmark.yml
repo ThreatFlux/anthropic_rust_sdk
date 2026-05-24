@@ -15,7 +15,7 @@ permissions:
 jobs:
   benchmark:
     name: Performance Benchmarks
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     permissions:
       contents: write
       issues: write
