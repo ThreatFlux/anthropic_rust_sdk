@@ -15,7 +15,7 @@ permissions:
 jobs:
   build-docs:
     name: Build Documentation
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
