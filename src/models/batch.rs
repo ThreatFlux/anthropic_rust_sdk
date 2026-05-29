@@ -12,7 +12,8 @@ use std::collections::HashMap;
 pub enum MessageBatchStatus {
     /// Batch is being processed
     InProgress,
-    /// Batch completed successfully
+    /// Batch completed successfully (legacy name; Anthropic now reports "ended")
+    #[serde(alias = "ended")]
     Completed,
     /// Batch failed
     Failed,
@@ -37,32 +38,51 @@ pub struct MessageBatch {
     /// When the batch was created
     pub created_at: DateTime<Utc>,
     /// When the batch processing started
+    #[serde(default)]
     pub in_progress_at: Option<DateTime<Utc>>,
     /// When the batch processing completed
+    #[serde(default, alias = "ended_at")]
     pub completed_at: Option<DateTime<Utc>>,
     /// When the batch was cancelled
+    #[serde(default)]
     pub cancelled_at: Option<DateTime<Utc>>,
     /// When the batch failed
+    #[serde(default)]
     pub failed_at: Option<DateTime<Utc>>,
     /// When the batch expires (if not processed)
     pub expires_at: DateTime<Utc>,
     /// Error information if the batch failed
+    #[serde(default)]
     pub error: Option<BatchError>,
     /// Results file ID (available after completion)
+    #[serde(default)]
     pub results_file_id: Option<String>,
+    /// URL to download the batch results (Anthropic's primary delivery mechanism)
+    #[serde(default)]
+    pub results_url: Option<String>,
 }
 
 /// Request counts for a batch
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RequestCounts {
-    /// Total number of requests
+    /// Total number of requests (computed when not provided by API)
+    #[serde(default)]
     pub total: u32,
-    /// Number of completed requests
+    /// Number of completed/succeeded requests
+    #[serde(alias = "succeeded", default)]
     pub completed: u32,
-    /// Number of failed requests
+    /// Number of failed/errored requests
+    #[serde(alias = "errored", default)]
     pub failed: u32,
     /// Number of cancelled requests
+    #[serde(alias = "canceled", default)]
     pub cancelled: u32,
+    /// Number of requests still processing
+    #[serde(default)]
+    pub processing: u32,
+    /// Number of requests that expired
+    #[serde(default)]
+    pub expired: u32,
 }
 
 /// Batch error information

@@ -217,13 +217,22 @@ impl Client {
     pub(crate) fn build_headers(&self, options: &Option<RequestOptions>) -> Result<HeaderMap> {
         let mut headers = HeaderMap::new();
 
-        // Add authentication header
-        let auth_value = format!("Bearer {}", self.config.api_key);
-        headers.insert(
-            "Authorization",
-            HeaderValue::from_str(&auth_value)
-                .map_err(|e| Self::config_error("Invalid auth header", e))?,
-        );
+        // Add authentication header. Anthropic API keys (sk-ant-...) require the
+        // `x-api-key` header; OAuth bearer tokens use `Authorization: Bearer ...`.
+        if self.config.api_key.starts_with("sk-ant-") {
+            headers.insert(
+                "x-api-key",
+                HeaderValue::from_str(&self.config.api_key)
+                    .map_err(|e| Self::config_error("Invalid API key header", e))?,
+            );
+        } else {
+            let auth_value = format!("Bearer {}", self.config.api_key);
+            headers.insert(
+                "Authorization",
+                HeaderValue::from_str(&auth_value)
+                    .map_err(|e| Self::config_error("Invalid auth header", e))?,
+            );
+        }
 
         // Add API version header
         headers.insert("anthropic-version", HeaderValue::from_static(API_VERSION));
