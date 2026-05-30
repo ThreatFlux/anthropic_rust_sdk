@@ -10,8 +10,6 @@ updates:
     open-pull-requests-limit: 10
     reviewers:
       - "ThreatFlux/maintainers"
-    assignees:
-      - "ThreatFlux"
     labels:
       - "dependencies"
       - "rust"
@@ -47,8 +45,6 @@ updates:
     open-pull-requests-limit: 5
     reviewers:
       - "ThreatFlux/maintainers"
-    assignees:
-      - "ThreatFlux"
     labels:
       - "dependencies"
       - "github-actions"
