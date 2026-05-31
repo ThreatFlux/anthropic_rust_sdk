@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["OutputEffort","OutputFormat","StreamEvent"],"struct":["CacheControl","ContentBlockDelta","Message","MessageDelta","MessageRequest","MessageResponse","OutputConfig","ThinkingConfig","TokenCountRequest","TokenCountResponse"]};
