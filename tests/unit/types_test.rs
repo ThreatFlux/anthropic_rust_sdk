@@ -2,9 +2,8 @@
 //!
 //! Tests HTTP methods, request options, pagination, and other common types.
 
-use threatflux::types::*;
 use std::time::Duration;
-use std::collections::HashMap;
+use threatflux::types::*;
 
 #[cfg(test)]
 mod http_method_tests {
@@ -28,7 +27,7 @@ mod http_method_tests {
     #[test]
     fn test_http_method_clone() {
         let method1 = HttpMethod::Post;
-        let method2 = method1.clone();
+        let method2 = method1;
         assert_eq!(method1, method2);
     }
 
@@ -77,10 +76,16 @@ mod request_options_tests {
         let options = RequestOptions::new()
             .with_header("Authorization", "Bearer token")
             .with_header("Content-Type", "application/json");
-        
+
         assert_eq!(options.headers.len(), 2);
-        assert_eq!(options.headers.get("Authorization"), Some(&"Bearer token".to_string()));
-        assert_eq!(options.headers.get("Content-Type"), Some(&"application/json".to_string()));
+        assert_eq!(
+            options.headers.get("Authorization"),
+            Some(&"Bearer token".to_string())
+        );
+        assert_eq!(
+            options.headers.get("Content-Type"),
+            Some(&"application/json".to_string())
+        );
     }
 
     #[test]
@@ -131,7 +136,7 @@ mod request_options_tests {
         let options = RequestOptions::new()
             .with_beta_feature("feature1")
             .with_beta_feature("feature2");
-        
+
         assert_eq!(options.beta_features.len(), 2);
         assert!(options.beta_features.contains(&"feature1".to_string()));
         assert!(options.beta_features.contains(&"feature2".to_string()));
@@ -185,7 +190,7 @@ mod request_options_tests {
             .with_header("test", "value")
             .with_beta_feature("feature");
         let options2 = options1.clone();
-        
+
         assert_eq!(options1.headers, options2.headers);
         assert_eq!(options1.beta_features, options2.beta_features);
     }
@@ -242,7 +247,7 @@ mod pagination_tests {
             .with_limit(100)
             .with_after("start_cursor")
             .with_before("end_cursor");
-        
+
         assert_eq!(pagination.limit, Some(100));
         assert_eq!(pagination.after, Some("start_cursor".to_string()));
         assert_eq!(pagination.before, Some("end_cursor".to_string()));
@@ -264,10 +269,8 @@ mod pagination_tests {
 
     #[test]
     fn test_pagination_serialization() {
-        let pagination = Pagination::new()
-            .with_limit(10)
-            .with_after("test_cursor");
-        
+        let pagination = Pagination::new().with_limit(10).with_after("test_cursor");
+
         let serialized = serde_json::to_string(&pagination).unwrap();
         assert!(serialized.contains("\"limit\":10"));
         assert!(serialized.contains("\"after\":\"test_cursor\""));
@@ -335,7 +338,7 @@ mod paginated_response_tests {
             last_id: None,
         };
         let response2 = response1.clone();
-        
+
         assert_eq!(response1.data, response2.data);
         assert_eq!(response1.has_more, response2.has_more);
         assert_eq!(response1.first_id, response2.first_id);
@@ -401,7 +404,7 @@ mod api_error_response_tests {
             message: "test message".to_string(),
         };
         let error2 = error1.clone();
-        
+
         assert_eq!(error1.error_type, error2.error_type);
         assert_eq!(error1.message, error2.message);
     }
@@ -438,14 +441,20 @@ mod model_capability_tests {
 
     #[test]
     fn test_model_capability_equality() {
-        assert_eq!(ModelCapability::TextGeneration, ModelCapability::TextGeneration);
-        assert_ne!(ModelCapability::TextGeneration, ModelCapability::VisionProcessing);
+        assert_eq!(
+            ModelCapability::TextGeneration,
+            ModelCapability::TextGeneration
+        );
+        assert_ne!(
+            ModelCapability::TextGeneration,
+            ModelCapability::VisionProcessing
+        );
     }
 
     #[test]
     fn test_model_capability_clone() {
         let cap1 = ModelCapability::ExtendedThinking;
-        let cap2 = cap1.clone();
+        let cap2 = cap1;
         assert_eq!(cap1, cap2);
     }
 
@@ -490,22 +499,40 @@ mod request_priority_tests {
 
     #[test]
     fn test_request_priority_serialization() {
-        assert_eq!(serde_json::to_value(RequestPriority::Low).unwrap(), json!("low"));
-        assert_eq!(serde_json::to_value(RequestPriority::Normal).unwrap(), json!("normal"));
-        assert_eq!(serde_json::to_value(RequestPriority::High).unwrap(), json!("high"));
+        assert_eq!(
+            serde_json::to_value(RequestPriority::Low).unwrap(),
+            json!("low")
+        );
+        assert_eq!(
+            serde_json::to_value(RequestPriority::Normal).unwrap(),
+            json!("normal")
+        );
+        assert_eq!(
+            serde_json::to_value(RequestPriority::High).unwrap(),
+            json!("high")
+        );
     }
 
     #[test]
     fn test_request_priority_deserialization() {
-        assert_eq!(serde_json::from_value::<RequestPriority>(json!("low")).unwrap(), RequestPriority::Low);
-        assert_eq!(serde_json::from_value::<RequestPriority>(json!("normal")).unwrap(), RequestPriority::Normal);
-        assert_eq!(serde_json::from_value::<RequestPriority>(json!("high")).unwrap(), RequestPriority::High);
+        assert_eq!(
+            serde_json::from_value::<RequestPriority>(json!("low")).unwrap(),
+            RequestPriority::Low
+        );
+        assert_eq!(
+            serde_json::from_value::<RequestPriority>(json!("normal")).unwrap(),
+            RequestPriority::Normal
+        );
+        assert_eq!(
+            serde_json::from_value::<RequestPriority>(json!("high")).unwrap(),
+            RequestPriority::High
+        );
     }
 
     #[test]
     fn test_request_priority_clone() {
         let priority1 = RequestPriority::High;
-        let priority2 = priority1.clone();
+        let priority2 = priority1;
         assert_eq!(priority1, priority2);
     }
 
@@ -546,33 +573,66 @@ mod stream_event_type_tests {
         assert_eq!(StreamEventType::MessageStart.to_string(), "message_start");
         assert_eq!(StreamEventType::MessageDelta.to_string(), "message_delta");
         assert_eq!(StreamEventType::MessageStop.to_string(), "message_stop");
-        assert_eq!(StreamEventType::ContentBlockStart.to_string(), "content_block_start");
-        assert_eq!(StreamEventType::ContentBlockDelta.to_string(), "content_block_delta");
-        assert_eq!(StreamEventType::ContentBlockStop.to_string(), "content_block_stop");
+        assert_eq!(
+            StreamEventType::ContentBlockStart.to_string(),
+            "content_block_start"
+        );
+        assert_eq!(
+            StreamEventType::ContentBlockDelta.to_string(),
+            "content_block_delta"
+        );
+        assert_eq!(
+            StreamEventType::ContentBlockStop.to_string(),
+            "content_block_stop"
+        );
         assert_eq!(StreamEventType::Ping.to_string(), "ping");
         assert_eq!(StreamEventType::Error.to_string(), "error");
     }
 
     #[test]
     fn test_stream_event_type_from_str() {
-        assert_eq!("message_start".parse::<StreamEventType>().unwrap(), StreamEventType::MessageStart);
-        assert_eq!("message_delta".parse::<StreamEventType>().unwrap(), StreamEventType::MessageDelta);
-        assert_eq!("message_stop".parse::<StreamEventType>().unwrap(), StreamEventType::MessageStop);
-        assert_eq!("content_block_start".parse::<StreamEventType>().unwrap(), StreamEventType::ContentBlockStart);
-        assert_eq!("content_block_delta".parse::<StreamEventType>().unwrap(), StreamEventType::ContentBlockDelta);
-        assert_eq!("content_block_stop".parse::<StreamEventType>().unwrap(), StreamEventType::ContentBlockStop);
-        assert_eq!("ping".parse::<StreamEventType>().unwrap(), StreamEventType::Ping);
-        assert_eq!("error".parse::<StreamEventType>().unwrap(), StreamEventType::Error);
+        assert_eq!(
+            "message_start".parse::<StreamEventType>().unwrap(),
+            StreamEventType::MessageStart
+        );
+        assert_eq!(
+            "message_delta".parse::<StreamEventType>().unwrap(),
+            StreamEventType::MessageDelta
+        );
+        assert_eq!(
+            "message_stop".parse::<StreamEventType>().unwrap(),
+            StreamEventType::MessageStop
+        );
+        assert_eq!(
+            "content_block_start".parse::<StreamEventType>().unwrap(),
+            StreamEventType::ContentBlockStart
+        );
+        assert_eq!(
+            "content_block_delta".parse::<StreamEventType>().unwrap(),
+            StreamEventType::ContentBlockDelta
+        );
+        assert_eq!(
+            "content_block_stop".parse::<StreamEventType>().unwrap(),
+            StreamEventType::ContentBlockStop
+        );
+        assert_eq!(
+            "ping".parse::<StreamEventType>().unwrap(),
+            StreamEventType::Ping
+        );
+        assert_eq!(
+            "error".parse::<StreamEventType>().unwrap(),
+            StreamEventType::Error
+        );
     }
 
     #[test]
     fn test_stream_event_type_from_str_invalid() {
         let result = "invalid_event".parse::<StreamEventType>();
         assert!(result.is_err());
-        
+
         let err = result.unwrap_err();
         match err {
-            crate::error::AnthropicError::InvalidInput(msg) => {
+            threatflux::error::AnthropicError::InvalidInput(msg) => {
                 assert!(msg.contains("Unknown stream event type: invalid_event"));
             }
             _ => panic!("Expected InvalidInput error"),
@@ -634,7 +694,7 @@ mod progress_callback_tests {
     fn test_progress_callback_creation() {
         let progress = Arc::new(Mutex::new(Vec::new()));
         let progress_clone = Arc::clone(&progress);
-        
+
         let callback: ProgressCallback = Box::new(move |current, total| {
             progress_clone.lock().unwrap().push((current, total));
         });
@@ -642,7 +702,7 @@ mod progress_callback_tests {
         // Test the callback
         callback(50, 100);
         callback(75, 100);
-        
+
         let results = progress.lock().unwrap();
         assert_eq!(results.len(), 2);
         assert_eq!(results[0], (50, 100));
@@ -653,7 +713,7 @@ mod progress_callback_tests {
     fn test_progress_callback_zero_values() {
         let called = Arc::new(Mutex::new(false));
         let called_clone = Arc::clone(&called);
-        
+
         let callback: ProgressCallback = Box::new(move |current, total| {
             *called_clone.lock().unwrap() = true;
             assert_eq!(current, 0);
@@ -668,7 +728,7 @@ mod progress_callback_tests {
     fn test_progress_callback_large_values() {
         let result = Arc::new(Mutex::new(None));
         let result_clone = Arc::clone(&result);
-        
+
         let callback: ProgressCallback = Box::new(move |current, total| {
             *result_clone.lock().unwrap() = Some((current, total));
         });
@@ -676,7 +736,7 @@ mod progress_callback_tests {
         let large_current = u64::MAX - 1000;
         let large_total = u64::MAX;
         callback(large_current, large_total);
-        
+
         let stored_result = result.lock().unwrap();
         assert_eq!(*stored_result, Some((large_current, large_total)));
     }

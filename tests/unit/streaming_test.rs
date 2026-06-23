@@ -2,19 +2,17 @@
 //!
 //! Tests SSE parsing, stream handling, event processing, and streaming functionality.
 
-use threatflux::{
-    streaming::{EventParser, MessageStream},
-    models::{
-        message::{StreamEvent, MessageResponse},
-        common::{Role, ContentBlock, Usage, StopReason},
-    },
-    error::AnthropicError,
-};
 use chrono::Utc;
-use serde_json::json;
-use pretty_assertions::assert_eq;
 use futures::StreamExt;
 use std::io::Cursor;
+use threatflux::{
+    error::AnthropicError,
+    models::{
+        common::{ContentBlock, Role, StopReason, Usage},
+        message::{ContentBlockDelta, MessageResponse, StreamEvent},
+    },
+    streaming::EventParser,
+};
 
 #[cfg(test)]
 mod event_parser_tests {
@@ -23,10 +21,10 @@ mod event_parser_tests {
     #[test]
     fn test_parse_message_start() {
         let event_data = r#"{"type":"message_start","message":{"id":"msg_123","type":"message","role":"assistant","model":"claude-3-5-haiku-20241022","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":0}}}"#;
-        
+
         let parser = EventParser::new();
         let event = parser.parse_event("message_start", event_data).unwrap();
-        
+
         if let StreamEvent::MessageStart { message } = event {
             assert_eq!(message.id, "msg_123");
             assert_eq!(message.model, "claude-3-5-haiku-20241022");
@@ -40,14 +38,21 @@ mod event_parser_tests {
 
     #[test]
     fn test_parse_content_block_start() {
-        let event_data = r#"{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#;
-        
+        let event_data =
+            r#"{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#;
+
         let parser = EventParser::new();
-        let event = parser.parse_event("content_block_start", event_data).unwrap();
-        
-        if let StreamEvent::ContentBlockStart { index, content_block } = event {
+        let event = parser
+            .parse_event("content_block_start", event_data)
+            .unwrap();
+
+        if let StreamEvent::ContentBlockStart {
+            index,
+            content_block,
+        } = event
+        {
             assert_eq!(index, 0);
-            if let ContentBlock::Text { text } = content_block {
+            if let ContentBlock::Text { text, .. } = content_block {
                 assert_eq!(text, "");
             } else {
                 panic!("Expected Text content block");
@@ -60,14 +65,16 @@ mod event_parser_tests {
     #[test]
     fn test_parse_content_block_delta() {
         let event_data = r#"{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}"#;
-        
+
         let parser = EventParser::new();
-        let event = parser.parse_event("content_block_delta", event_data).unwrap();
-        
+        let event = parser
+            .parse_event("content_block_delta", event_data)
+            .unwrap();
+
         if let StreamEvent::ContentBlockDelta { index, delta } = event {
             assert_eq!(index, 0);
-            assert_eq!(delta["type"], "text_delta");
-            assert_eq!(delta["text"], "Hello");
+            assert_eq!(delta.block_type, "text_delta");
+            assert_eq!(delta.text.as_deref(), Some("Hello"));
         } else {
             panic!("Expected ContentBlockDelta event");
         }
@@ -76,10 +83,12 @@ mod event_parser_tests {
     #[test]
     fn test_parse_content_block_stop() {
         let event_data = r#"{"type":"content_block_stop","index":0}"#;
-        
+
         let parser = EventParser::new();
-        let event = parser.parse_event("content_block_stop", event_data).unwrap();
-        
+        let event = parser
+            .parse_event("content_block_stop", event_data)
+            .unwrap();
+
         if let StreamEvent::ContentBlockStop { index } = event {
             assert_eq!(index, 0);
         } else {
@@ -90,15 +99,14 @@ mod event_parser_tests {
     #[test]
     fn test_parse_message_delta() {
         let event_data = r#"{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":5}}"#;
-        
+
         let parser = EventParser::new();
         let event = parser.parse_event("message_delta", event_data).unwrap();
-        
+
         if let StreamEvent::MessageDelta { delta, usage } = event {
-            assert_eq!(delta["stop_reason"], "end_turn");
-            assert!(delta["stop_sequence"].is_null());
-            assert!(usage.is_some());
-            assert_eq!(usage.unwrap().output_tokens, 5);
+            assert_eq!(delta.stop_reason, Some(StopReason::EndTurn));
+            assert!(delta.stop_sequence.is_none());
+            assert_eq!(usage.output_tokens, 5);
         } else {
             panic!("Expected MessageDelta event");
         }
@@ -107,23 +115,26 @@ mod event_parser_tests {
     #[test]
     fn test_parse_message_stop() {
         let event_data = r#"{"type":"message_stop"}"#;
-        
+
         let parser = EventParser::new();
         let event = parser.parse_event("message_stop", event_data).unwrap();
-        
+
         assert!(matches!(event, StreamEvent::MessageStop));
     }
 
     #[test]
     fn test_parse_error_event() {
         let event_data = r#"{"type":"error","error":{"type":"rate_limit_error","message":"Rate limit exceeded"}}"#;
-        
+
         let parser = EventParser::new();
         let event = parser.parse_event("error", event_data).unwrap();
-        
+
         if let StreamEvent::Error { error } = event {
-            assert_eq!(error["type"], "rate_limit_error");
-            assert_eq!(error["message"], "Rate limit exceeded");
+            // The parser stores the entire SSE event object, so the top-level
+            // `type` is "error" and the API error details live under `error`.
+            assert_eq!(error["type"], "error");
+            assert_eq!(error["error"]["type"], "rate_limit_error");
+            assert_eq!(error["error"]["message"], "Rate limit exceeded");
         } else {
             panic!("Expected Error event");
         }
@@ -132,25 +143,25 @@ mod event_parser_tests {
     #[test]
     fn test_parse_ping_event() {
         let event_data = r#"{"type":"ping"}"#;
-        
+
         let parser = EventParser::new();
         let event = parser.parse_event("ping", event_data).unwrap();
-        
+
         assert!(matches!(event, StreamEvent::Ping));
     }
 
     #[test]
     fn test_parse_invalid_event() {
         let parser = EventParser::new();
-        
+
         // Invalid JSON
         let result = parser.parse_event("message_start", "invalid json");
         assert!(result.is_err());
-        
+
         // Unknown event type
         let result = parser.parse_event("unknown_event", r#"{"type":"unknown"}"#);
         assert!(result.is_err());
-        
+
         // Missing required fields
         let result = parser.parse_event("message_start", r#"{"type":"message_start"}"#);
         assert!(result.is_err());
@@ -162,21 +173,27 @@ mod event_parser_tests {
 data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}
 
 "#;
-        
+
         let parser = EventParser::new();
         let lines: Vec<&str> = sse_data.lines().collect();
-        
+
         // Extract event type and data
-        let event_line = lines.iter().find(|line| line.starts_with("event: ")).unwrap();
-        let data_line = lines.iter().find(|line| line.starts_with("data: ")).unwrap();
-        
+        let event_line = lines
+            .iter()
+            .find(|line| line.starts_with("event: "))
+            .unwrap();
+        let data_line = lines
+            .iter()
+            .find(|line| line.starts_with("data: "))
+            .unwrap();
+
         let event_type = event_line.strip_prefix("event: ").unwrap();
         let event_data = data_line.strip_prefix("data: ").unwrap();
-        
+
         let event = parser.parse_event(event_type, event_data).unwrap();
-        
+
         if let StreamEvent::ContentBlockDelta { delta, .. } = event {
-            assert_eq!(delta["text"], "Hello");
+            assert_eq!(delta.text.as_deref(), Some("Hello"));
         } else {
             panic!("Expected ContentBlockDelta event");
         }
@@ -185,14 +202,14 @@ data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text
     #[test]
     fn test_parser_state() {
         let parser = EventParser::new();
-        
+
         // Test that parser can handle multiple events
         let event1_data = r#"{"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","model":"claude-3-5-haiku-20241022","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":0}}}"#;
         let event2_data = r#"{"type":"message_stop"}"#;
-        
+
         let event1 = parser.parse_event("message_start", event1_data).unwrap();
         let event2 = parser.parse_event("message_stop", event2_data).unwrap();
-        
+
         assert!(matches!(event1, StreamEvent::MessageStart { .. }));
         assert!(matches!(event2, StreamEvent::MessageStop));
     }
@@ -201,8 +218,20 @@ data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text
 #[cfg(test)]
 mod message_stream_tests {
     use super::*;
-    use tokio_test;
     use futures::stream;
+
+    /// Build a `text_delta` content block delta carrying the given text.
+    fn text_delta(text: &str) -> ContentBlockDelta {
+        ContentBlockDelta {
+            block_type: "text_delta".to_string(),
+            text: Some(text.to_string()),
+            partial_json: None,
+            thinking: None,
+            signature: None,
+            citation: None,
+            extra: std::collections::HashMap::new(),
+        }
+    }
 
     #[tokio::test]
     async fn test_stream_creation() {
@@ -220,25 +249,27 @@ mod message_stream_tests {
             r#"data: {"type":"message_stop"}"#,
             "",
         ];
-        
+
         let sse_stream = sse_data.join("\n");
-        let cursor = Cursor::new(sse_stream.as_bytes());
-        
+        let _cursor = Cursor::new(sse_stream.as_bytes());
+
         // This would normally be created from a reqwest response
         // For testing, we'll simulate the behavior
-        let events = vec![
-            Ok(StreamEvent::MessageStart { 
+        let events: Vec<Result<StreamEvent, AnthropicError>> = vec![
+            Ok(StreamEvent::MessageStart {
                 message: MessageResponse {
                     id: "msg_123".to_string(),
-                    object: "message".to_string(),
+                    object_type: "message".to_string(),
                     created_at: Utc::now(),
-                    model: "claude-3-5-haiku-20241022".to_string(),
+                    model: "claude-haiku-4-5".to_string(),
                     role: Role::Assistant,
                     content: vec![],
                     stop_reason: None,
                     stop_sequence: None,
+                    stop_details: None,
                     usage: Usage::new(10, 0),
-                }
+                    container: None,
+                },
             }),
             Ok(StreamEvent::ContentBlockStart {
                 index: 0,
@@ -246,40 +277,51 @@ mod message_stream_tests {
             }),
             Ok(StreamEvent::ContentBlockDelta {
                 index: 0,
-                delta: json!({"type": "text_delta", "text": "Hello"}),
+                delta: text_delta("Hello"),
             }),
             Ok(StreamEvent::MessageStop),
         ];
-        
+
         let mut stream = stream::iter(events);
         let mut collected_events = Vec::new();
-        
+
         while let Some(event) = stream.next().await {
             collected_events.push(event.unwrap());
         }
-        
+
         assert_eq!(collected_events.len(), 4);
-        assert!(matches!(collected_events[0], StreamEvent::MessageStart { .. }));
-        assert!(matches!(collected_events[1], StreamEvent::ContentBlockStart { .. }));
-        assert!(matches!(collected_events[2], StreamEvent::ContentBlockDelta { .. }));
+        assert!(matches!(
+            collected_events[0],
+            StreamEvent::MessageStart { .. }
+        ));
+        assert!(matches!(
+            collected_events[1],
+            StreamEvent::ContentBlockStart { .. }
+        ));
+        assert!(matches!(
+            collected_events[2],
+            StreamEvent::ContentBlockDelta { .. }
+        ));
         assert!(matches!(collected_events[3], StreamEvent::MessageStop));
     }
 
     #[tokio::test]
     async fn test_collect_text() {
-        let events = vec![
-            Ok(StreamEvent::MessageStart { 
+        let events: Vec<Result<StreamEvent, AnthropicError>> = vec![
+            Ok(StreamEvent::MessageStart {
                 message: MessageResponse {
                     id: "msg_123".to_string(),
-                    object: "message".to_string(),
+                    object_type: "message".to_string(),
                     created_at: Utc::now(),
-                    model: "claude-3-5-haiku-20241022".to_string(),
+                    model: "claude-haiku-4-5".to_string(),
                     role: Role::Assistant,
                     content: vec![],
                     stop_reason: None,
                     stop_sequence: None,
+                    stop_details: None,
                     usage: Usage::new(10, 0),
-                }
+                    container: None,
+                },
             }),
             Ok(StreamEvent::ContentBlockStart {
                 index: 0,
@@ -287,93 +329,95 @@ mod message_stream_tests {
             }),
             Ok(StreamEvent::ContentBlockDelta {
                 index: 0,
-                delta: json!({"type": "text_delta", "text": "Hello"}),
+                delta: text_delta("Hello"),
             }),
             Ok(StreamEvent::ContentBlockDelta {
                 index: 0,
-                delta: json!({"type": "text_delta", "text": " world"}),
+                delta: text_delta(" world"),
             }),
             Ok(StreamEvent::ContentBlockDelta {
                 index: 0,
-                delta: json!({"type": "text_delta", "text": "!"}),
+                delta: text_delta("!"),
             }),
             Ok(StreamEvent::ContentBlockStop { index: 0 }),
             Ok(StreamEvent::MessageStop),
         ];
-        
+
         let stream = stream::iter(events);
         let mut text = String::new();
-        
+
         tokio::pin!(stream);
         while let Some(event) = stream.next().await {
             match event.unwrap() {
                 StreamEvent::ContentBlockDelta { delta, .. } => {
-                    if let Some(text_delta) = delta.get("text") {
-                        if let Some(text_str) = text_delta.as_str() {
-                            text.push_str(text_str);
-                        }
+                    if let Some(text_str) = delta.text.as_deref() {
+                        text.push_str(text_str);
                     }
-                },
+                }
                 StreamEvent::MessageStop => break,
-                _ => {},
+                _ => {}
             }
         }
-        
+
         assert_eq!(text, "Hello world!");
     }
 
     #[tokio::test]
     async fn test_stream_error_handling() {
-        let events = vec![
-            Ok(StreamEvent::MessageStart { 
+        let events: Vec<Result<StreamEvent, AnthropicError>> = vec![
+            Ok(StreamEvent::MessageStart {
                 message: MessageResponse {
                     id: "msg_123".to_string(),
-                    object: "message".to_string(),
+                    object_type: "message".to_string(),
                     created_at: Utc::now(),
-                    model: "claude-3-5-haiku-20241022".to_string(),
+                    model: "claude-haiku-4-5".to_string(),
                     role: Role::Assistant,
                     content: vec![],
                     stop_reason: None,
                     stop_sequence: None,
+                    stop_details: None,
                     usage: Usage::new(10, 0),
-                }
+                    container: None,
+                },
             }),
             Err(AnthropicError::network("Connection lost")),
             Ok(StreamEvent::MessageStop),
         ];
-        
+
         let mut stream = stream::iter(events);
         let mut error_encountered = false;
-        
+
         while let Some(event) = stream.next().await {
             match event {
-                Ok(StreamEvent::MessageStart { .. }) => {},
+                Ok(StreamEvent::MessageStart { .. }) => {}
                 Err(_) => {
                     error_encountered = true;
-                },
+                }
                 Ok(StreamEvent::MessageStop) => break,
-                _ => {},
+                _ => {}
             }
         }
-        
+
         assert!(error_encountered);
     }
 
     #[tokio::test]
     async fn test_stream_interruption() {
-        let events = vec![
-            Ok(StreamEvent::MessageStart { 
+        let events: Vec<Result<StreamEvent, AnthropicError>> = vec![
+            Ok(StreamEvent::MessageStart {
                 message: MessageResponse {
                     id: "msg_123".to_string(),
-                    object: "message".to_string(),
+                    object_type: "message".to_string(),
                     created_at: Utc::now(),
-                    model: "claude-3-5-haiku-20241022".to_string(),
+                    model: "claude-haiku-4-5".to_string(),
                     role: Role::Assistant,
                     content: vec![],
                     stop_reason: None,
                     stop_sequence: None,
+                    stop_details: None,
                     usage: Usage::new(10, 0),
-                }
+                    container: None,
+                },
             }),
             Ok(StreamEvent::ContentBlockStart {
                 index: 0,
@@ -381,41 +425,43 @@ mod message_stream_tests {
             }),
             Ok(StreamEvent::ContentBlockDelta {
                 index: 0,
-                delta: json!({"type": "text_delta", "text": "Hello"}),
+                delta: text_delta("Hello"),
             }),
             // Stream ends abruptly without MessageStop
         ];
-        
+
         let mut stream = stream::iter(events);
         let mut events_received = 0;
         let mut got_message_stop = false;
-        
+
         while let Some(event) = stream.next().await {
             events_received += 1;
             if let Ok(StreamEvent::MessageStop) = event {
                 got_message_stop = true;
             }
         }
-        
+
         assert_eq!(events_received, 3);
         assert!(!got_message_stop);
     }
 
     #[tokio::test]
     async fn test_multiple_content_blocks() {
-        let events = vec![
-            Ok(StreamEvent::MessageStart { 
+        let events: Vec<Result<StreamEvent, AnthropicError>> = vec![
+            Ok(StreamEvent::MessageStart {
                 message: MessageResponse {
                     id: "msg_123".to_string(),
-                    object: "message".to_string(),
+                    object_type: "message".to_string(),
                     created_at: Utc::now(),
-                    model: "claude-3-5-haiku-20241022".to_string(),
+                    model: "claude-haiku-4-5".to_string(),
                     role: Role::Assistant,
                     content: vec![],
                     stop_reason: None,
                     stop_sequence: None,
+                    stop_details: None,
                     usage: Usage::new(10, 0),
-                }
+                    container: None,
+                },
             }),
             // First content block
             Ok(StreamEvent::ContentBlockStart {
@@ -424,7 +470,7 @@ mod message_stream_tests {
             }),
             Ok(StreamEvent::ContentBlockDelta {
                 index: 0,
-                delta: json!({"type": "text_delta", "text": "First block"}),
+                delta: text_delta("First block"),
             }),
             Ok(StreamEvent::ContentBlockStop { index: 0 }),
             // Second content block
@@ -434,31 +480,31 @@ mod message_stream_tests {
             }),
             Ok(StreamEvent::ContentBlockDelta {
                 index: 1,
-                delta: json!({"type": "text_delta", "text": "Second block"}),
+                delta: text_delta("Second block"),
             }),
             Ok(StreamEvent::ContentBlockStop { index: 1 }),
             Ok(StreamEvent::MessageStop),
         ];
-        
+
         let mut stream = stream::iter(events);
-        let mut content_blocks: std::collections::HashMap<usize, String> = std::collections::HashMap::new();
-        
+        let mut content_blocks: std::collections::HashMap<usize, String> =
+            std::collections::HashMap::new();
+
         while let Some(event) = stream.next().await {
             match event.unwrap() {
                 StreamEvent::ContentBlockDelta { index, delta } => {
-                    if let Some(text_delta) = delta.get("text") {
-                        if let Some(text_str) = text_delta.as_str() {
-                            content_blocks.entry(index)
-                                .and_modify(|s| s.push_str(text_str))
-                                .or_insert_with(|| text_str.to_string());
-                        }
+                    if let Some(text_str) = delta.text.as_deref() {
+                        content_blocks
+                            .entry(index)
+                            .and_modify(|s| s.push_str(text_str))
+                            .or_insert_with(|| text_str.to_string());
                     }
-                },
+                }
                 StreamEvent::MessageStop => break,
-                _ => {},
+                _ => {}
             }
         }
-        
+
         assert_eq!(content_blocks.len(), 2);
         assert_eq!(content_blocks[&0], "First block");
         assert_eq!(content_blocks[&1], "Second block");
@@ -467,7 +513,6 @@ mod message_stream_tests {
 
 #[cfg(test)]
 mod sse_parsing_tests {
-    use super::*;
 
     #[test]
     fn test_sse_line_parsing() {
@@ -479,11 +524,11 @@ mod sse_parsing_tests {
             "data: {\"type\": \"ping\"}",
             "",
         ];
-        
+
         let mut current_event: Option<String> = None;
         let mut current_data: Option<String> = None;
         let mut events = Vec::new();
-        
+
         for line in sse_lines {
             if line.is_empty() {
                 // End of event
@@ -496,7 +541,7 @@ mod sse_parsing_tests {
                 current_data = Some(line.strip_prefix("data: ").unwrap().to_string());
             }
         }
-        
+
         assert_eq!(events.len(), 2);
         assert_eq!(events[0].0, "message_start");
         assert_eq!(events[1].0, "ping");
@@ -507,14 +552,14 @@ mod sse_parsing_tests {
         let sse_lines = vec![
             "event: test",
             "data: line 1",
-            "data: line 2", 
+            "data: line 2",
             "data: line 3",
             "",
         ];
-        
+
         let mut current_event: Option<String> = None;
         let mut data_lines: Vec<String> = Vec::new();
-        
+
         for line in sse_lines {
             if line.is_empty() {
                 // End of event
@@ -535,9 +580,13 @@ mod sse_parsing_tests {
     #[test]
     fn test_sse_with_retry() {
         let sse_line = "retry: 3000";
-        
+
         if sse_line.starts_with("retry: ") {
-            let retry_ms = sse_line.strip_prefix("retry: ").unwrap().parse::<u64>().unwrap();
+            let retry_ms = sse_line
+                .strip_prefix("retry: ")
+                .unwrap()
+                .parse::<u64>()
+                .unwrap();
             assert_eq!(retry_ms, 3000);
         }
     }
@@ -545,7 +594,7 @@ mod sse_parsing_tests {
     #[test]
     fn test_sse_with_id() {
         let sse_line = "id: event_123";
-        
+
         if sse_line.starts_with("id: ") {
             let event_id = sse_line.strip_prefix("id: ").unwrap();
             assert_eq!(event_id, "event_123");
@@ -561,10 +610,10 @@ mod sse_parsing_tests {
             "data: test data",
             "",
         ];
-        
+
         let mut current_event: Option<String> = None;
         let mut current_data: Option<String> = None;
-        
+
         for line in sse_lines {
             if line.starts_with(":") {
                 // Comment line, ignore
