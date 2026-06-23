@@ -3,7 +3,8 @@
 //! This module groups the full Managed Agents surface: agents, environments,
 //! sessions (with events, resources, and threads), vaults/credentials, memory
 //! stores, and deployments. Every request forces the
-//! `managed-agents-2026-04-01` beta header via [`with_managed_agents_beta`].
+//! `managed-agents-2026-04-01` beta header via the internal
+//! `with_managed_agents_beta` helper.
 
 pub mod agents;
 pub mod deployments;
