@@ -104,6 +104,13 @@ pub use error::{AnthropicError, Result};
 
 // Re-export commonly used model types
 pub use models::{
+    // Managed Agents types
+    Agent,
+    AgentCreateRequest,
+    AgentListResponse,
+    AgentModel,
+    AgentTool,
+    AgentUpdateRequest,
     ApiKey,
     ApiKeyActor,
     ApiKeyListParams,
@@ -122,6 +129,18 @@ pub use models::{
     // Common types
     ContentBlock,
     ContentBlockDelta,
+    Credential,
+    CredentialCreateRequest,
+    CredentialKind,
+    CredentialListResponse,
+    Deployment,
+    DeploymentCreateRequest,
+    DeploymentListResponse,
+    DeploymentRun,
+    Environment,
+    EnvironmentConfig,
+    EnvironmentCreateRequest,
+    EnvironmentListResponse,
     // Refusal fallbacks
     Fallback,
     // File types
@@ -143,6 +162,9 @@ pub use models::{
     Member,
     MemberRole,
     MemberStatus,
+    MemoryStore,
+    MemoryStoreCreateRequest,
+    MemoryStoreListResponse,
     // Message types
     Message,
     // Batch types
@@ -173,6 +195,14 @@ pub use models::{
     OutputEffort,
     OutputFormat,
     Role,
+    SendEvent,
+    Session,
+    SessionCreateRequest,
+    SessionEvent,
+    SessionEventListResponse,
+    SessionListResponse,
+    SessionStatus,
+    SessionStopReason,
     // Skills types
     Skill,
     SkillCreateRequest,
@@ -206,6 +236,9 @@ pub use models::{
     UserRole,
     UserUpdateRequest,
     UserUpdateRole,
+    Vault,
+    VaultCreateRequest,
+    VaultListResponse,
     Workspace,
     WorkspaceDataResidency,
     WorkspaceListParams,
@@ -228,7 +261,7 @@ pub use types::{
 };
 
 // Re-export streaming types
-pub use streaming::{EventParser, MessageStream};
+pub use streaming::{EventParser, MessageStream, SessionEventStream};
 
 // Re-export builders
 pub use builders::{batch_builder::BatchBuilder, message_builder::MessageBuilder};

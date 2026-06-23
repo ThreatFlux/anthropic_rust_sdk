@@ -108,6 +108,52 @@ pub struct FileUploadResponse {
 /// Response when listing files
 pub type FileListResponse = PaginatedResponse<File>;
 
+/// Optional filters for listing files.
+///
+/// This is a backward-compatible addition: the existing `FilesApi::list`
+/// signature is unchanged; pass these to `FilesApi::list_with_params` to filter
+/// by `scope_id` (e.g. session-scoped output files for Managed Agents) and/or
+/// `purpose`.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct FileListParams {
+    /// Restrict results to files scoped to this id (e.g. a session id for
+    /// Managed Agents session outputs).
+    pub scope_id: Option<String>,
+    /// Restrict results to files with this purpose.
+    pub purpose: Option<String>,
+}
+
+impl FileListParams {
+    /// Create an empty set of file-list filters.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Filter by scope id.
+    pub fn scope_id(mut self, scope_id: impl Into<String>) -> Self {
+        self.scope_id = Some(scope_id.into());
+        self
+    }
+
+    /// Filter by purpose.
+    pub fn purpose(mut self, purpose: impl Into<String>) -> Self {
+        self.purpose = Some(purpose.into());
+        self
+    }
+
+    /// Build the query-parameter fragments for these filters.
+    pub fn query_params(&self) -> Vec<String> {
+        let mut params = Vec::new();
+        if let Some(scope_id) = &self.scope_id {
+            params.push(format!("scope_id={}", scope_id));
+        }
+        if let Some(purpose) = &self.purpose {
+            params.push(format!("purpose={}", purpose));
+        }
+        params
+    }
+}
+
 /// File download information
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FileDownload {

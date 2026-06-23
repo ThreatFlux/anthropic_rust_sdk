@@ -8,6 +8,7 @@ mod admin_test;
 mod batches_test;
 mod e2e_test;
 mod files_test;
+mod managed_agents_test;
 mod messages_test;
 mod models_test;
 

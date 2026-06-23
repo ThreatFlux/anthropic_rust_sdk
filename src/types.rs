@@ -141,6 +141,11 @@ impl RequestOptions {
         self.with_beta_feature(crate::client::beta_headers::MCP_CLIENT)
     }
 
+    /// Enable the Managed Agents beta feature.
+    pub fn with_managed_agents(self) -> Self {
+        self.with_beta_feature(crate::client::beta_headers::MANAGED_AGENTS)
+    }
+
     /// Create options for Claude 4 with extended thinking
     pub fn for_claude_4_thinking(budget_tokens: u32) -> Self {
         let mut options = Self::new();

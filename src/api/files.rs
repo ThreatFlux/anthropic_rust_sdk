@@ -1,10 +1,13 @@
 //! Files API implementation
 
 use crate::{
-    api::utils::{build_paginated_path, create_default_pagination},
+    api::utils::{
+        build_paginated_path, build_pagination_query, build_path_with_query,
+        create_default_pagination,
+    },
     client::Client,
     error::Result,
-    models::file::{File, FileListResponse, FileUploadRequest, FileUploadResponse},
+    models::file::{File, FileListParams, FileListResponse, FileUploadRequest, FileUploadResponse},
     types::{HttpMethod, Pagination, ProgressCallback, RequestOptions},
 };
 use reqwest::multipart::{Form, Part};
@@ -174,6 +177,46 @@ impl FilesApi {
         options: Option<RequestOptions>,
     ) -> Result<FileListResponse> {
         let path = build_paginated_path("/files", pagination.as_ref());
+
+        self.client
+            .request(HttpMethod::Get, &path, None, options)
+            .await
+    }
+
+    /// List files with optional `scope_id` / `purpose` filters.
+    ///
+    /// This is a backward-compatible companion to [`list`](Self::list): pass a
+    /// [`FileListParams`] (e.g. a session `scope_id` for Managed Agents session
+    /// outputs) alongside the usual pagination.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use threatflux::{Client, models::file::FileListParams};
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = Client::from_env()?;
+    /// let params = FileListParams::new().scope_id("session_123");
+    ///
+    /// let response = client.files().list_with_params(None, params, None).await?;
+    /// for file in response.data {
+    ///     println!("File: {}", file.filename);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn list_with_params(
+        &self,
+        pagination: Option<Pagination>,
+        params: FileListParams,
+        options: Option<RequestOptions>,
+    ) -> Result<FileListResponse> {
+        let mut query_params = Vec::new();
+        if let Some(pagination) = pagination.as_ref() {
+            query_params.extend(build_pagination_query(pagination));
+        }
+        query_params.extend(params.query_params());
+
+        let path = build_path_with_query("/files", query_params);
 
         self.client
             .request(HttpMethod::Get, &path, None, options)

@@ -40,8 +40,15 @@ pub mod beta_headers {
 
 use crate::{
     api::{
-        admin::AdminApi, completions::CompletionsApi, files::FilesApi,
-        message_batches::MessageBatchesApi, messages::MessagesApi, models::ModelsApi,
+        admin::AdminApi,
+        completions::CompletionsApi,
+        files::FilesApi,
+        managed_agents::{
+            AgentsApi, DeploymentsApi, EnvironmentsApi, MemoryStoresApi, SessionsApi, VaultsApi,
+        },
+        message_batches::MessageBatchesApi,
+        messages::MessagesApi,
+        models::ModelsApi,
         skills::SkillsApi,
     },
     config::Config,
@@ -127,6 +134,36 @@ impl Client {
     /// Access the Skills API
     pub fn skills(&self) -> SkillsApi {
         SkillsApi::new(self.clone())
+    }
+
+    /// Access the Managed Agents — Agents API (beta).
+    pub fn agents(&self) -> AgentsApi {
+        AgentsApi::new(self.clone())
+    }
+
+    /// Access the Managed Agents — Environments API (beta).
+    pub fn environments(&self) -> EnvironmentsApi {
+        EnvironmentsApi::new(self.clone())
+    }
+
+    /// Access the Managed Agents — Sessions API (beta).
+    pub fn sessions(&self) -> SessionsApi {
+        SessionsApi::new(self.clone())
+    }
+
+    /// Access the Managed Agents — Vaults API (beta).
+    pub fn vaults(&self) -> VaultsApi {
+        VaultsApi::new(self.clone())
+    }
+
+    /// Access the Managed Agents — Memory Stores API (beta).
+    pub fn memory_stores(&self) -> MemoryStoresApi {
+        MemoryStoresApi::new(self.clone())
+    }
+
+    /// Access the Managed Agents — Deployments API (beta).
+    pub fn deployments(&self) -> DeploymentsApi {
+        DeploymentsApi::new(self.clone())
     }
 
     /// Access the Admin API (requires admin key)

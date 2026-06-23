@@ -3,6 +3,7 @@
 pub mod admin;
 pub mod completions;
 pub mod files;
+pub mod managed_agents;
 pub mod message_batches;
 pub mod messages;
 pub mod models;
@@ -13,6 +14,11 @@ pub mod utils;
 pub use admin::AdminApi;
 pub use completions::CompletionsApi;
 pub use files::FilesApi;
+pub use managed_agents::{
+    AgentsApi, CredentialsApi, DeploymentRunsApi, DeploymentsApi, EnvironmentsApi, MemoriesApi,
+    MemoryStoresApi, SessionEventsApi, SessionResourcesApi, SessionThreadsApi, SessionsApi,
+    VaultsApi,
+};
 pub use message_batches::MessageBatchesApi;
 pub use messages::MessagesApi;
 pub use models::ModelsApi;

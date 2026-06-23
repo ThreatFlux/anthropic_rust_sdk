@@ -18,6 +18,11 @@ use threatflux::models::{
     batch::{MessageBatch, MessageBatchListResponse, MessageBatchStatus, RequestCounts},
     common::{ContentBlock, Role, StopReason, Usage},
     file::{File, FileListResponse, FileStatus, FileUploadResponse},
+    managed_agents::{
+        Agent, AgentModel, CredentialKind, Deployment, DeploymentSchedule, Environment,
+        EnvironmentConfig, MemoryStore, NetworkingConfig, Session, SessionAgentRef, SessionStatus,
+        Vault,
+    },
     message::{Message, MessageResponse, StreamEvent},
     model::{Model, ModelListResponse},
 };
@@ -203,6 +208,104 @@ pub mod fixtures {
             usage_by_period: None,
             usage_by_model: None,
             cost: None,
+        }
+    }
+
+    /// Create a test managed agent
+    pub fn test_agent() -> Agent {
+        Agent {
+            object_type: "agent".to_string(),
+            id: "agent_test123".to_string(),
+            version: "1".to_string(),
+            name: "triage".to_string(),
+            description: Some("A test agent".to_string()),
+            model: AgentModel::Id("claude-opus-4-8".to_string()),
+            system: Some("You are a security triage assistant.".to_string()),
+            tools: Vec::new(),
+            mcp_servers: Vec::new(),
+            skills: Vec::new(),
+            multiagent: None,
+            metadata: HashMap::new(),
+            created_at: Some(Utc::now()),
+            extra: HashMap::new(),
+        }
+    }
+
+    /// Create a test session
+    pub fn test_session() -> Session {
+        Session {
+            object_type: "session".to_string(),
+            id: "session_test123".to_string(),
+            agent: SessionAgentRef::Id("agent_test123".to_string()),
+            environment_id: Some("env_test123".to_string()),
+            title: Some("triage run".to_string()),
+            status: SessionStatus::Idle,
+            stop_reason: None,
+            resources: Vec::new(),
+            vault_ids: Vec::new(),
+            metadata: HashMap::new(),
+            created_at: Some(Utc::now()),
+            extra: HashMap::new(),
+        }
+    }
+
+    /// Create a test environment
+    pub fn test_environment() -> Environment {
+        Environment {
+            object_type: "environment".to_string(),
+            id: "env_test123".to_string(),
+            name: "sandbox".to_string(),
+            config: EnvironmentConfig::Cloud {
+                networking: NetworkingConfig::Unrestricted {},
+            },
+            created_at: Some(Utc::now()),
+            extra: HashMap::new(),
+        }
+    }
+
+    /// Create a test vault
+    pub fn test_vault() -> Vault {
+        Vault {
+            object_type: "vault".to_string(),
+            id: "vault_test123".to_string(),
+            name: "secrets".to_string(),
+            created_at: Some(Utc::now()),
+            extra: HashMap::new(),
+        }
+    }
+
+    /// Create a test memory store
+    pub fn test_memory_store() -> MemoryStore {
+        MemoryStore {
+            object_type: "memory_store".to_string(),
+            id: "mem_test123".to_string(),
+            name: "notes".to_string(),
+            description: Some("A test memory store".to_string()),
+            created_at: Some(Utc::now()),
+            extra: HashMap::new(),
+        }
+    }
+
+    /// Create a test deployment
+    pub fn test_deployment() -> Deployment {
+        Deployment {
+            object_type: "deployment".to_string(),
+            id: "deploy_test123".to_string(),
+            name: "nightly".to_string(),
+            agent: SessionAgentRef::Id("agent_test123".to_string()),
+            environment_id: Some("env_test123".to_string()),
+            schedule: Some(DeploymentSchedule::cron("0 0 * * *")),
+            resources: Vec::new(),
+            metadata: HashMap::new(),
+            created_at: Some(Utc::now()),
+            extra: HashMap::new(),
+        }
+    }
+
+    /// Create a test credential kind (write-only static bearer)
+    pub fn test_credential_kind() -> CredentialKind {
+        CredentialKind::StaticBearer {
+            token: Some("sk-secret".to_string()),
         }
     }
 }

@@ -5,6 +5,7 @@ pub mod batch;
 pub mod common;
 pub mod completion;
 pub mod file;
+pub mod managed_agents;
 pub mod message;
 pub mod model;
 pub mod skill;
@@ -34,8 +35,23 @@ pub use completion::{
     CompletionRequest, CompletionResponse, CompletionStopReason, DEFAULT_COMPLETION_MODEL,
 };
 pub use file::{
-    File, FileDownload, FileListResponse, FilePurpose, FileStatus, FileUploadRequest,
-    FileUploadResponse,
+    File, FileDownload, FileListParams, FileListResponse, FilePurpose, FileStatus,
+    FileUploadRequest, FileUploadResponse,
+};
+pub use managed_agents::{
+    Agent, AgentCreateRequest, AgentListResponse, AgentModel, AgentSkillRef, AgentTool,
+    AgentUpdateRequest, Credential, CredentialCreateRequest, CredentialKind,
+    CredentialListResponse, CredentialUpdateRequest, Deployment, DeploymentCreateRequest,
+    DeploymentListResponse, DeploymentRun, DeploymentRunListResponse, DeploymentSchedule,
+    DeploymentUpdateRequest, Environment, EnvironmentConfig, EnvironmentCreateRequest,
+    EnvironmentListResponse, EnvironmentUpdateRequest, McpServer, Memory, MemoryCreateRequest,
+    MemoryListResponse, MemoryRedactRequest, MemoryStore, MemoryStoreCreateRequest,
+    MemoryStoreListResponse, MemoryStoreUpdateRequest, MemoryUpdateRequest, MemoryVersion,
+    MemoryVersionListResponse, Multiagent, MultiagentMember, NetworkingConfig, SendEvent, Session,
+    SessionAgentRef, SessionCreateRequest, SessionEvent, SessionEventListResponse,
+    SessionEventMeta, SessionListResponse, SessionResource, SessionResourceListResponse,
+    SessionResourceSpec, SessionResourceUpdateRequest, SessionStatus, SessionStopReason,
+    SessionUpdateRequest, Vault, VaultCreateRequest, VaultListResponse, VaultUpdateRequest,
 };
 pub use message::{
     ContentBlockDelta, Fallback, Message, MessageDelta, MessageRequest, MessageResponse,
