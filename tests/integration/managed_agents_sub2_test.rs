@@ -66,7 +66,7 @@ mod managed_agents_sub2_tests {
     }
 
     #[tokio::test]
-    async fn test_memory_list_get_update_delete() {
+    async fn test_memory_list_and_get() {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("GET"))
@@ -88,6 +88,24 @@ mod managed_agents_sub2_tests {
             .respond_with(ResponseTemplate::new(200).set_body_json(fixtures::test_memory()))
             .mount(&mock_server)
             .await;
+
+        let client = setup_test_client(&mock_server).await;
+        let memories = client.memory_stores().memories("mem_test123");
+
+        assert!(
+            memories.list(None, None).await.is_ok(),
+            "list should succeed"
+        );
+        assert!(
+            memories.get("memory_test123", None).await.is_ok(),
+            "get should succeed"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_memory_update_and_delete() {
+        let mock_server = MockServer::start().await;
+
         Mock::given(method("POST"))
             .and(path(
                 "/v1/memory_stores/mem_test123/memories/memory_test123",
@@ -108,14 +126,6 @@ mod managed_agents_sub2_tests {
         let client = setup_test_client(&mock_server).await;
         let memories = client.memory_stores().memories("mem_test123");
 
-        assert!(
-            memories.list(None, None).await.is_ok(),
-            "list should succeed"
-        );
-        assert!(
-            memories.get("memory_test123", None).await.is_ok(),
-            "get should succeed"
-        );
         let update = MemoryUpdateRequest::new();
         assert!(
             memories
@@ -235,7 +245,7 @@ mod managed_agents_sub2_tests {
     // -------------------------------------------------------------------------
 
     #[tokio::test]
-    async fn test_credential_list_get_update_delete() {
+    async fn test_credential_list_and_get() {
         let mock_server = MockServer::start().await;
 
         Mock::given(method("GET"))
@@ -255,6 +265,24 @@ mod managed_agents_sub2_tests {
             .respond_with(ResponseTemplate::new(200).set_body_json(fixtures::test_credential()))
             .mount(&mock_server)
             .await;
+
+        let client = setup_test_client(&mock_server).await;
+        let credentials = client.vaults().credentials("vault_test123");
+
+        assert!(
+            credentials.list(None, None).await.is_ok(),
+            "list should succeed"
+        );
+        assert!(
+            credentials.get("cred_test123", None).await.is_ok(),
+            "get should succeed"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_credential_update_and_delete() {
+        let mock_server = MockServer::start().await;
+
         Mock::given(method("POST"))
             .and(path("/v1/vaults/vault_test123/credentials/cred_test123"))
             .and(managed_agents_beta())
@@ -271,14 +299,6 @@ mod managed_agents_sub2_tests {
         let client = setup_test_client(&mock_server).await;
         let credentials = client.vaults().credentials("vault_test123");
 
-        assert!(
-            credentials.list(None, None).await.is_ok(),
-            "list should succeed"
-        );
-        assert!(
-            credentials.get("cred_test123", None).await.is_ok(),
-            "get should succeed"
-        );
         let update = CredentialUpdateRequest::new();
         assert!(
             credentials
