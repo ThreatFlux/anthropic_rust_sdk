@@ -26,8 +26,8 @@ async fn test_all_models_basic_messages() -> Result<(), Box<dyn Error>> {
     println!("\n=== Testing All Models with Basic Messages ===\n");
 
     let models_to_test = vec![
-        ("claude-3-5-haiku-20241022", "Claude 3.5 Haiku"),
-        ("claude-3-5-sonnet-20241022", "Claude 3.5 Sonnet"),
+        ("claude-haiku-4-5", "Claude 3.5 Haiku"),
+        ("claude-sonnet-4-6", "Claude 3.5 Sonnet"),
         // Claude 4 models - commented out initially for cost reasons
         // Uncomment to test with real Claude 4 models
         // ("claude-opus-4-1-20250805", "Claude Opus 4.1"),
@@ -98,7 +98,7 @@ async fn test_streaming_responses() -> Result<(), Box<dyn Error>> {
     println!("\n=== Testing Streaming Responses ===\n");
 
     let request = MessageBuilder::new()
-        .model(models::HAIKU_3_5)
+        .model(models::HAIKU_4_5)
         .max_tokens(150)
         .stream()
         .user("Count from 1 to 10 slowly.")
@@ -151,14 +151,14 @@ async fn test_batch_processing() -> Result<(), Box<dyn Error>> {
     println!("\n=== Testing Batch Processing ===\n");
 
     let batch = BatchBuilder::new()
-        .add_simple_request("test-1", models::HAIKU_3_5, "What is 2+2?", 50)
+        .add_simple_request("test-1", models::HAIKU_4_5, "What is 2+2?", 50)
         .add_simple_request(
             "test-2",
-            models::HAIKU_3_5,
+            models::HAIKU_4_5,
             "What is the capital of France?",
             50,
         )
-        .add_simple_request("test-3", models::HAIKU_3_5, "What color is the sky?", 50)
+        .add_simple_request("test-3", models::HAIKU_4_5, "What color is the sky?", 50)
         .build();
 
     // Create batch
@@ -224,7 +224,7 @@ async fn test_token_counting() -> Result<(), Box<dyn Error>> {
     for (text, description) in test_texts {
         let count = client
             .messages()
-            .count_tokens_simple(models::HAIKU_3_5, text, None)
+            .count_tokens_simple(models::HAIKU_4_5, text, None)
             .await?;
 
         println!(
@@ -248,7 +248,7 @@ async fn test_token_counting() -> Result<(), Box<dyn Error>> {
     );
 
     let request = MessageBuilder::new()
-        .model(models::HAIKU_3_5)
+        .model(models::HAIKU_4_5)
         .tool(tool)
         .user("Calculate 5 + 3")
         .build();
@@ -287,7 +287,7 @@ async fn test_models_api() -> Result<(), Box<dyn Error>> {
     }
 
     // Get specific model
-    let model = client.models().get(models::HAIKU_3_5, None).await?;
+    let model = client.models().get(models::HAIKU_4_5, None).await?;
     println!("\n✅ Retrieved model: {}", model.display_name);
     println!("   Capabilities: {:?}", model.capabilities);
     println!("   Max output tokens: {:?}", model.max_output_tokens);
@@ -304,7 +304,7 @@ async fn test_error_handling() -> Result<(), Box<dyn Error>> {
     let bad_client = Client::new(bad_config);
 
     let request = MessageBuilder::new()
-        .model(models::HAIKU_3_5)
+        .model(models::HAIKU_4_5)
         .max_tokens(10)
         .user("Test")
         .build();
@@ -335,7 +335,7 @@ async fn test_error_handling() -> Result<(), Box<dyn Error>> {
 
     // Test with max tokens exceeding limit
     let request = MessageBuilder::new()
-        .model(models::HAIKU_3_5)
+        .model(models::HAIKU_4_5)
         .max_tokens(1000000) // Way too many
         .user("Test")
         .build();
@@ -357,7 +357,7 @@ async fn test_conversation() -> Result<(), Box<dyn Error>> {
     println!("\n=== Testing Conversation with Context ===\n");
 
     let request = MessageBuilder::new()
-        .model(models::HAIKU_3_5)
+        .model(models::HAIKU_4_5)
         .max_tokens(100)
         .system("You are a helpful math tutor.")
         .user("What is 5 + 3?")
@@ -403,7 +403,7 @@ async fn test_tool_use() -> Result<(), Box<dyn Error>> {
     );
 
     let request = MessageBuilder::new()
-        .model(models::HAIKU_3_5)
+        .model(models::HAIKU_4_5)
         .max_tokens(200)
         .tool(weather_tool)
         .user("What's the weather like in Paris, France?")
@@ -436,7 +436,7 @@ async fn test_rate_limiting() -> Result<(), Box<dyn Error>> {
         let client = client.clone();
         let task = tokio::spawn(async move {
             let request = MessageBuilder::new()
-                .model(models::HAIKU_3_5)
+                .model(models::HAIKU_4_5)
                 .max_tokens(10)
                 .user(format!("Say {}", i))
                 .build();

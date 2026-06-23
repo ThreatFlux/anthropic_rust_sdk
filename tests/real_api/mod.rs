@@ -13,4 +13,5 @@
 mod real_messages_test;
 
 #[cfg(feature = "real_api_tests")]
+#[allow(unused_imports)]
 pub use real_messages_test::*;

@@ -29,7 +29,7 @@ impl MessagesApi {
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = Client::from_env()?;
     /// let request = MessageRequest::new()
-    ///     .model("claude-3-5-haiku-20241022")
+    ///     .model("claude-haiku-4-5")
     ///     .max_tokens(1000)
     ///     .add_user_message("Hello, Claude!");
     ///
@@ -59,7 +59,7 @@ impl MessagesApi {
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = Client::from_env()?;
     /// let request = MessageRequest::new()
-    ///     .model("claude-3-5-haiku-20241022")
+    ///     .model("claude-haiku-4-5")
     ///     .max_tokens(1000)
     ///     .add_user_message("Hello, Claude!")
     ///     .stream(true);
@@ -100,7 +100,7 @@ impl MessagesApi {
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = Client::from_env()?;
     /// let request = TokenCountRequest::new()
-    ///     .model("claude-3-5-haiku-20241022")
+    ///     .model("claude-haiku-4-5")
     ///     .add_user_message("Hello, Claude!");
     ///
     /// let response = client.messages().count_tokens(request, None).await?;

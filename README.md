@@ -9,13 +9,17 @@
 [![Security Audit](https://github.com/ThreatFlux/anthropic_rust_sdk/workflows/Security%20Audit/badge.svg)](https://github.com/ThreatFlux/anthropic_rust_sdk/security)
 [![Dependency Status](https://deps.rs/repo/github/ThreatFlux/anthropic_rust_sdk/status.svg)](https://deps.rs/repo/github/ThreatFlux/anthropic_rust_sdk)
 
-A comprehensive Rust SDK for the Anthropic API, providing async support, streaming capabilities, and full coverage of all Anthropic API endpoints including Messages, Models, Batches, Files, and Admin operations. **Full support for Claude 4 models** with extended thinking, 1M context windows, and hybrid reasoning.
+A comprehensive Rust SDK for the Anthropic API, providing async support, streaming capabilities, and broad coverage of Anthropic API endpoints including Messages, Models, Batches, Files, Skills, and Admin operations. Tracks the **current model generation** (Opus 4.x, Sonnet 4.6, Haiku 4.5, Fable 5) with adaptive thinking, the `effort` parameter, prompt caching, server-side tools, structured outputs, and refusal fallbacks.
 
 ## Features
 
-- **🚀 Full API Coverage**: Support for all Anthropic API endpoints
-- **🧠 Claude 4 Support**: Extended thinking (up to 64K tokens), hybrid reasoning modes
-- **📜 1M Context Window**: Support for Sonnet 4's massive context capability
+- **🚀 Broad API Coverage**: Messages, Models, Batches, Files, Skills, and Admin endpoints
+- **🧠 Adaptive Thinking + Effort**: `thinking: {type: "adaptive"}` with `low`/`medium`/`high`/`xhigh`/`max` effort
+- **📜 1M Context Window**: Supported on current Opus/Sonnet/Fable models
+- **💾 Prompt Caching**: Cacheable system/content/tool blocks with 5m/1h TTLs
+- **🔧 Server-Side Tools**: Web search, web fetch, code execution, bash, text editor, memory
+- **📐 Structured Outputs**: JSON-schema-constrained responses
+- **🛟 Refusal Fallbacks**: Server-side fallback models for Claude Fable 5
 - **⚡ Async/Await**: Built on `tokio` for high-performance async operations
 - **🌊 Streaming Support**: Real-time streaming responses with Server-Sent Events
 - **📦 Batch Processing**: Efficient batch message processing
@@ -49,7 +53,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // Create a message using the builder pattern
     let request = MessageBuilder::new()
-        .model("claude-3-5-haiku-20241022")  // Or use Claude 4: "claude-opus-4-1-20250805"
+        .model("claude-sonnet-4-6")  // Or the most capable: "claude-opus-4-8" / "claude-fable-5"
         .max_tokens(1000)
         .user("Hello, Claude! Tell me about Rust programming.")
         .build();
@@ -84,32 +88,37 @@ export ANTHROPIC_API_KEY="your_api_key_here"
 
 ## Supported Models
 
-### Claude 4 Models (Latest Generation)
-- **Claude Opus 4.1** (`claude-opus-4-1-20250805`) - World's best coding model, 74.5% on SWE-bench
-- **Claude Opus 4** (`claude-opus-4-20250514`) - Previous Opus version
-- **Claude Sonnet 4** (`claude-sonnet-4-20250514`) - Balanced performance, 1M context window
+### Current Models
+- **Claude Fable 5** (`claude-fable-5`) - Most capable widely released model (always-on thinking; 30-day retention)
+- **Claude Opus 4.8** (`claude-opus-4-8`) - Most capable Opus-tier model, 1M context
+- **Claude Opus 4.7** (`claude-opus-4-7`) - Previous-generation Opus, 1M context
+- **Claude Opus 4.6** (`claude-opus-4-6`) - 1M context
+- **Claude Sonnet 4.6** (`claude-sonnet-4-6`) - Best balance of speed and intelligence, 1M context
+- **Claude Haiku 4.5** (`claude-haiku-4-5`) - Fastest and most cost-effective
 
-### Claude 3 Models
-- **Claude 3.5 Haiku** (`claude-3-5-haiku-20241022`) - Fastest and most cost-effective
-- **Claude 3.5 Sonnet** (`claude-3-5-sonnet-20241022`) - Balanced performance
-- **Claude 3 Opus** (`claude-3-opus-20240229`) - Maximum intelligence
+Model ids are passed as plain strings; constants for the current catalog live in
+`config::models` (retired ids are kept, marked deprecated). Use `claude-opus-4-8`
+or `claude-fable-5` for the most capable, `claude-haiku-4-5` for the cheapest.
 
 ## Examples
 
-### Claude 4 with Extended Thinking
+### Adaptive thinking with the effort parameter
 
 ```rust
 use anthropic_rust_sdk::{Client, builders::MessageBuilder, config::models};
+use anthropic_rust_sdk::models::message::OutputEffort;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::from_env()?;
-    
-    // Use Opus 4.1 with extended thinking for complex problems
+
+    // Adaptive thinking lets Claude decide how much to reason; `effort`
+    // controls depth. `budget_tokens` is removed on current models.
     let request = MessageBuilder::new()
-        .model(models::OPUS_4_1)
-        .max_tokens(4096)
-        .thinking(64000)  // Up to 64K tokens for deep reasoning
+        .model(models::OPUS_4_8)
+        .max_tokens(16000)
+        .adaptive_thinking_summarized()
+        .effort(OutputEffort::XHigh)  // best for coding/agentic work
         .user("Solve this complex algorithmic problem...")
         .build();
     
@@ -131,7 +140,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::from_env()?;
     
     let request = MessageBuilder::new()
-        .model("claude-3-5-haiku-20241022")
+        .model("claude-haiku-4-5")
         .max_tokens(500)
         .user("Write a short story about a robot learning to paint")
         .stream()  // Enable streaming
@@ -168,7 +177,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::from_env()?;
     
     let request = MessageBuilder::new()
-        .model("claude-3-5-haiku-20241022")
+        .model("claude-haiku-4-5")
         .max_tokens(800)
         .system("You are a helpful coding mentor specializing in Rust.")
         .conversation(&[
@@ -196,9 +205,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // Create a batch of requests
     let batch = BatchBuilder::new()
-        .add_simple_request("req1", "claude-3-5-haiku-20241022", "What is 2+2?", 100)
-        .add_simple_request("req2", "claude-3-5-haiku-20241022", "What is 3+3?", 100)
-        .add_creative("story", "claude-3-5-haiku-20241022", "Write a haiku about coding", 200)
+        .add_simple_request("req1", "claude-haiku-4-5", "What is 2+2?", 100)
+        .add_simple_request("req2", "claude-haiku-4-5", "What is 3+3?", 100)
+        .add_creative("story", "claude-haiku-4-5", "Write a haiku about coding", 200)
         .build();
     
     // Submit the batch
@@ -228,7 +237,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::from_env()?;
     
     let request = MessageBuilder::new()
-        .model("claude-3-5-haiku-20241022")
+        .model("claude-haiku-4-5")
         .max_tokens(500)
         .user_with_image_file(
             "What do you see in this image?",

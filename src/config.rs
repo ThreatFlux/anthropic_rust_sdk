@@ -4,62 +4,122 @@ use crate::error::{AnthropicError, Result};
 use std::time::Duration;
 use url::Url;
 
-/// Default model to use when none is specified
-pub const DEFAULT_MODEL: &str = "claude-3-5-haiku-20241022";
+/// Default model to use when none is specified.
+///
+/// A current, active, balanced model. Override per-request with
+/// [`crate::models::message::MessageRequest::model`] — e.g. `claude-opus-4-8`
+/// or `claude-fable-5` for the most capable, `claude-haiku-4-5` for the cheapest.
+pub const DEFAULT_MODEL: &str = models::SONNET_4_6;
 
-/// Available Claude models
+/// Available Claude models.
+///
+/// Model ids are passed as plain strings, so any id can be used; these constants
+/// track the current catalog. Retired ids are kept (deprecated) for source
+/// compatibility but will return `404` from the API.
 pub mod models {
-    /// Claude Opus 4.1 - Most powerful, best for complex tasks
-    pub const OPUS_4_1: &str = "claude-opus-4-1-20250805";
-    /// Claude Opus 4 - Previous Opus version
+    // --- Current models ---------------------------------------------------
+
+    /// Claude Fable 5 — most capable widely released model. Always-on thinking;
+    /// requires 30-day data retention.
+    pub const FABLE_5: &str = "claude-fable-5";
+    /// Claude Mythos 5 — same capabilities as Fable 5 (Project Glasswing only).
+    pub const MYTHOS_5: &str = "claude-mythos-5";
+    /// Claude Opus 4.8 — most capable Opus-tier model.
+    pub const OPUS_4_8: &str = "claude-opus-4-8";
+    /// Claude Opus 4.7 — previous-generation Opus.
+    pub const OPUS_4_7: &str = "claude-opus-4-7";
+    /// Claude Opus 4.6.
+    pub const OPUS_4_6: &str = "claude-opus-4-6";
+    /// Claude Sonnet 4.6 — best balance of speed and intelligence.
+    pub const SONNET_4_6: &str = "claude-sonnet-4-6";
+    /// Claude Haiku 4.5 — fastest, most cost-effective.
+    pub const HAIKU_4_5: &str = "claude-haiku-4-5";
+
+    // --- Legacy (still active) -------------------------------------------
+
+    /// Claude Opus 4.5.
+    pub const OPUS_4_5: &str = "claude-opus-4-5";
+    /// Claude Sonnet 4.5.
+    pub const SONNET_4_5: &str = "claude-sonnet-4-5";
+    /// Claude Opus 4.1 — deprecated (retires 2026-08-05); prefer [`OPUS_4_8`].
+    pub const OPUS_4_1: &str = "claude-opus-4-1";
+
+    // --- Retired (return 404; kept for source compatibility) -------------
+
+    /// Retired — use [`OPUS_4_8`].
+    #[deprecated(note = "retired by Anthropic; use OPUS_4_8")]
     pub const OPUS_4: &str = "claude-opus-4-20250514";
-    /// Claude Sonnet 4 - Balanced performance, 1M context available
+    /// Retired — use [`SONNET_4_6`].
+    #[deprecated(note = "retired by Anthropic; use SONNET_4_6")]
     pub const SONNET_4: &str = "claude-sonnet-4-20250514";
-    /// Claude 3.7 Sonnet - Previous Sonnet version
+    /// Retired — use [`SONNET_4_6`].
+    #[deprecated(note = "retired by Anthropic; use SONNET_4_6")]
     pub const SONNET_3_7: &str = "claude-3-7-sonnet-20250219";
-    /// Claude 3.5 Haiku - Fastest, most cost-effective
+    /// Retired — use [`HAIKU_4_5`].
+    #[deprecated(note = "retired by Anthropic; use HAIKU_4_5")]
     pub const HAIKU_3_5: &str = "claude-3-5-haiku-20241022";
-    /// Claude 3.5 Sonnet - Balanced performance
+    /// Retired — use [`SONNET_4_6`].
+    #[deprecated(note = "retired by Anthropic; use SONNET_4_6")]
     pub const SONNET_3_5: &str = "claude-3-5-sonnet-20241022";
-    /// Claude 3 Opus - Maximum intelligence
+    /// Retired — use [`OPUS_4_8`].
+    #[deprecated(note = "retired by Anthropic; use OPUS_4_8")]
     pub const OPUS_3: &str = "claude-3-opus-20240229";
 
-    /// Check if a model supports extended thinking
+    /// Models that support thinking (adaptive and/or extended).
     pub fn supports_thinking(model: &str) -> bool {
-        if model.is_empty() {
-            return false;
-        }
-        matches!(model, OPUS_4_1 | OPUS_4 | SONNET_4)
+        supports_adaptive_thinking(model) || matches!(model, OPUS_4_5 | SONNET_4_5 | OPUS_4_1)
     }
 
-    /// Check if a model supports 1M context window
+    /// Models that support adaptive thinking (`thinking: {type: "adaptive"}`).
+    pub fn supports_adaptive_thinking(model: &str) -> bool {
+        matches!(
+            model,
+            FABLE_5 | MYTHOS_5 | OPUS_4_8 | OPUS_4_7 | OPUS_4_6 | SONNET_4_6
+        )
+    }
+
+    /// Models that support the `effort` output parameter.
+    pub fn supports_effort(model: &str) -> bool {
+        matches!(
+            model,
+            FABLE_5 | MYTHOS_5 | OPUS_4_8 | OPUS_4_7 | OPUS_4_6 | OPUS_4_5 | SONNET_4_6
+        )
+    }
+
+    /// Models that support the `xhigh` effort level.
+    pub fn supports_xhigh_effort(model: &str) -> bool {
+        matches!(model, FABLE_5 | MYTHOS_5 | OPUS_4_8 | OPUS_4_7)
+    }
+
+    /// Check if a model supports a 1M-token context window.
     pub fn supports_1m_context(model: &str) -> bool {
-        if model.is_empty() {
-            return false;
-        }
-        model == SONNET_4
+        matches!(
+            model,
+            FABLE_5 | MYTHOS_5 | OPUS_4_8 | OPUS_4_7 | OPUS_4_6 | SONNET_4_6 | SONNET_4_5
+        )
     }
 
-    /// Get maximum thinking tokens for a model
+    /// Get maximum extended-thinking tokens for a model.
+    ///
+    /// Returns `None` for adaptive-thinking models, where `budget_tokens` is
+    /// removed/deprecated — use [`supports_adaptive_thinking`] and the `effort`
+    /// parameter instead.
     pub fn max_thinking_tokens(model: &str) -> Option<u32> {
-        if model.is_empty() {
+        if supports_adaptive_thinking(model) {
             return None;
         }
-        match model {
-            OPUS_4_1 | OPUS_4 => Some(64000),
-            SONNET_4 => Some(32000),
-            _ => None,
-        }
+        None
     }
 
-    /// Get all available models
+    /// Get all current (non-retired) models.
     pub fn all_models() -> &'static [&'static str] {
         &[
-            OPUS_4_1, OPUS_4, SONNET_4, SONNET_3_7, HAIKU_3_5, SONNET_3_5, OPUS_3,
+            FABLE_5, MYTHOS_5, OPUS_4_8, OPUS_4_7, OPUS_4_6, SONNET_4_6, HAIKU_4_5, OPUS_4_5,
+            SONNET_4_5, OPUS_4_1,
         ]
     }
 
-    /// Check if a model is valid/supported
+    /// Check if a model is a current (non-retired) catalog model.
     pub fn is_valid_model(model: &str) -> bool {
         !model.is_empty() && all_models().contains(&model)
     }

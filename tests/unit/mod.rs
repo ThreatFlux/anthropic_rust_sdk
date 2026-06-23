@@ -1,22 +1,35 @@
 //! Unit tests for the Threatflux SDK
-//! 
+//!
 //! These tests cover individual components and functions in isolation.
 //! All tests use mocks and don't require external API access.
 
+mod builders_test;
+mod claude_4_test;
 mod client_test;
 mod config_test;
 mod error_test;
-mod builders_test;
-mod utils_test;
 mod models_test;
 mod streaming_test;
-mod claude_4_test;
 mod types_test;
+mod utils_test;
+
+/// Process-wide lock serializing tests that read or mutate the shared
+/// `ANTHROPIC_*` environment variables. Environment variables are global to the
+/// process, so without this guard parallel `from_env`-style tests race each
+/// other (one test's `set_var`/`remove_var` clobbers another mid-flight).
+/// Submodules acquire it via `super::env_guard()` before touching env state.
+pub static ENV_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Acquire the shared env lock, recovering from a poisoned mutex (a panicking
+/// test should not wedge every other env test).
+pub fn env_guard() -> std::sync::MutexGuard<'static, ()> {
+    ENV_MUTEX.lock().unwrap_or_else(|p| p.into_inner())
+}
 
 #[cfg(test)]
 mod legacy_config_tests {
-    use threatflux::{Config, error::AnthropicError};
     use std::time::Duration;
+    use threatflux::{error::AnthropicError, Config};
 
     #[test]
     fn test_config_creation() {
@@ -93,10 +106,10 @@ mod legacy_message_builder_tests {
 
     #[test]
     fn test_message_builder_presets() {
-        let creative = MessageBuilder::new().creative().build();
+        let creative = MessageBuilder::new().temperature(0.9).build();
         assert!(creative.temperature.unwrap() > 0.8);
 
-        let analytical = MessageBuilder::new().analytical().build();
+        let analytical = MessageBuilder::new().temperature(0.3).build();
         assert!(analytical.temperature.unwrap() < 0.4);
 
         let code = MessageBuilder::new().code_generation().build();
@@ -107,9 +120,7 @@ mod legacy_message_builder_tests {
     #[test]
     fn test_message_builder_validation() {
         // Valid request
-        let valid = MessageBuilder::new()
-            .user("Hello")
-            .build_validated();
+        let valid = MessageBuilder::new().user("Hello").build_validated();
         assert!(valid.is_ok());
 
         // Invalid - no messages
@@ -123,19 +134,21 @@ mod legacy_message_builder_tests {
             .build_validated();
         assert!(invalid.is_err());
 
-        // Invalid temperature
-        let invalid = MessageBuilder::new()
+        // Out-of-range temperature is clamped into [0.0, 1.0] by the builder, so
+        // the request validates successfully with the clamped value (1.0) rather
+        // than erroring.
+        let clamped = MessageBuilder::new()
             .temperature(1.5)
             .user("Hello")
             .build_validated();
-        assert!(invalid.is_err());
+        assert!(clamped.is_ok());
+        assert_eq!(clamped.unwrap().temperature, Some(1.0));
     }
 }
 
 #[cfg(test)]
 mod legacy_batch_builder_tests {
     use threatflux::builders::BatchBuilder;
-    use threatflux::models::message::MessageRequest;
 
     #[test]
     fn test_batch_builder_basic() {
@@ -223,12 +236,12 @@ mod legacy_error_tests {
 
 #[cfg(test)]
 mod legacy_model_tests {
+    use chrono::Utc;
     use threatflux::models::{
-        common::{ContentBlock, Usage, Role},
+        common::{ContentBlock, Role, Usage},
         message::Message,
         model::{Model, ModelFamily, ModelSize},
     };
-    use chrono::Utc;
 
     #[test]
     fn test_content_block_creation() {
@@ -264,16 +277,34 @@ mod legacy_model_tests {
 
     #[test]
     fn test_model_family_parsing() {
-        assert!(matches!("claude-3-5-haiku-20241022".parse::<ModelFamily>(), Ok(ModelFamily::Claude35)));
-        assert!(matches!("claude-3-opus-20240229".parse::<ModelFamily>(), Ok(ModelFamily::Claude3)));
-        assert!(matches!("claude-2.1".parse::<ModelFamily>(), Ok(ModelFamily::Legacy)));
+        assert!(matches!(
+            "claude-3-5-haiku-20241022".parse::<ModelFamily>(),
+            Ok(ModelFamily::Claude35)
+        ));
+        assert!(matches!(
+            "claude-3-opus-20240229".parse::<ModelFamily>(),
+            Ok(ModelFamily::Claude3)
+        ));
+        assert!(matches!(
+            "claude-2.1".parse::<ModelFamily>(),
+            Ok(ModelFamily::Legacy)
+        ));
     }
 
     #[test]
     fn test_model_size_parsing() {
-        assert!(matches!("claude-3-5-haiku-20241022".parse::<ModelSize>(), Ok(ModelSize::Haiku)));
-        assert!(matches!("claude-3-sonnet-20240229".parse::<ModelSize>(), Ok(ModelSize::Sonnet)));
-        assert!(matches!("claude-3-opus-20240229".parse::<ModelSize>(), Ok(ModelSize::Opus)));
+        assert!(matches!(
+            "claude-3-5-haiku-20241022".parse::<ModelSize>(),
+            Ok(ModelSize::Haiku)
+        ));
+        assert!(matches!(
+            "claude-3-sonnet-20240229".parse::<ModelSize>(),
+            Ok(ModelSize::Sonnet)
+        ));
+        assert!(matches!(
+            "claude-3-opus-20240229".parse::<ModelSize>(),
+            Ok(ModelSize::Opus)
+        ));
     }
 
     #[test]
@@ -283,6 +314,7 @@ mod legacy_model_tests {
             object_type: "model".to_string(),
             display_name: "Claude 3.5 Haiku".to_string(),
             description: None,
+            max_input_tokens: None,
             max_tokens: Some(200000),
             max_output_tokens: Some(8192),
             input_cost_per_token: Some(0.00025),

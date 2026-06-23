@@ -32,7 +32,7 @@ impl MessageBatchesApi {
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = Client::from_env()?;
     /// let request = MessageBatchCreateRequest::new()
-    ///     .add_request("req_1", "claude-3-5-haiku-20241022", "Hello, Claude!", 1000);
+    ///     .add_request("req_1", "claude-haiku-4-5", "Hello, Claude!", 1000);
     ///
     /// let batch = client.message_batches().create(request, None).await?;
     /// println!("Created batch: {}", batch.id);

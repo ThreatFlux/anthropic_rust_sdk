@@ -2,17 +2,19 @@
 //!
 //! Tests serialization/deserialization of all model types and their functionality.
 
-use threatflux::models::{
-    common::{ContentBlock, Usage, Role, StopReason, ImageSource},
-    message::{Message, MessageRequest, MessageResponse, StreamEvent},
-    model::{Model, ModelFamily, ModelSize, ModelListResponse},
-    batch::{MessageBatch, MessageBatchStatus, MessageBatchCreateRequest, MessageBatchRequest},
-    file::{File, FileStatus, FilePurpose, FileUploadRequest, FileUploadResponse, FileDownload},
-    admin::{Organization, Workspace, WorkspaceStatus, UsageReport, ApiKey, Member, MemberRole, MemberStatus},
-};
 use chrono::Utc;
-use serde_json::{json, to_string, from_str};
-use pretty_assertions::assert_eq;
+use serde_json::{from_str, json, to_string};
+use threatflux::models::{
+    admin::{ApiKey, MemberRole, Organization, UsageReport, Workspace, WorkspaceStatus},
+    batch::{
+        BatchRequestItem, MessageBatch, MessageBatchCreateRequest, MessageBatchStatus,
+        RequestCounts,
+    },
+    common::{ContentBlock, ImageSource, Role, StopReason, ToolResultContent, Usage},
+    file::{File, FileDownload, FilePurpose, FileStatus, FileUploadRequest},
+    message::{Message, MessageRequest, MessageResponse, StreamEvent, SystemPrompt},
+    model::{Model, ModelFamily, ModelListResponse, ModelSize},
+};
 
 #[cfg(test)]
 mod common_models_tests {
@@ -21,10 +23,10 @@ mod common_models_tests {
     #[test]
     fn test_content_block_text() {
         let block = ContentBlock::text("Hello, world!");
-        
+
         assert_eq!(block.as_text(), Some("Hello, world!"));
         assert!(block.as_image().is_none());
-        
+
         // Test serialization
         let json = to_string(&block).unwrap();
         let deserialized: ContentBlock = from_str(&json).unwrap();
@@ -33,18 +35,17 @@ mod common_models_tests {
 
     #[test]
     fn test_content_block_image() {
-        let image_source = ImageSource {
-            source_type: "base64".to_string(),
-            media_type: "image/jpeg".to_string(),
-            data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==".to_string(),
-        };
-        
+        let image_source = ImageSource::base64(
+            "image/jpeg",
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
+        );
+
         let block = ContentBlock::image(image_source.clone());
-        
+
         assert!(block.as_text().is_none());
         assert!(block.as_image().is_some());
         assert_eq!(block.as_image().unwrap(), &image_source);
-        
+
         // Test serialization
         let json = to_string(&block).unwrap();
         let deserialized: ContentBlock = from_str(&json).unwrap();
@@ -54,10 +55,10 @@ mod common_models_tests {
     #[test]
     fn test_content_block_tool_use() {
         let tool_use = ContentBlock::tool_use("tool_123", "calculator", json!({"x": 5, "y": 3}));
-        
+
         assert!(tool_use.as_text().is_none());
         assert!(tool_use.as_image().is_none());
-        
+
         if let ContentBlock::ToolUse { id, name, input } = &tool_use {
             assert_eq!(id, "tool_123");
             assert_eq!(name, "calculator");
@@ -65,7 +66,7 @@ mod common_models_tests {
         } else {
             panic!("Expected ToolUse variant");
         }
-        
+
         // Test serialization
         let json = to_string(&tool_use).unwrap();
         let deserialized: ContentBlock = from_str(&json).unwrap();
@@ -76,21 +77,32 @@ mod common_models_tests {
 
     #[test]
     fn test_content_block_tool_result() {
-        let tool_result = ContentBlock::tool_result("tool_123", "Result: 8", false);
-        
-        if let ContentBlock::ToolResult { tool_use_id, content, is_error } = &tool_result {
+        let tool_result = ContentBlock::tool_result("tool_123", Some("Result: 8".to_string()));
+
+        if let ContentBlock::ToolResult {
+            tool_use_id,
+            content,
+            is_error,
+        } = &tool_result
+        {
             assert_eq!(tool_use_id, "tool_123");
-            assert_eq!(content, "Result: 8");
-            assert_eq!(*is_error, false);
+            assert_eq!(
+                content,
+                &Some(ToolResultContent::Text("Result: 8".to_string()))
+            );
+            assert_eq!(*is_error, Some(false));
         } else {
             panic!("Expected ToolResult variant");
         }
-        
+
         // Test serialization
         let json = to_string(&tool_result).unwrap();
         let deserialized: ContentBlock = from_str(&json).unwrap();
         if let ContentBlock::ToolResult { content, .. } = deserialized {
-            assert_eq!(content, "Result: 8");
+            assert_eq!(
+                content,
+                Some(ToolResultContent::Text("Result: 8".to_string()))
+            );
         }
     }
 
@@ -100,7 +112,7 @@ mod common_models_tests {
         assert_eq!(usage.input_tokens, 100);
         assert_eq!(usage.output_tokens, 50);
         assert_eq!(usage.total_tokens(), 150);
-        
+
         // Test serialization
         let json = to_string(&usage).unwrap();
         let deserialized: Usage = from_str(&json).unwrap();
@@ -111,13 +123,13 @@ mod common_models_tests {
     fn test_role() {
         let user = Role::User;
         let assistant = Role::Assistant;
-        
+
         assert_ne!(user, assistant);
-        
+
         // Test serialization
         assert_eq!(to_string(&user).unwrap(), "\"user\"");
         assert_eq!(to_string(&assistant).unwrap(), "\"assistant\"");
-        
+
         // Test deserialization
         assert_eq!(from_str::<Role>("\"user\"").unwrap(), Role::User);
         assert_eq!(from_str::<Role>("\"assistant\"").unwrap(), Role::Assistant);
@@ -131,7 +143,7 @@ mod common_models_tests {
             StopReason::StopSequence,
             StopReason::ToolUse,
         ];
-        
+
         for reason in reasons {
             let json = to_string(&reason).unwrap();
             let deserialized: StopReason = from_str(&json).unwrap();
@@ -141,18 +153,20 @@ mod common_models_tests {
 
     #[test]
     fn test_image_source() {
-        let image = ImageSource {
-            source_type: "base64".to_string(),
-            media_type: "image/png".to_string(),
-            data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==".to_string(),
-        };
-        
+        let image = ImageSource::base64(
+            "image/png",
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
+        );
+
         // Test serialization round trip
         let json = to_string(&image).unwrap();
         let deserialized: ImageSource = from_str(&json).unwrap();
-        assert_eq!(deserialized.source_type, "base64");
-        assert_eq!(deserialized.media_type, "image/png");
-        assert_eq!(deserialized.data, image.data);
+        assert_eq!(deserialized, image);
+        let ImageSource::Base64 { media_type, data } = deserialized else {
+            panic!("Expected base64 image source");
+        };
+        assert_eq!(media_type, "image/png");
+        assert!(!data.is_empty());
     }
 }
 
@@ -165,7 +179,7 @@ mod message_models_tests {
         let user_msg = Message::user("Hello, Claude!");
         assert_eq!(user_msg.role, Role::User);
         assert_eq!(user_msg.text(), "Hello, Claude!");
-        
+
         let assistant_msg = Message::assistant("Hello back!");
         assert_eq!(assistant_msg.role, Role::Assistant);
         assert_eq!(assistant_msg.text(), "Hello back!");
@@ -177,60 +191,58 @@ mod message_models_tests {
             role: Role::User,
             content: vec![
                 ContentBlock::text("Describe this image:"),
-                ContentBlock::image(ImageSource {
-                    source_type: "base64".to_string(),
-                    media_type: "image/jpeg".to_string(),
-                    data: "base64data".to_string(),
-                }),
+                ContentBlock::image(ImageSource::base64("image/jpeg", "base64data")),
             ],
+            metadata: None,
         };
-        
+
         assert_eq!(message.content.len(), 2);
         assert_eq!(message.text(), "Describe this image:");
     }
 
     #[test]
     fn test_message_request() {
-        let request = MessageRequest {
-            model: "claude-3-5-haiku-20241022".to_string(),
-            max_tokens: 100,
-            messages: vec![Message::user("Hello")],
-            system: Some("You are helpful".to_string()),
-            temperature: Some(0.7),
-            top_p: Some(0.9),
-            top_k: Some(50),
-            stop_sequences: Some(vec!["STOP".to_string()]),
-            stream: Some(false),
-            tools: None,
-            tool_choice: None,
-            metadata: Some(json!({"test": true})),
-        };
-        
+        let request = MessageRequest::new()
+            .model("claude-haiku-4-5")
+            .max_tokens(100)
+            .add_user_message("Hello")
+            .system("You are helpful")
+            .temperature(0.7)
+            .top_p(0.9)
+            .top_k(50)
+            .add_stop_sequence("STOP")
+            .stream(false)
+            .metadata(threatflux::models::common::Metadata::new().with_custom("test", json!(true)));
+
         // Test serialization
         let json = to_string(&request).unwrap();
         let deserialized: MessageRequest = from_str(&json).unwrap();
-        assert_eq!(deserialized.model, "claude-3-5-haiku-20241022");
+        assert_eq!(deserialized.model, "claude-haiku-4-5");
         assert_eq!(deserialized.max_tokens, 100);
-        assert_eq!(deserialized.system, Some("You are helpful".to_string()));
+        assert!(
+            matches!(deserialized.system, Some(SystemPrompt::Text(ref s)) if s == "You are helpful")
+        );
     }
 
     #[test]
     fn test_message_response() {
         let response = MessageResponse {
             id: "msg_123".to_string(),
-            object: "message".to_string(),
+            object_type: "message".to_string(),
             created_at: Utc::now(),
-            model: "claude-3-5-haiku-20241022".to_string(),
+            model: "claude-haiku-4-5".to_string(),
             role: Role::Assistant,
             content: vec![ContentBlock::text("Hello!")],
             stop_reason: Some(StopReason::EndTurn),
             stop_sequence: None,
+            stop_details: None,
             usage: Usage::new(10, 5),
+            container: None,
         };
-        
+
         assert_eq!(response.text(), "Hello!");
         assert_eq!(response.usage.total_tokens(), 15);
-        
+
         // Test serialization
         let json = to_string(&response).unwrap();
         let deserialized: MessageResponse = from_str(&json).unwrap();
@@ -240,44 +252,43 @@ mod message_models_tests {
     #[test]
     fn test_stream_events() {
         let events = vec![
-            StreamEvent::MessageStart { message: MessageResponse {
-                id: "msg_123".to_string(),
-                object: "message".to_string(),
-                created_at: Utc::now(),
-                model: "claude-3-5-haiku-20241022".to_string(),
-                role: Role::Assistant,
-                content: vec![],
-                stop_reason: None,
-                stop_sequence: None,
-                usage: Usage::new(10, 0),
-            }},
+            StreamEvent::MessageStart {
+                message: MessageResponse {
+                    id: "msg_123".to_string(),
+                    object_type: "message".to_string(),
+                    created_at: Utc::now(),
+                    model: "claude-haiku-4-5".to_string(),
+                    role: Role::Assistant,
+                    content: vec![],
+                    stop_reason: None,
+                    stop_sequence: None,
+                    stop_details: None,
+                    usage: Usage::new(10, 0),
+                    container: None,
+                },
+            },
             StreamEvent::ContentBlockStart {
                 index: 0,
                 content_block: ContentBlock::text(""),
             },
-            StreamEvent::ContentBlockDelta {
-                index: 0,
-                delta: json!({"type": "text_delta", "text": "Hello"}),
-            },
             StreamEvent::ContentBlockStop { index: 0 },
-            StreamEvent::MessageDelta {
-                delta: json!({"stop_reason": "end_turn"}),
-                usage: Some(Usage::new(0, 5)),
-            },
             StreamEvent::MessageStop,
         ];
-        
+
         for event in events {
             let json = to_string(&event).unwrap();
             let deserialized: StreamEvent = from_str(&json).unwrap();
-            
+
             // Basic validation that deserialization worked
             match (&event, &deserialized) {
-                (StreamEvent::MessageStart { .. }, StreamEvent::MessageStart { .. }) => {},
-                (StreamEvent::ContentBlockStart { index: i1, .. }, StreamEvent::ContentBlockStart { index: i2, .. }) => {
+                (StreamEvent::MessageStart { .. }, StreamEvent::MessageStart { .. }) => {}
+                (
+                    StreamEvent::ContentBlockStart { index: i1, .. },
+                    StreamEvent::ContentBlockStart { index: i2, .. },
+                ) => {
                     assert_eq!(i1, i2);
-                },
-                (StreamEvent::MessageStop, StreamEvent::MessageStop) => {},
+                }
+                (StreamEvent::MessageStop, StreamEvent::MessageStop) => {}
                 _ => {} // Other variants
             }
         }
@@ -290,25 +301,62 @@ mod model_info_tests {
 
     #[test]
     fn test_model_family_parsing() {
-        assert_eq!("claude-3-5-haiku-20241022".parse::<ModelFamily>().unwrap(), ModelFamily::Claude35);
-        assert_eq!("claude-3-5-sonnet-20240620".parse::<ModelFamily>().unwrap(), ModelFamily::Claude35);
-        assert_eq!("claude-3-opus-20240229".parse::<ModelFamily>().unwrap(), ModelFamily::Claude3);
-        assert_eq!("claude-3-sonnet-20240229".parse::<ModelFamily>().unwrap(), ModelFamily::Claude3);
-        assert_eq!("claude-2.1".parse::<ModelFamily>().unwrap(), ModelFamily::Legacy);
-        assert_eq!("claude-2.0".parse::<ModelFamily>().unwrap(), ModelFamily::Legacy);
-        
-        // Test invalid model name
-        assert!("invalid-model".parse::<ModelFamily>().is_err());
+        assert_eq!(
+            "claude-3-5-haiku-20241022".parse::<ModelFamily>().unwrap(),
+            ModelFamily::Claude35
+        );
+        assert_eq!(
+            "claude-3-5-sonnet-20240620".parse::<ModelFamily>().unwrap(),
+            ModelFamily::Claude35
+        );
+        assert_eq!(
+            "claude-3-opus-20240229".parse::<ModelFamily>().unwrap(),
+            ModelFamily::Claude3
+        );
+        assert_eq!(
+            "claude-3-sonnet-20240229".parse::<ModelFamily>().unwrap(),
+            ModelFamily::Claude3
+        );
+        assert_eq!(
+            "claude-2.1".parse::<ModelFamily>().unwrap(),
+            ModelFamily::Legacy
+        );
+        assert_eq!(
+            "claude-2.0".parse::<ModelFamily>().unwrap(),
+            ModelFamily::Legacy
+        );
+        assert_eq!(
+            "claude-opus-4-8".parse::<ModelFamily>().unwrap(),
+            ModelFamily::Claude4
+        );
+
+        // Non-claude model names map to Unknown.
+        assert_eq!(
+            "invalid-model".parse::<ModelFamily>().unwrap(),
+            ModelFamily::Unknown
+        );
     }
 
     #[test]
     fn test_model_size_parsing() {
-        assert_eq!("claude-3-5-haiku-20241022".parse::<ModelSize>().unwrap(), ModelSize::Haiku);
-        assert_eq!("claude-3-5-sonnet-20240620".parse::<ModelSize>().unwrap(), ModelSize::Sonnet);
-        assert_eq!("claude-3-opus-20240229".parse::<ModelSize>().unwrap(), ModelSize::Opus);
-        
-        // Test invalid model name
-        assert!("invalid-model".parse::<ModelSize>().is_err());
+        assert_eq!(
+            "claude-3-5-haiku-20241022".parse::<ModelSize>().unwrap(),
+            ModelSize::Haiku
+        );
+        assert_eq!(
+            "claude-3-5-sonnet-20240620".parse::<ModelSize>().unwrap(),
+            ModelSize::Sonnet
+        );
+        assert_eq!(
+            "claude-3-opus-20240229".parse::<ModelSize>().unwrap(),
+            ModelSize::Opus
+        );
+
+        // Names without a known size tier map to Unknown.
+        assert_eq!(
+            "invalid-model".parse::<ModelSize>().unwrap(),
+            ModelSize::Unknown
+        );
     }
 
     #[test]
@@ -318,6 +366,7 @@ mod model_info_tests {
             object_type: "model".to_string(),
             display_name: "Claude 3.5 Haiku".to_string(),
             description: Some("Fast and accurate".to_string()),
+            max_input_tokens: Some(200000),
             max_tokens: Some(200000),
             max_output_tokens: Some(8192),
             input_cost_per_token: Some(0.00025),
@@ -328,13 +377,13 @@ mod model_info_tests {
             deprecated: Some(false),
             deprecation_date: None,
         };
-        
+
         assert_eq!(model.family(), ModelFamily::Claude35);
         assert_eq!(model.size(), ModelSize::Haiku);
         assert!(model.supports_vision());
         assert!(model.supports_tools());
         assert!(!model.is_deprecated());
-        
+
         // Test serialization
         let json = to_string(&model).unwrap();
         let deserialized: Model = from_str(&json).unwrap();
@@ -344,29 +393,27 @@ mod model_info_tests {
     #[test]
     fn test_model_list_response() {
         let models = ModelListResponse {
-            object: "list".to_string(),
-            data: vec![
-                Model {
-                    id: "claude-3-5-haiku-20241022".to_string(),
-                    object_type: "model".to_string(),
-                    display_name: "Claude 3.5 Haiku".to_string(),
-                    description: None,
-                    max_tokens: Some(200000),
-                    max_output_tokens: Some(8192),
-                    input_cost_per_token: Some(0.00025),
-                    output_cost_per_token: Some(0.00125),
-                    capabilities: Some(vec!["vision".to_string()]),
-                    created_at: Utc::now(),
-                    updated_at: Utc::now(),
-                    deprecated: Some(false),
-                    deprecation_date: None,
-                },
-            ],
+            data: vec![Model {
+                id: "claude-3-5-haiku-20241022".to_string(),
+                object_type: "model".to_string(),
+                display_name: "Claude 3.5 Haiku".to_string(),
+                description: None,
+                max_input_tokens: Some(200000),
+                max_tokens: Some(200000),
+                max_output_tokens: Some(8192),
+                input_cost_per_token: Some(0.00025),
+                output_cost_per_token: Some(0.00125),
+                capabilities: Some(vec!["vision".to_string()]),
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+                deprecated: Some(false),
+                deprecation_date: None,
+            }],
             has_more: false,
             first_id: Some("claude-3-5-haiku-20241022".to_string()),
             last_id: Some("claude-3-5-haiku-20241022".to_string()),
         };
-        
+
         // Test serialization
         let json = to_string(&models).unwrap();
         let deserialized: ModelListResponse = from_str(&json).unwrap();
@@ -383,10 +430,10 @@ mod batch_models_tests {
     fn test_batch_status() {
         let statuses = vec![
             MessageBatchStatus::InProgress,
-            MessageBatchStatus::Canceling,
-            MessageBatchStatus::Ended,
+            MessageBatchStatus::Cancelled,
+            MessageBatchStatus::Completed,
         ];
-        
+
         for status in statuses {
             let json = to_string(&status).unwrap();
             let deserialized: MessageBatchStatus = from_str(&json).unwrap();
@@ -398,27 +445,32 @@ mod batch_models_tests {
     fn test_message_batch() {
         let batch = MessageBatch {
             id: "batch_123".to_string(),
-            object: "message_batch".to_string(),
+            object_type: "message_batch".to_string(),
             processing_status: MessageBatchStatus::InProgress,
-            request_counts: threatflux::models::batch::BatchRequestCounts {
+            request_counts: RequestCounts {
                 processing: 5,
-                succeeded: 3,
-                errored: 1,
-                canceled: 0,
+                completed: 3,
+                failed: 1,
+                cancelled: 0,
                 expired: 0,
                 total: 9,
             },
-            ended_at: None,
             created_at: Utc::now(),
+            in_progress_at: None,
+            completed_at: None,
+            cancelled_at: None,
+            failed_at: None,
             expires_at: Utc::now() + chrono::Duration::hours(24),
-            archive_at: Utc::now() + chrono::Duration::days(30),
-            cancel_initiated_at: None,
-            results_url: Some("https://api.anthropic.com/v1/message_batches/batch_123/results".to_string()),
+            error: None,
+            results_file_id: None,
+            results_url: Some(
+                "https://api.anthropic.com/v1/message_batches/batch_123/results".to_string(),
+            ),
         };
-        
+
         assert_eq!(batch.request_counts.total, 9);
         assert_eq!(batch.processing_status, MessageBatchStatus::InProgress);
-        
+
         // Test serialization
         let json = to_string(&batch).unwrap();
         let deserialized: MessageBatch = from_str(&json).unwrap();
@@ -427,61 +479,41 @@ mod batch_models_tests {
 
     #[test]
     fn test_batch_request() {
-        let message_request = MessageRequest {
-            model: "claude-3-5-haiku-20241022".to_string(),
-            max_tokens: 100,
-            messages: vec![Message::user("Hello")],
-            system: None,
-            temperature: None,
-            top_p: None,
-            top_k: None,
-            stop_sequences: None,
-            stream: Some(false),
-            tools: None,
-            tool_choice: None,
-            metadata: None,
-        };
-        
-        let batch_request = MessageBatchRequest {
+        let message_request = MessageRequest::new()
+            .model("claude-haiku-4-5")
+            .max_tokens(100)
+            .add_user_message("Hello")
+            .stream(false);
+
+        let batch_request = BatchRequestItem {
             custom_id: "req_123".to_string(),
             params: message_request,
         };
-        
+
         assert_eq!(batch_request.custom_id, "req_123");
-        assert_eq!(batch_request.params.model, "claude-3-5-haiku-20241022");
-        
+        assert_eq!(batch_request.params.model, "claude-haiku-4-5");
+
         // Test serialization
         let json = to_string(&batch_request).unwrap();
-        let deserialized: MessageBatchRequest = from_str(&json).unwrap();
+        let deserialized: BatchRequestItem = from_str(&json).unwrap();
         assert_eq!(deserialized.custom_id, "req_123");
     }
 
     #[test]
     fn test_batch_create_request() {
         let create_request = MessageBatchCreateRequest {
-            requests: vec![
-                MessageBatchRequest {
-                    custom_id: "req_1".to_string(),
-                    params: MessageRequest {
-                        model: "claude-3-5-haiku-20241022".to_string(),
-                        max_tokens: 100,
-                        messages: vec![Message::user("First message")],
-                        system: None,
-                        temperature: None,
-                        top_p: None,
-                        top_k: None,
-                        stop_sequences: None,
-                        stream: Some(false),
-                        tools: None,
-                        tool_choice: None,
-                        metadata: None,
-                    },
-                },
-            ],
+            requests: vec![BatchRequestItem {
+                custom_id: "req_1".to_string(),
+                params: MessageRequest::new()
+                    .model("claude-haiku-4-5")
+                    .max_tokens(100)
+                    .add_user_message("First message")
+                    .stream(false),
+            }],
         };
-        
+
         assert_eq!(create_request.requests.len(), 1);
-        
+
         // Test serialization
         let json = to_string(&create_request).unwrap();
         let deserialized: MessageBatchCreateRequest = from_str(&json).unwrap();
@@ -495,13 +527,8 @@ mod file_models_tests {
 
     #[test]
     fn test_file_status() {
-        let statuses = vec![
-            FileStatus::Uploaded,
-            FileStatus::Processing,
-            FileStatus::Processed,
-            FileStatus::Error,
-        ];
-        
+        let statuses = vec![FileStatus::Processing, FileStatus::Ready, FileStatus::Error];
+
         for status in statuses {
             let json = to_string(&status).unwrap();
             let deserialized: FileStatus = from_str(&json).unwrap();
@@ -511,11 +538,8 @@ mod file_models_tests {
 
     #[test]
     fn test_file_purpose() {
-        let purposes = vec![
-            FilePurpose::UserData,
-            FilePurpose::AssistantData,
-        ];
-        
+        let purposes = vec![FilePurpose::UserData, FilePurpose::AssistantData];
+
         for purpose in purposes {
             let json = to_string(&purpose).unwrap();
             let deserialized: FilePurpose = from_str(&json).unwrap();
@@ -527,16 +551,17 @@ mod file_models_tests {
     fn test_file_struct() {
         let file = File {
             id: "file_123".to_string(),
-            object: "file".to_string(),
+            object_type: "file".to_string(),
             filename: "test.txt".to_string(),
             size_bytes: 1024,
             mime_type: "text/plain".to_string(),
-            purpose: FilePurpose::UserData,
-            status: FileStatus::Uploaded,
+            purpose: "user_data".to_string(),
+            status: Some(FileStatus::Ready),
             created_at: Utc::now(),
-            expires_at: Some(Utc::now() + chrono::Duration::days(30)),
+            updated_at: None,
+            error: None,
         };
-        
+
         // Test serialization
         let json = to_string(&file).unwrap();
         let deserialized: File = from_str(&json).unwrap();
@@ -546,12 +571,10 @@ mod file_models_tests {
 
     #[test]
     fn test_file_upload_request() {
-        let upload_request = FileUploadRequest::new(
-            b"Hello, world!".to_vec(),
-            "greeting.txt",
-            "text/plain"
-        ).purpose("user_data");
-        
+        let upload_request =
+            FileUploadRequest::new(b"Hello, world!".to_vec(), "greeting.txt", "text/plain")
+                .purpose("user_data");
+
         assert_eq!(upload_request.filename, "greeting.txt");
         assert_eq!(upload_request.mime_type, "text/plain");
         assert_eq!(upload_request.content, b"Hello, world!");
@@ -560,15 +583,16 @@ mod file_models_tests {
 
     #[test]
     fn test_file_download() {
-        let download = FileDownload {
-            content: b"File content here".to_vec(),
-            filename: "downloaded.txt".to_string(),
-            mime_type: "text/plain".to_string(),
-        };
-        
+        let download = FileDownload::new(
+            b"File content here".to_vec(),
+            "text/plain".to_string(),
+            "downloaded.txt".to_string(),
+        );
+
         assert_eq!(download.content, b"File content here");
         assert_eq!(download.filename, "downloaded.txt");
-        
+        assert_eq!(download.content_type, "text/plain");
+
         // Test serialization
         let json = to_string(&download).unwrap();
         let deserialized: FileDownload = from_str(&json).unwrap();
@@ -579,18 +603,22 @@ mod file_models_tests {
 #[cfg(test)]
 mod admin_models_tests {
     use super::*;
+    use std::collections::HashMap;
 
     #[test]
     fn test_organization() {
         let org = Organization {
+            object_type: Some("organization".to_string()),
             id: "org_123".to_string(),
-            object: "organization".to_string(),
             name: "Test Organization".to_string(),
-            display_name: "Test Org".to_string(),
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
+            display_name: Some("Test Org".to_string()),
+            description: None,
+            settings: None,
+            created_at: Some(Utc::now()),
+            updated_at: Some(Utc::now()),
+            extra: HashMap::new(),
         };
-        
+
         // Test serialization
         let json = to_string(&org).unwrap();
         let deserialized: Organization = from_str(&json).unwrap();
@@ -600,16 +628,21 @@ mod admin_models_tests {
     #[test]
     fn test_workspace() {
         let workspace = Workspace {
+            object_type: Some("workspace".to_string()),
             id: "ws_123".to_string(),
-            object: "workspace".to_string(),
             name: "Test Workspace".to_string(),
-            display_name: "Test WS".to_string(),
-            status: WorkspaceStatus::Active,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
+            display_name: Some("Test WS".to_string()),
+            display_color: None,
+            description: None,
+            settings: None,
+            status: Some(WorkspaceStatus::Active),
+            data_residency: None,
+            created_at: Some(Utc::now()),
+            updated_at: Some(Utc::now()),
             archived_at: None,
+            extra: HashMap::new(),
         };
-        
+
         // Test serialization
         let json = to_string(&workspace).unwrap();
         let deserialized: Workspace = from_str(&json).unwrap();
@@ -624,7 +657,7 @@ mod admin_models_tests {
             MemberRole::Member,
             MemberRole::Viewer,
         ];
-        
+
         for role in roles {
             let json = to_string(&role).unwrap();
             let deserialized: MemberRole = from_str(&json).unwrap();
@@ -637,27 +670,43 @@ mod admin_models_tests {
         let usage = UsageReport {
             input_tokens: 10000,
             output_tokens: 5000,
+            request_count: 10,
+            usage_by_period: None,
+            usage_by_model: None,
+            cost: None,
         };
-        
-        assert_eq!(usage.total_tokens(), 15000);
-        
+
+        assert_eq!(usage.input_tokens + usage.output_tokens, 15000);
+
         // Test serialization
         let json = to_string(&usage).unwrap();
         let deserialized: UsageReport = from_str(&json).unwrap();
-        assert_eq!(deserialized.total_tokens(), 15000);
+        assert_eq!(
+            deserialized.input_tokens + deserialized.output_tokens,
+            15000
+        );
+        assert_eq!(deserialized.request_count, 10);
     }
 
     #[test]
     fn test_api_key() {
         let api_key = ApiKey {
+            object_type: Some("api_key".to_string()),
             id: "key_123".to_string(),
-            object: "api_key".to_string(),
             name: "Test Key".to_string(),
-            partial_key: "sk-ant-...abc123".to_string(),
-            created_at: Utc::now(),
+            created_by: None,
+            workspace_id: None,
+            description: None,
+            partial_key_hint: Some("sk-ant-...abc123".to_string()),
+            status: None,
+            permissions: None,
+            rate_limits: None,
+            created_at: Some(Utc::now()),
             last_used_at: Some(Utc::now()),
+            expires_at: None,
+            extra: HashMap::new(),
         };
-        
+
         // Test serialization
         let json = to_string(&api_key).unwrap();
         let deserialized: ApiKey = from_str(&json).unwrap();

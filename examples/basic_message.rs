@@ -23,7 +23,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Simple message using the builder pattern
     let request = MessageBuilder::new()
-        .model("claude-3-5-haiku-20241022")
+        .model("claude-haiku-4-5")
         .max_tokens(1000)
         .temperature(0.7)
         .system("You are a helpful AI assistant.")
@@ -52,7 +52,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("{}", "=".repeat(50));
 
     let conversation_request = MessageBuilder::new()
-        .model("claude-3-5-haiku-20241022")
+        .model("claude-haiku-4-5")
         .max_tokens(500)
         .user("What's your name?")
         .assistant("I'm Claude, an AI assistant created by Anthropic.")
@@ -70,7 +70,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("{}", "=".repeat(50));
 
     let creative_request = MessageBuilder::new()
-        .model("claude-3-5-haiku-20241022")
+        .model("claude-haiku-4-5")
         .creative() // Uses creative preset (high temperature)
         .user("Write a short poem about programming in Rust")
         .build();
@@ -87,7 +87,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let token_count = client
         .messages()
-        .count_tokens_simple("claude-3-5-haiku-20241022", "Hello, how are you?", None)
+        .count_tokens_simple("claude-haiku-4-5", "Hello, how are you?", None)
         .await?;
 
     println!(

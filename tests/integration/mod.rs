@@ -1,24 +1,20 @@
 //! Integration tests for the Threatflux SDK
-//! 
+//!
 //! These tests use mocked HTTP responses and don't require real API credentials.
 //! For tests with real API credentials, see the real_api tests.
 
 // Import all integration test modules
+mod admin_test;
+mod batches_test;
+mod e2e_test;
+mod files_test;
 mod messages_test;
 mod models_test;
-mod batches_test;
-mod files_test;
-mod admin_test;
-mod e2e_test;
-
-// Common utilities for integration tests
-#[path = "../common/mod.rs"]
-mod common;
 
 #[cfg(test)]
 mod legacy_api_tests {
-    use threatflux::{Client, builders::MessageBuilder};
     use std::env;
+    use threatflux::{builders::MessageBuilder, Client};
 
     fn setup_client() -> Option<Client> {
         if env::var("ANTHROPIC_API_KEY").is_ok() {
@@ -43,11 +39,17 @@ mod legacy_api_tests {
 
         let response = client.messages().create(request, None).await;
         assert!(response.is_ok(), "Basic message request should succeed");
-        
+
         let response = response.unwrap();
         assert!(!response.text().is_empty(), "Response should contain text");
-        assert!(response.usage.input_tokens > 0, "Should have input token usage");
-        assert!(response.usage.output_tokens > 0, "Should have output token usage");
+        assert!(
+            response.usage.input_tokens > 0,
+            "Should have input token usage"
+        );
+        assert!(
+            response.usage.output_tokens > 0,
+            "Should have output token usage"
+        );
     }
 
     #[tokio::test]
@@ -66,10 +68,13 @@ mod legacy_api_tests {
 
         let stream = client.messages().create_stream(request, None).await;
         assert!(stream.is_ok(), "Stream creation should succeed");
-        
+
         let text = stream.unwrap().collect_text().await;
         assert!(text.is_ok(), "Stream collection should succeed");
-        assert!(!text.unwrap().is_empty(), "Streamed text should not be empty");
+        assert!(
+            !text.unwrap().is_empty(),
+            "Streamed text should not be empty"
+        );
     }
 
     #[tokio::test]
@@ -79,12 +84,13 @@ mod legacy_api_tests {
             return;
         };
 
-        let result = client.messages()
+        let result = client
+            .messages()
             .count_tokens_simple("claude-3-5-haiku-20241022", "Hello, world!", None)
             .await;
-            
+
         assert!(result.is_ok(), "Token counting should succeed");
-        
+
         let count = result.unwrap();
         assert!(count.input_tokens > 0, "Should have positive token count");
     }
@@ -96,12 +102,16 @@ mod legacy_api_tests {
             return;
         };
 
-        let models = client.models()
-            .list(Some(threatflux::types::Pagination::new().with_limit(5)), None)
+        let models = client
+            .models()
+            .list(
+                Some(threatflux::types::Pagination::new().with_limit(5)),
+                None,
+            )
             .await;
-            
+
         assert!(models.is_ok(), "Models list should succeed");
-        
+
         let models = models.unwrap();
         assert!(!models.data.is_empty(), "Should return some models");
     }
@@ -113,12 +123,10 @@ mod legacy_api_tests {
             return;
         };
 
-        let model = client.models()
-            .get("claude-3-5-haiku-20241022", None)
-            .await;
-            
+        let model = client.models().get("claude-3-5-haiku-20241022", None).await;
+
         assert!(model.is_ok(), "Specific model fetch should succeed");
-        
+
         let model = model.unwrap();
         assert_eq!(model.id, "claude-3-5-haiku-20241022");
         assert!(!model.display_name.is_empty());
@@ -140,7 +148,7 @@ mod legacy_api_tests {
 
         let response = client.messages().create(request, None).await;
         assert!(response.is_err(), "Invalid model should cause error");
-        
+
         // Test max tokens too high
         let request = MessageBuilder::new()
             .model("claude-3-5-haiku-20241022")
@@ -155,8 +163,8 @@ mod legacy_api_tests {
 
 #[cfg(test)]
 mod legacy_batch_tests {
-    use threatflux::{Client, builders::BatchBuilder};
     use std::env;
+    use threatflux::{builders::BatchBuilder, Client};
 
     fn setup_client() -> Option<Client> {
         if env::var("ANTHROPIC_API_KEY").is_ok() {
@@ -180,7 +188,7 @@ mod legacy_batch_tests {
 
         let batch = client.message_batches().create(batch_request, None).await;
         assert!(batch.is_ok(), "Batch creation should succeed");
-        
+
         let batch = batch.unwrap();
         assert_eq!(batch.request_counts.total, 2);
     }
@@ -192,18 +200,22 @@ mod legacy_batch_tests {
             return;
         };
 
-        let batches = client.message_batches()
-            .list(Some(threatflux::types::Pagination::new().with_limit(5)), None)
+        let batches = client
+            .message_batches()
+            .list(
+                Some(threatflux::types::Pagination::new().with_limit(5)),
+                None,
+            )
             .await;
-            
+
         assert!(batches.is_ok(), "Batch listing should succeed");
     }
 }
 
 #[cfg(test)]
 mod legacy_file_tests {
-    use threatflux::{Client, models::file::FileUploadRequest};
     use std::env;
+    use threatflux::{models::file::FileUploadRequest, Client};
 
     fn setup_client() -> Option<Client> {
         if env::var("ANTHROPIC_API_KEY").is_ok() {
@@ -221,20 +233,17 @@ mod legacy_file_tests {
         };
 
         let content = b"Hello, this is a test file for Threatflux SDK!";
-        let request = FileUploadRequest::new(
-            content.to_vec(),
-            "test.txt",
-            "text/plain"
-        ).purpose("user_data");
+        let request =
+            FileUploadRequest::new(content.to_vec(), "test.txt", "text/plain").purpose("user_data");
 
         let result = client.files().upload(request, None).await;
         assert!(result.is_ok(), "File upload should succeed");
-        
+
         let file = result.unwrap().file;
         assert_eq!(file.filename, "test.txt");
         assert_eq!(file.mime_type, "text/plain");
         assert_eq!(file.size_bytes, content.len() as u64);
-        
+
         // Clean up - delete the file
         let _ = client.files().delete(&file.id, None).await;
     }
@@ -246,18 +255,22 @@ mod legacy_file_tests {
             return;
         };
 
-        let files = client.files()
-            .list(Some(threatflux::types::Pagination::new().with_limit(5)), None)
+        let files = client
+            .files()
+            .list(
+                Some(threatflux::types::Pagination::new().with_limit(5)),
+                None,
+            )
             .await;
-            
+
         assert!(files.is_ok(), "File listing should succeed");
     }
 }
 
 #[cfg(test)]
 mod legacy_admin_tests {
-    use threatflux::Client;
     use std::env;
+    use threatflux::Client;
 
     fn setup_admin_client() -> Option<Client> {
         if env::var("ANTHROPIC_ADMIN_KEY").is_ok() {
@@ -276,8 +289,7 @@ mod legacy_admin_tests {
 
         if let Ok(admin) = client.admin() {
             let org = admin.organization().get(None).await;
-            if org.is_ok() {
-                let org = org.unwrap();
+            if let Ok(org) = org {
                 assert!(!org.name.is_empty(), "Organization should have a name");
             }
         }
@@ -291,10 +303,14 @@ mod legacy_admin_tests {
         };
 
         if let Ok(admin) = client.admin() {
-            let workspaces = admin.workspaces()
-                .list(Some(threatflux::types::Pagination::new().with_limit(5)), None)
+            let workspaces = admin
+                .workspaces()
+                .list(
+                    Some(threatflux::types::Pagination::new().with_limit(5)),
+                    None,
+                )
                 .await;
-                
+
             if workspaces.is_ok() {
                 // Test passed - we can list workspaces
             }
@@ -302,6 +318,7 @@ mod legacy_admin_tests {
     }
 
     #[tokio::test]
+    #[allow(deprecated)]
     async fn test_usage_report() {
         let Some(client) = setup_admin_client() else {
             println!("Skipping admin integration test - no admin key");
@@ -309,15 +326,11 @@ mod legacy_admin_tests {
         };
 
         if let Ok(admin) = client.admin() {
-            let usage = admin.usage()
-                .get_current_billing_usage(None, None)
-                .await;
-                
-            if usage.is_ok() {
-                let usage = usage.unwrap();
-                // Usage report should have some data (even if zero)
-                assert!(usage.input_tokens >= 0);
-                assert!(usage.output_tokens >= 0);
+            let usage = admin.usage().get_current_billing_usage(None, None).await;
+
+            if let Ok(usage) = usage {
+                // Token counts are unsigned; just confirm the report deserialized.
+                let _total = usage.input_tokens + usage.output_tokens;
             }
         }
     }
@@ -325,9 +338,9 @@ mod legacy_admin_tests {
 
 #[cfg(test)]
 mod legacy_comprehensive_tests {
-    use threatflux::{Client, builders::MessageBuilder};
     use futures::StreamExt;
     use std::env;
+    use threatflux::{builders::MessageBuilder, Client};
 
     fn setup_client() -> Option<Client> {
         if env::var("ANTHROPIC_API_KEY").is_ok() {
@@ -366,12 +379,19 @@ mod legacy_comprehensive_tests {
             .stream()
             .build();
 
-        let mut stream = client.messages().create_stream(stream_request, None).await.unwrap();
+        let mut stream = client
+            .messages()
+            .create_stream(stream_request, None)
+            .await
+            .unwrap();
         let mut received_text = false;
 
         while let Some(event) = stream.next().await {
             if let Ok(event) = event {
-                if let threatflux::models::message::StreamEvent::ContentBlockDelta { delta, .. } = event {
+                if let threatflux::models::message::StreamEvent::ContentBlockDelta {
+                    delta, ..
+                } = event
+                {
                     if delta.text.is_some() {
                         received_text = true;
                     }
@@ -384,9 +404,11 @@ mod legacy_comprehensive_tests {
         assert!(received_text, "Should receive streamed text");
 
         // 4. Test token counting
-        let tokens = client.messages()
+        let tokens = client
+            .messages()
             .count_tokens_simple("claude-3-5-haiku-20241022", "Hello world", None)
-            .await.unwrap();
+            .await
+            .unwrap();
 
         assert!(tokens.input_tokens > 0);
     }

@@ -3,22 +3,39 @@
 /// Anthropic API version
 pub const API_VERSION: &str = "2023-06-01";
 
-/// Beta headers for various features
+/// Beta headers for various features.
+///
+/// Note: prompt caching, structured outputs, the `effort` parameter, and
+/// fine-grained tool streaming are now GA and need no header.
 pub mod beta_headers {
     /// Files API beta header
     pub const FILES_API: &str = "files-api-2025-04-14";
     /// PDF support beta header
     pub const PDF_SUPPORT: &str = "pdfs-2024-09-25";
-    /// Prompt caching beta header
+    /// Prompt caching beta header (now GA; retained for older endpoints)
     pub const PROMPT_CACHING: &str = "prompt-caching-2024-07-31";
     /// Prompt tools beta header
     pub const PROMPT_TOOLS: &str = "prompt-tools-2025-04-02";
-    /// 1M context window for Sonnet 4
+    /// 1M context window
     pub const CONTEXT_1M: &str = "context-1m-2025-08-07";
     /// Extended thinking with tools beta header
     pub const EXTENDED_THINKING_TOOLS: &str = "extended-thinking-tools-2025-05-01";
     /// Skills API beta header
     pub const SKILLS_API: &str = "skills-2025-10-02";
+    /// Server-side refusal fallbacks (Claude Fable 5)
+    pub const SERVER_SIDE_FALLBACK: &str = "server-side-fallback-2026-06-01";
+    /// Fallback credit repricing for client-side retries
+    pub const FALLBACK_CREDIT: &str = "fallback-credit-2026-06-01";
+    /// Agentic task budgets
+    pub const TASK_BUDGETS: &str = "task-budgets-2026-03-13";
+    /// Context compaction
+    pub const COMPACTION: &str = "compact-2026-01-12";
+    /// Mid-conversation system messages
+    pub const MID_CONVERSATION_SYSTEM: &str = "mid-conversation-system-2026-04-07";
+    /// MCP client connector
+    pub const MCP_CLIENT: &str = "mcp-client-2025-11-20";
+    /// Managed agents
+    pub const MANAGED_AGENTS: &str = "managed-agents-2026-04-01";
 }
 
 use crate::{

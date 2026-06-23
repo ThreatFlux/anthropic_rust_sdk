@@ -192,6 +192,9 @@ pub struct MessageBatchResultEntry {
 }
 
 /// Result payload for a single batch entry
+// `Succeeded` carries a full `MessageResponse` and is the common case, so the
+// size disparity with the small error/terminal variants is expected.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum MessageBatchResult {

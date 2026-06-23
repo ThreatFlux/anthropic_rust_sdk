@@ -1,7 +1,8 @@
 //! Message-related data models
 
 use super::common::{
-    ContentBlock, Metadata, Role, StopReason, TextCitation, Tool, ToolChoice, Usage, VecPush,
+    CacheControl, ContentBlock, Metadata, Role, StopDetails, StopReason, TextCitation, Tool,
+    ToolChoice, Usage, VecPush,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -66,44 +67,86 @@ impl Message {
     }
 }
 
-/// Extended thinking configuration for Claude 4 models
+/// Thinking configuration.
+///
+/// Current models (Opus 4.7 / 4.8, Fable 5) require **adaptive** thinking —
+/// use [`ThinkingConfig::adaptive`]. `budget_tokens` (`"enabled"`) is deprecated
+/// on Opus 4.6 / Sonnet 4.6 and returns a 400 on Opus 4.7 / 4.8 / Fable 5; it is
+/// retained only for older models.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ThinkingConfig {
-    /// Type of thinking mode ("enabled" or "disabled")
+    /// Type of thinking mode: `"adaptive"`, `"enabled"`, or `"disabled"`.
     #[serde(rename = "type")]
     pub thinking_type: String,
-    /// Maximum tokens to allocate for thinking (up to 64000 for Claude 4)
+    /// Maximum tokens to allocate for thinking (`"enabled"`, legacy models only).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub budget_tokens: Option<u32>,
-    /// Allow tool use during thinking (beta)
+    /// Reasoning-summary visibility: `"summarized"` or `"omitted"` (adaptive).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display: Option<String>,
+    /// Allow tool use during thinking (beta; legacy field).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_tool_use: Option<bool>,
 }
 
 impl ThinkingConfig {
-    /// Create enabled thinking configuration
-    pub fn enabled(budget_tokens: u32) -> Self {
+    /// Create adaptive thinking configuration (recommended for current models).
+    ///
+    /// Claude decides when and how much to think. Pair with
+    /// [`OutputConfig`]'s `effort` to control depth.
+    pub fn adaptive() -> Self {
         Self {
-            thinking_type: "enabled".to_string(),
-            budget_tokens: Some(budget_tokens),
+            thinking_type: "adaptive".to_string(),
+            budget_tokens: None,
+            display: None,
             allow_tool_use: None,
         }
     }
 
-    /// Create enabled thinking configuration with tool use
+    /// Adaptive thinking that returns a readable summary of the reasoning.
+    pub fn adaptive_summarized() -> Self {
+        Self {
+            thinking_type: "adaptive".to_string(),
+            budget_tokens: None,
+            display: Some("summarized".to_string()),
+            allow_tool_use: None,
+        }
+    }
+
+    /// Set the reasoning-summary display mode (`"summarized"` / `"omitted"`).
+    pub fn with_display(mut self, display: impl Into<String>) -> Self {
+        self.display = Some(display.into());
+        self
+    }
+
+    /// Create enabled (fixed-budget) thinking configuration.
+    ///
+    /// Deprecated on current models — prefer [`ThinkingConfig::adaptive`].
+    pub fn enabled(budget_tokens: u32) -> Self {
+        Self {
+            thinking_type: "enabled".to_string(),
+            budget_tokens: Some(budget_tokens),
+            display: None,
+            allow_tool_use: None,
+        }
+    }
+
+    /// Create enabled thinking configuration with tool use (legacy).
     pub fn enabled_with_tools(budget_tokens: u32) -> Self {
         Self {
             thinking_type: "enabled".to_string(),
             budget_tokens: Some(budget_tokens),
+            display: None,
             allow_tool_use: Some(true),
         }
     }
 
-    /// Create disabled thinking configuration
+    /// Create disabled thinking configuration.
     pub fn disabled() -> Self {
         Self {
             thinking_type: "disabled".to_string(),
             budget_tokens: None,
+            display: None,
             allow_tool_use: None,
         }
     }
@@ -117,10 +160,34 @@ pub enum OutputEffort {
     Low,
     /// Medium effort / latency.
     Medium,
-    /// High effort / latency.
+    /// High effort / latency (default).
     High,
-    /// Maximum effort / latency.
+    /// Extra-high effort (Opus 4.7+ / Fable 5) — best for coding/agentic work.
+    XHigh,
+    /// Maximum effort / latency (Opus 4.6+, Sonnet 4.6, Fable 5).
     Max,
+}
+
+/// Agentic task budget — a token target the model is aware of and self-moderates
+/// against across a full tool-use loop (beta; Opus 4.7+ / Fable 5). Distinct from
+/// `max_tokens`, which is an enforced per-response ceiling.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TaskBudget {
+    /// Budget type (always `"tokens"`).
+    #[serde(rename = "type")]
+    pub budget_type: String,
+    /// Total token budget for the loop (minimum 20,000).
+    pub total: u32,
+}
+
+impl TaskBudget {
+    /// Create a token task budget.
+    pub fn tokens(total: u32) -> Self {
+        Self {
+            budget_type: "tokens".to_string(),
+            total,
+        }
+    }
 }
 
 /// Output format configuration.
@@ -147,6 +214,9 @@ pub struct OutputConfig {
     /// Structured output format settings.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub format: Option<OutputFormat>,
+    /// Agentic task budget (beta).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_budget: Option<TaskBudget>,
 }
 
 impl OutputConfig {
@@ -167,25 +237,100 @@ impl OutputConfig {
         self
     }
 
+    /// Set an agentic task budget (in tokens).
+    pub fn with_task_budget(mut self, total_tokens: u32) -> Self {
+        self.task_budget = Some(TaskBudget::tokens(total_tokens));
+        self
+    }
+
     /// Create a configuration for JSON-schema constrained output.
     pub fn json_schema(schema: serde_json::Value) -> Self {
         Self::new().with_format(OutputFormat::json_schema(schema))
     }
 }
 
-/// Cache control for prompt caching
+/// A system-prompt text block, which may carry a cache-control breakpoint.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct CacheControl {
-    /// Type of cache control ("ephemeral")
+pub struct SystemBlock {
+    /// Block type (always `"text"`).
     #[serde(rename = "type")]
-    pub cache_type: String,
+    pub block_type: String,
+    /// Block text.
+    pub text: String,
+    /// Cache control breakpoint for prompt caching.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_control: Option<CacheControl>,
 }
 
-impl CacheControl {
-    /// Create ephemeral cache control
-    pub fn ephemeral() -> Self {
+impl SystemBlock {
+    /// Create a plain system text block.
+    pub fn text(text: impl Into<String>) -> Self {
         Self {
-            cache_type: "ephemeral".to_string(),
+            block_type: "text".to_string(),
+            text: text.into(),
+            cache_control: None,
+        }
+    }
+
+    /// Create a system text block with an ephemeral cache breakpoint.
+    pub fn cached(text: impl Into<String>) -> Self {
+        Self::text(text).with_cache_control(CacheControl::ephemeral())
+    }
+
+    /// Attach a cache-control breakpoint to this block.
+    pub fn with_cache_control(mut self, cache_control: CacheControl) -> Self {
+        self.cache_control = Some(cache_control);
+        self
+    }
+}
+
+/// System prompt: a plain string or an array of cacheable text blocks.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SystemPrompt {
+    /// Plain-text system prompt.
+    Text(String),
+    /// Structured system prompt with per-block cache control.
+    Blocks(Vec<SystemBlock>),
+}
+
+impl From<String> for SystemPrompt {
+    fn from(text: String) -> Self {
+        Self::Text(text)
+    }
+}
+
+impl From<&str> for SystemPrompt {
+    fn from(text: &str) -> Self {
+        Self::Text(text.to_string())
+    }
+}
+
+impl From<Vec<SystemBlock>> for SystemPrompt {
+    fn from(blocks: Vec<SystemBlock>) -> Self {
+        Self::Blocks(blocks)
+    }
+}
+
+/// A refusal-fallback model entry for the server-side `fallbacks` parameter
+/// (Claude Fable 5). On a policy decline the API re-serves the request on the
+/// fallback model in the same call. Requires the `server-side-fallback-2026-06-01`
+/// beta header (see [`crate::types::RequestOptions::with_server_side_fallback`]).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Fallback {
+    /// Fallback model id (e.g. `claude-opus-4-8`).
+    pub model: String,
+    /// Optional per-hop `max_tokens` override.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_tokens: Option<u32>,
+}
+
+impl Fallback {
+    /// Create a fallback entry for the given model.
+    pub fn new(model: impl Into<String>) -> Self {
+        Self {
+            model: model.into(),
+            max_tokens: None,
         }
     }
 }
@@ -199,9 +344,9 @@ pub struct MessageRequest {
     pub max_tokens: u32,
     /// List of messages in the conversation
     pub messages: Vec<Message>,
-    /// System prompt (optional)
+    /// System prompt (string or cacheable text blocks)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub system: Option<String>,
+    pub system: Option<SystemPrompt>,
     /// Sampling temperature (0.0 to 1.0)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f32>,
@@ -247,6 +392,12 @@ pub struct MessageRequest {
     /// MCP server configuration list (beta)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_servers: Option<Vec<serde_json::Value>>,
+    /// Top-level cache control — auto-caches the last cacheable block.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_control: Option<CacheControl>,
+    /// Refusal-fallback models (beta; Claude Fable 5).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fallbacks: Option<Vec<Fallback>>,
 }
 
 impl MessageRequest {
@@ -272,6 +423,8 @@ impl MessageRequest {
             container: None,
             context_management: None,
             mcp_servers: None,
+            cache_control: None,
+            fallbacks: None,
         }
     }
 
@@ -287,9 +440,51 @@ impl MessageRequest {
         self
     }
 
-    /// Set system prompt
+    /// Set a plain-text system prompt
     pub fn system(mut self, system: impl Into<String>) -> Self {
-        self.system = Some(system.into());
+        self.system = Some(SystemPrompt::Text(system.into()));
+        self
+    }
+
+    /// Set a structured system prompt from cacheable text blocks
+    pub fn system_blocks(mut self, blocks: Vec<SystemBlock>) -> Self {
+        self.system = Some(SystemPrompt::Blocks(blocks));
+        self
+    }
+
+    /// Set a system prompt as a single cached (ephemeral) text block
+    pub fn system_cached(mut self, system: impl Into<String>) -> Self {
+        self.system = Some(SystemPrompt::Blocks(vec![SystemBlock::cached(system)]));
+        self
+    }
+
+    /// Set the system prompt directly
+    pub fn system_prompt(mut self, system: SystemPrompt) -> Self {
+        self.system = Some(system);
+        self
+    }
+
+    /// Set a top-level cache-control breakpoint (auto-caches the last block)
+    pub fn cache_control(mut self, cache_control: CacheControl) -> Self {
+        self.cache_control = Some(cache_control);
+        self
+    }
+
+    /// Enable automatic prompt caching of the last cacheable block
+    pub fn auto_cache(mut self) -> Self {
+        self.cache_control = Some(CacheControl::ephemeral());
+        self
+    }
+
+    /// Replace the refusal-fallback model list
+    pub fn fallbacks(mut self, fallbacks: Vec<Fallback>) -> Self {
+        self.fallbacks = Some(fallbacks);
+        self
+    }
+
+    /// Add a refusal-fallback model
+    pub fn add_fallback(mut self, model: impl Into<String>) -> Self {
+        self.fallbacks.push_item(Fallback::new(model));
         self
     }
 
@@ -407,7 +602,19 @@ impl MessageRequest {
         self
     }
 
-    /// Enable extended thinking mode (Claude 4 models)
+    /// Enable adaptive thinking (recommended for current models)
+    pub fn adaptive_thinking(mut self) -> Self {
+        self.thinking = Some(ThinkingConfig::adaptive());
+        self
+    }
+
+    /// Enable adaptive thinking with a summarized reasoning display
+    pub fn adaptive_thinking_summarized(mut self) -> Self {
+        self.thinking = Some(ThinkingConfig::adaptive_summarized());
+        self
+    }
+
+    /// Enable fixed-budget extended thinking (legacy models only)
     pub fn thinking(mut self, budget_tokens: u32) -> Self {
         self.thinking = Some(ThinkingConfig::enabled(budget_tokens));
         self
@@ -450,10 +657,24 @@ pub struct MessageResponse {
     pub stop_reason: Option<StopReason>,
     /// Stop sequence that caused the message to stop
     pub stop_sequence: Option<String>,
+    /// Structured stop details (populated on `refusal`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stop_details: Option<StopDetails>,
     /// Token usage information
     pub usage: Usage,
-    /// When the message was created
+    /// Reusable execution container info (code execution; beta)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub container: Option<serde_json::Value>,
+    /// When the message was created (synthesized if absent from the response)
+    #[serde(default = "Utc::now")]
     pub created_at: DateTime<Utc>,
+}
+
+impl MessageResponse {
+    /// Whether the response was declined for safety/policy reasons.
+    pub fn is_refusal(&self) -> bool {
+        matches!(self.stop_reason, Some(StopReason::Refusal))
+    }
 }
 
 impl MessageResponse {
@@ -476,7 +697,7 @@ pub struct TokenCountRequest {
     pub messages: Vec<Message>,
     /// System prompt to include in token count
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub system: Option<String>,
+    pub system: Option<SystemPrompt>,
     /// Tools to include in token count
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<Tool>>,
@@ -513,7 +734,7 @@ impl TokenCountRequest {
 
     /// Set system prompt
     pub fn system(mut self, system: impl Into<String>) -> Self {
-        self.system = Some(system.into());
+        self.system = Some(SystemPrompt::Text(system.into()));
         self
     }
 
@@ -658,5 +879,85 @@ mod tests {
         .unwrap();
 
         assert!(delta.citation.is_some());
+    }
+
+    #[test]
+    fn test_adaptive_thinking_serialization() {
+        let request = MessageRequest::new()
+            .model("claude-opus-4-8")
+            .add_user_message("hi")
+            .adaptive_thinking_summarized();
+        let value = serde_json::to_value(&request).unwrap();
+        assert_eq!(value["thinking"]["type"], "adaptive");
+        assert_eq!(value["thinking"]["display"], "summarized");
+        // budget_tokens must NOT be present for adaptive thinking.
+        assert!(value["thinking"].get("budget_tokens").is_none());
+    }
+
+    #[test]
+    fn test_effort_xhigh_and_task_budget_serialization() {
+        let request = MessageRequest::new()
+            .add_user_message("code")
+            .output_config(
+                OutputConfig::new()
+                    .with_effort(OutputEffort::XHigh)
+                    .with_task_budget(128_000),
+            );
+        let value = serde_json::to_value(&request).unwrap();
+        assert_eq!(value["output_config"]["effort"], "xhigh");
+        assert_eq!(value["output_config"]["task_budget"]["type"], "tokens");
+        assert_eq!(value["output_config"]["task_budget"]["total"], 128_000);
+    }
+
+    #[test]
+    fn test_system_cached_serializes_as_blocks() {
+        let request = MessageRequest::new()
+            .add_user_message("q")
+            .system_cached("large shared prompt");
+        let value = serde_json::to_value(&request).unwrap();
+        assert_eq!(value["system"][0]["type"], "text");
+        assert_eq!(value["system"][0]["text"], "large shared prompt");
+        assert_eq!(value["system"][0]["cache_control"]["type"], "ephemeral");
+
+        // Plain string system still serializes as a bare string.
+        let plain = MessageRequest::new()
+            .add_user_message("q")
+            .system("you are helpful");
+        let plain_value = serde_json::to_value(&plain).unwrap();
+        assert_eq!(plain_value["system"], "you are helpful");
+    }
+
+    #[test]
+    fn test_top_level_cache_control_and_fallbacks() {
+        let request = MessageRequest::new()
+            .model("claude-fable-5")
+            .add_user_message("q")
+            .auto_cache()
+            .add_fallback("claude-opus-4-8");
+        let value = serde_json::to_value(&request).unwrap();
+        assert_eq!(value["cache_control"]["type"], "ephemeral");
+        assert_eq!(value["fallbacks"][0]["model"], "claude-opus-4-8");
+    }
+
+    #[test]
+    fn test_message_response_without_created_at_and_refusal() {
+        // Real Messages API responses do not include `created_at` and may carry
+        // a structured `stop_details` on refusal.
+        let response: MessageResponse = serde_json::from_value(json!({
+            "id": "msg_1",
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-fable-5",
+            "content": [],
+            "stop_reason": "refusal",
+            "stop_details": {"type": "refusal", "category": "cyber"},
+            "usage": {"input_tokens": 3, "output_tokens": 0}
+        }))
+        .unwrap();
+        assert!(response.is_refusal());
+        assert_eq!(
+            response.stop_details.unwrap().category.as_deref(),
+            Some("cyber")
+        );
     }
 }

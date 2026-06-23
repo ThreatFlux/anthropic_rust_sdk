@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (API currency upgrade)
+- Current model catalog: `FABLE_5`, `MYTHOS_5`, `OPUS_4_8`, `OPUS_4_7`, `OPUS_4_6`,
+  `SONNET_4_6`, `HAIKU_4_5` (plus active legacy `OPUS_4_5`, `SONNET_4_5`, `OPUS_4_1`);
+  default model is now `claude-sonnet-4-6`.
+- Adaptive thinking (`ThinkingConfig::adaptive` / `adaptive_summarized`, `display`) and
+  builder helpers `adaptive_thinking()` / `adaptive_thinking_summarized()`.
+- `OutputEffort::XHigh` and agentic `TaskBudget` (`OutputConfig::with_task_budget`).
+- Prompt caching wiring: `cache_control` on text/tool/system blocks, cacheable
+  `SystemPrompt`/`SystemBlock`, top-level `auto_cache()`, and 1-hour TTL.
+- Server-side tool constructors: `Tool::web_search/web_fetch/code_execution/bash/
+  text_editor/memory`, plus `strict` and per-tool `cache_control`.
+- Refusal handling: `MessageResponse::stop_details` / `is_refusal()`, server-side
+  `fallbacks` parameter, `fallback` content block, and new beta-header helpers.
+- Models API parity: `Model` now deserializes real list/retrieve responses
+  (`max_input_tokens`, nested `capabilities` object, optional `updated_at`).
+
+### Changed
+- Retired model constants (`OPUS_4`, `SONNET_4`, `SONNET_3_7`, `HAIKU_3_5`,
+  `SONNET_3_5`, `OPUS_3`) marked `#[deprecated]`; examples/docs updated to current models.
+
 ### Added
 - Initial release of the Anthropic Rust SDK
 - Full support for Claude 4 models (Opus 4.1, Opus 4, Sonnet 4)

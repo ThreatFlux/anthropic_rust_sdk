@@ -3,7 +3,7 @@
 use crate::builders::common::{FluentBuilder, ParameterBuilder, ValidatedBuilder, ValidationUtils};
 use crate::models::{
     common::{ContentBlock, DocumentSource, ImageSource, Metadata, Role, Tool, ToolChoice},
-    message::{Message, MessageRequest, OutputConfig, ThinkingConfig},
+    message::{Message, MessageRequest, OutputConfig, OutputEffort, ThinkingConfig},
 };
 use std::path::Path;
 
@@ -38,9 +38,33 @@ impl MessageBuilder {
         self
     }
 
-    /// Set system prompt
+    /// Set a plain-text system prompt
     pub fn system(mut self, system: impl Into<String>) -> Self {
-        self.request.system = Some(system.into());
+        self.request = self.request.system(system);
+        self
+    }
+
+    /// Set a system prompt as a single cached (ephemeral) text block
+    pub fn system_cached(mut self, system: impl Into<String>) -> Self {
+        self.request = self.request.system_cached(system);
+        self
+    }
+
+    /// Set a structured system prompt from cacheable text blocks
+    pub fn system_blocks(mut self, blocks: Vec<crate::models::message::SystemBlock>) -> Self {
+        self.request = self.request.system_blocks(blocks);
+        self
+    }
+
+    /// Enable automatic prompt caching of the last cacheable block
+    pub fn auto_cache(mut self) -> Self {
+        self.request = self.request.auto_cache();
+        self
+    }
+
+    /// Add a refusal-fallback model (Claude Fable 5)
+    pub fn add_fallback(mut self, model: impl Into<String>) -> Self {
+        self.request = self.request.add_fallback(model);
         self
     }
 
@@ -393,37 +417,64 @@ impl MessageBuilder {
             .stop_sequences(vec!["```".to_string()])
     }
 
-    /// Enable extended thinking mode (Claude 4 models)
+    /// Enable adaptive thinking (recommended for current models)
+    pub fn adaptive_thinking(mut self) -> Self {
+        self.request.thinking = Some(ThinkingConfig::adaptive());
+        self
+    }
+
+    /// Enable adaptive thinking with a summarized reasoning display
+    pub fn adaptive_thinking_summarized(mut self) -> Self {
+        self.request.thinking = Some(ThinkingConfig::adaptive_summarized());
+        self
+    }
+
+    /// Set the output effort level
+    pub fn effort(mut self, effort: OutputEffort) -> Self {
+        let config = self
+            .request
+            .output_config
+            .take()
+            .unwrap_or_default()
+            .with_effort(effort);
+        self.request.output_config = Some(config);
+        self
+    }
+
+    /// Enable fixed-budget extended thinking (legacy models only)
     pub fn thinking(mut self, budget_tokens: u32) -> Self {
         self.request.thinking = Some(ThinkingConfig::enabled(budget_tokens));
         self
     }
 
-    /// Enable extended thinking mode with tool use (Claude 4 models)
+    /// Enable extended thinking mode with tool use (legacy models only)
     pub fn thinking_with_tools(mut self, budget_tokens: u32) -> Self {
         self.request.thinking = Some(ThinkingConfig::enabled_with_tools(budget_tokens));
         self
     }
 
-    /// Preset for Claude 4 Opus with maximum thinking
-    pub fn opus_4_deep_thinking(self) -> Self {
-        self.model(crate::config::models::OPUS_4_1)
-            .thinking(64000)
-            .max_tokens(8192)
+    /// Preset for Opus with adaptive thinking at maximum effort.
+    pub fn opus_deep_thinking(self) -> Self {
+        self.model(crate::config::models::OPUS_4_8)
+            .adaptive_thinking_summarized()
+            .effort(OutputEffort::Max)
+            .max_tokens(32000)
     }
 
-    /// Preset for Claude 4 Sonnet with balanced thinking
-    pub fn sonnet_4_balanced(self) -> Self {
-        self.model(crate::config::models::SONNET_4)
-            .thinking(32000)
-            .max_tokens(4096)
+    /// Preset for Sonnet with adaptive thinking at high effort.
+    pub fn sonnet_balanced(self) -> Self {
+        self.model(crate::config::models::SONNET_4_6)
+            .adaptive_thinking()
+            .effort(OutputEffort::High)
+            .max_tokens(16000)
     }
 
-    /// Preset for Claude 4 with tool use during thinking
-    pub fn claude_4_agentic(self) -> Self {
-        self.model(crate::config::models::OPUS_4_1)
-            .thinking_with_tools(50000)
-            .max_tokens(8192)
+    /// Preset for an agentic Opus configuration (adaptive thinking, xhigh effort).
+    pub fn agentic(self) -> Self {
+        self.model(crate::config::models::OPUS_4_8)
+            .adaptive_thinking_summarized()
+            .effort(OutputEffort::XHigh)
+            .max_tokens(32000)
     }
 
     /// Build the message request
