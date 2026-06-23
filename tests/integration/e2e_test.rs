@@ -4,9 +4,9 @@
 
 use futures::StreamExt;
 use serde_json::json;
-use threatflux::models::common::{ContentBlock, Role, Tool};
-use threatflux::models::message::Message;
-use threatflux::{
+use threatflux_anthropic_sdk::models::common::{ContentBlock, Role, Tool};
+use threatflux_anthropic_sdk::models::message::Message;
+use threatflux_anthropic_sdk::{
     builders::{BatchBuilder, MessageBuilder},
     Client, Config,
 };
@@ -160,15 +160,18 @@ mod e2e_tests {
 
         while let Some(event) = stream.next().await {
             match event.unwrap() {
-                threatflux::models::message::StreamEvent::MessageStart { .. } => {
+                threatflux_anthropic_sdk::models::message::StreamEvent::MessageStart { .. } => {
                     message_started = true;
                 }
-                threatflux::models::message::StreamEvent::ContentBlockDelta { delta, .. } => {
+                threatflux_anthropic_sdk::models::message::StreamEvent::ContentBlockDelta {
+                    delta,
+                    ..
+                } => {
                     if let Some(text) = delta.text.as_deref() {
                         collected_text.push_str(text);
                     }
                 }
-                threatflux::models::message::StreamEvent::MessageStop => {
+                threatflux_anthropic_sdk::models::message::StreamEvent::MessageStop => {
                     message_stopped = true;
                     break;
                 }
@@ -304,7 +307,7 @@ mod e2e_tests {
             .unwrap();
         assert_eq!(
             completed_batch.processing_status,
-            threatflux::models::batch::MessageBatchStatus::Completed
+            threatflux_anthropic_sdk::models::batch::MessageBatchStatus::Completed
         );
         assert_eq!(completed_batch.request_counts.completed, 3);
 
@@ -319,7 +322,9 @@ mod e2e_tests {
         // Verify all requests succeeded
         for entry in &results {
             match &entry.result {
-                threatflux::models::batch::MessageBatchResult::Succeeded { message } => {
+                threatflux_anthropic_sdk::models::batch::MessageBatchResult::Succeeded {
+                    message,
+                } => {
                     assert!(!message.text().is_empty());
                 }
                 _ => panic!("Expected successful result"),
@@ -372,7 +377,7 @@ mod e2e_tests {
 
         // 1. Upload a file
         let file_content = b"This is a test document with important information.";
-        let upload_request = threatflux::models::file::FileUploadRequest::new(
+        let upload_request = threatflux_anthropic_sdk::models::file::FileUploadRequest::new(
             file_content.to_vec(),
             "document.txt",
             "text/plain",
@@ -580,10 +585,12 @@ mod e2e_tests {
         let response = client.messages().create(request, None).await.unwrap();
 
         // Check if tool was called
-        let tool_use = response
-            .content
-            .iter()
-            .find(|c| matches!(c, threatflux::models::common::ContentBlock::ToolUse { .. }));
+        let tool_use = response.content.iter().find(|c| {
+            matches!(
+                c,
+                threatflux_anthropic_sdk::models::common::ContentBlock::ToolUse { .. }
+            )
+        });
 
         assert!(tool_use.is_some());
 

@@ -3,7 +3,7 @@
 //! Tests HTTP utils, retry logic, rate limiting, and utility functions.
 
 use std::time::Duration;
-use threatflux::{
+use threatflux_anthropic_sdk::{
     error::AnthropicError,
     types::{RequestOptions, RequestPriority},
 };
@@ -29,7 +29,7 @@ mod http_utils_tests {
     #[test]
     fn test_user_agent_header() {
         let mut headers = HeaderMap::new();
-        let user_agent = format!("threatflux/{}", env!("CARGO_PKG_VERSION"));
+        let user_agent = format!("{}/{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
         headers.insert("user-agent", HeaderValue::from_str(&user_agent).unwrap());
 
         assert_eq!(
@@ -104,7 +104,7 @@ mod http_utils_tests {
 mod retry_logic_tests {
     use super::*;
     use pretty_assertions::assert_eq;
-    use threatflux::utils::retry::ExponentialBackoff;
+    use threatflux_anthropic_sdk::utils::retry::ExponentialBackoff;
 
     #[test]
     fn test_exponential_backoff() {
@@ -451,7 +451,7 @@ mod enhanced_utils_tests {
     use super::*;
     use chrono::Utc;
     use pretty_assertions::assert_eq;
-    use threatflux::utils::{
+    use threatflux_anthropic_sdk::utils::{
         http::RateLimitInfo,
         rate_limit::{AdaptiveRateLimiter, RateLimitConfig, RateLimiter},
         retry::{RetryPolicy, RetryStats},
@@ -617,7 +617,7 @@ mod enhanced_utils_tests {
 
     #[test]
     fn test_http_status_code_utilities() {
-        use threatflux::utils::http::HttpClient;
+        use threatflux_anthropic_sdk::utils::http::HttpClient;
 
         // Test client error detection
         assert!(HttpClient::is_client_error(400));
@@ -645,7 +645,7 @@ mod enhanced_utils_tests {
     #[test]
     fn test_rate_limit_header_parsing() {
         use reqwest::header::{HeaderMap, HeaderValue};
-        use threatflux::utils::http::HttpClient;
+        use threatflux_anthropic_sdk::utils::http::HttpClient;
 
         let mut headers = HeaderMap::new();
         headers.insert("x-ratelimit-remaining", HeaderValue::from_static("50"));

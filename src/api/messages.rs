@@ -24,7 +24,7 @@ impl MessagesApi {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use threatflux::{Client, Config, models::message::MessageRequest};
+    /// use threatflux_anthropic_sdk::{Client, Config, models::message::MessageRequest};
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = Client::from_env()?;
@@ -53,7 +53,7 @@ impl MessagesApi {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use threatflux::{Client, Config, models::message::MessageRequest};
+    /// use threatflux_anthropic_sdk::{Client, Config, models::message::MessageRequest};
     /// use futures::StreamExt;
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
@@ -95,7 +95,7 @@ impl MessagesApi {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use threatflux::{Client, Config, models::message::TokenCountRequest};
+    /// use threatflux_anthropic_sdk::{Client, Config, models::message::TokenCountRequest};
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = Client::from_env()?;

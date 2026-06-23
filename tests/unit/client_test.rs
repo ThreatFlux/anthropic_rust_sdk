@@ -3,7 +3,7 @@
 //! Tests client initialization, configuration, API getters, and basic functionality.
 
 use std::{collections::HashMap, time::Duration};
-use threatflux::{error::AnthropicError, types::RequestOptions, Client, Config};
+use threatflux_anthropic_sdk::{error::AnthropicError, types::RequestOptions, Client, Config};
 
 #[cfg(test)]
 mod client_tests {

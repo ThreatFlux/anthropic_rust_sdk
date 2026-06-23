@@ -13,7 +13,7 @@
 use chrono::Utc;
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use threatflux::models::{
+use threatflux_anthropic_sdk::models::{
     admin::{Organization, UsageReport, Workspace, WorkspaceStatus},
     batch::{MessageBatch, MessageBatchListResponse, MessageBatchStatus, RequestCounts},
     common::{ContentBlock, Role, StopReason, Usage},

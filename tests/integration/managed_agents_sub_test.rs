@@ -11,7 +11,7 @@
 //! beta value.
 
 use serde_json::json;
-use threatflux::{
+use threatflux_anthropic_sdk::{
     models::managed_agents::{
         SessionResourceSpec, SessionResourceUpdateRequest, SessionUpdateRequest,
     },

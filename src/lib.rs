@@ -21,7 +21,7 @@
 //!
 //! ### Basic Message
 //! ```rust,no_run
-//! use threatflux::{Client, Config, models::MessageRequest};
+//! use threatflux_anthropic_sdk::{Client, Config, models::MessageRequest};
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -41,7 +41,7 @@
 //!
 //! ### Streaming Messages
 //! ```rust,no_run
-//! use threatflux::{Client, models::MessageRequest};
+//! use threatflux_anthropic_sdk::{Client, models::MessageRequest};
 //! use futures::StreamExt;
 //!
 //! #[tokio::main]
@@ -57,12 +57,12 @@
 //!     
 //!     while let Some(event) = stream.next().await {
 //!         match event? {
-//!             threatflux::models::StreamEvent::ContentBlockDelta { delta, .. } => {
+//!             threatflux_anthropic_sdk::models::StreamEvent::ContentBlockDelta { delta, .. } => {
 //!                 if let Some(text) = delta.text {
 //!                     print!("{}", text);
 //!                 }
 //!             }
-//!             threatflux::models::StreamEvent::MessageStop => break,
+//!             threatflux_anthropic_sdk::models::StreamEvent::MessageStop => break,
 //!             _ => {}
 //!         }
 //!     }
@@ -73,7 +73,7 @@
 //!
 //! ### Configuration
 //! ```rust,no_run
-//! use threatflux::{Client, Config};
+//! use threatflux_anthropic_sdk::{Client, Config};
 //! use std::time::Duration;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {

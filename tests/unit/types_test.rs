@@ -3,7 +3,7 @@
 //! Tests HTTP methods, request options, pagination, and other common types.
 
 use std::time::Duration;
-use threatflux::types::*;
+use threatflux_anthropic_sdk::types::*;
 
 #[cfg(test)]
 mod http_method_tests {
@@ -632,7 +632,7 @@ mod stream_event_type_tests {
 
         let err = result.unwrap_err();
         match err {
-            threatflux::error::AnthropicError::InvalidInput(msg) => {
+            threatflux_anthropic_sdk::error::AnthropicError::InvalidInput(msg) => {
                 assert!(msg.contains("Unknown stream event type: invalid_event"));
             }
             _ => panic!("Expected InvalidInput error"),

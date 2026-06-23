@@ -3,7 +3,7 @@
 //! Tests Models API endpoints with mocked responses.
 
 use serde_json::json;
-use threatflux::{types::Pagination, Client, Config};
+use threatflux_anthropic_sdk::{types::Pagination, Client, Config};
 use wiremock::{
     matchers::{header, method, path, query_param},
     Mock, MockServer, ResponseTemplate,
@@ -112,7 +112,7 @@ mod models_api_tests {
         let response = client.models().get("invalid-model", None).await;
 
         assert!(response.is_err());
-        if let Err(threatflux::error::AnthropicError::Api { status, .. }) = response {
+        if let Err(threatflux_anthropic_sdk::error::AnthropicError::Api { status, .. }) = response {
             assert_eq!(status, 404);
         } else {
             panic!("Expected 404 error");
@@ -211,25 +211,25 @@ mod models_api_tests {
         // Test family detection
         assert_eq!(
             models.data[0].family(),
-            threatflux::models::model::ModelFamily::Claude35
+            threatflux_anthropic_sdk::models::model::ModelFamily::Claude35
         );
         assert_eq!(
             models.data[1].family(),
-            threatflux::models::model::ModelFamily::Claude3
+            threatflux_anthropic_sdk::models::model::ModelFamily::Claude3
         );
         assert_eq!(
             models.data[2].family(),
-            threatflux::models::model::ModelFamily::Legacy
+            threatflux_anthropic_sdk::models::model::ModelFamily::Legacy
         );
 
         // Test size detection
         assert_eq!(
             models.data[0].size(),
-            threatflux::models::model::ModelSize::Sonnet
+            threatflux_anthropic_sdk::models::model::ModelSize::Sonnet
         );
         assert_eq!(
             models.data[1].size(),
-            threatflux::models::model::ModelSize::Opus
+            threatflux_anthropic_sdk::models::model::ModelSize::Opus
         );
     }
 
@@ -364,7 +364,7 @@ mod models_api_tests {
 
         let client = setup_test_client(&mock_server).await;
 
-        let options = threatflux::types::RequestOptions::new()
+        let options = threatflux_anthropic_sdk::types::RequestOptions::new()
             .with_timeout(std::time::Duration::from_secs(10))
             .no_retry();
 

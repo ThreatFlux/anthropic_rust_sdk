@@ -30,7 +30,7 @@ impl FilesApi {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use threatflux::{Client, Config, models::file::FileUploadRequest};
+    /// use threatflux_anthropic_sdk::{Client, Config, models::file::FileUploadRequest};
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = Client::from_env()?;
@@ -100,7 +100,7 @@ impl FilesApi {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use threatflux::{Client, Config};
+    /// use threatflux_anthropic_sdk::{Client, Config};
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = Client::from_env()?;
@@ -158,7 +158,7 @@ impl FilesApi {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use threatflux::{Client, Config, types::Pagination};
+    /// use threatflux_anthropic_sdk::{Client, Config, types::Pagination};
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = Client::from_env()?;
@@ -191,7 +191,7 @@ impl FilesApi {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use threatflux::{Client, models::file::FileListParams};
+    /// use threatflux_anthropic_sdk::{Client, models::file::FileListParams};
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = Client::from_env()?;
@@ -227,7 +227,7 @@ impl FilesApi {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use threatflux::{Client, Config};
+    /// use threatflux_anthropic_sdk::{Client, Config};
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = Client::from_env()?;
@@ -248,7 +248,7 @@ impl FilesApi {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use threatflux::{Client, Config};
+    /// use threatflux_anthropic_sdk::{Client, Config};
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = Client::from_env()?;
@@ -277,7 +277,7 @@ impl FilesApi {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use threatflux::{Client, Config};
+    /// use threatflux_anthropic_sdk::{Client, Config};
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = Client::from_env()?;
@@ -315,7 +315,7 @@ impl FilesApi {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use threatflux::{Client, Config};
+    /// use threatflux_anthropic_sdk::{Client, Config};
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = Client::from_env()?;

@@ -1,5 +1,5 @@
 use serde_json::json;
-use threatflux::{
+use threatflux_anthropic_sdk::{
     CompletionResponse, InviteDeleteResponse, InviteListResponse, MessageCostReportResponse,
     MessageResponse, MessageUsageReportResponse, Skill, SkillDeleteResponse, SkillListResponse,
     SkillVersion, SkillVersionDeleteResponse, SkillVersionListResponse, StopReason, StreamEvent,

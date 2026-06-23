@@ -27,7 +27,7 @@ impl SessionsApi {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use threatflux::{Client, models::managed_agents::SessionCreateRequest};
+    /// use threatflux_anthropic_sdk::{Client, models::managed_agents::SessionCreateRequest};
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = Client::from_env()?;

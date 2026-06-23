@@ -10,7 +10,7 @@
 //!     completion via `client.sessions().events(id).stream(...)`.
 
 use futures::StreamExt;
-use threatflux::{
+use threatflux_anthropic_sdk::{
     models::managed_agents::{SessionEvent, SessionStopReason},
     Client, Config,
 };

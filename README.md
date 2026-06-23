@@ -2,10 +2,10 @@
 
 [![CI](https://github.com/ThreatFlux/anthropic_rust_sdk/workflows/CI/badge.svg)](https://github.com/ThreatFlux/anthropic_rust_sdk/actions)
 [![Coverage Status](https://codecov.io/gh/ThreatFlux/anthropic_rust_sdk/branch/main/graph/badge.svg)](https://codecov.io/gh/ThreatFlux/anthropic_rust_sdk)
-[![Crates.io](https://img.shields.io/crates/v/anthropic_rust_sdk.svg)](https://crates.io/crates/anthropic_rust_sdk)
-[![Documentation](https://docs.rs/anthropic_rust_sdk/badge.svg)](https://docs.rs/anthropic_rust_sdk)
+[![Crates.io](https://img.shields.io/crates/v/threatflux-anthropic-sdk.svg)](https://crates.io/crates/threatflux-anthropic-sdk)
+[![Documentation](https://docs.rs/threatflux-anthropic-sdk/badge.svg)](https://docs.rs/threatflux-anthropic-sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Rust](https://img.shields.io/badge/rust-1.82%2B-blue.svg)](https://www.rust-lang.org/)
+[![Rust](https://img.shields.io/badge/rust-1.95%2B-blue.svg)](https://www.rust-lang.org/)
 [![Security Audit](https://github.com/ThreatFlux/anthropic_rust_sdk/workflows/Security%20Audit/badge.svg)](https://github.com/ThreatFlux/anthropic_rust_sdk/security)
 [![Dependency Status](https://deps.rs/repo/github/ThreatFlux/anthropic_rust_sdk/status.svg)](https://deps.rs/repo/github/ThreatFlux/anthropic_rust_sdk)
 
@@ -37,14 +37,17 @@ Add the Anthropic Rust SDK to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-anthropic_rust_sdk = "0.1.0"
+threatflux-anthropic-sdk = "0.1.0"
 tokio = { version = "1.0", features = ["full"] }
 ```
+
+The Cargo package uses hyphens, while Rust imports use underscores:
+`use threatflux_anthropic_sdk::Client;`.
 
 ### Basic Usage
 
 ```rust
-use anthropic_rust_sdk::{Client, builders::MessageBuilder};
+use threatflux_anthropic_sdk::{Client, builders::MessageBuilder};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -105,8 +108,8 @@ or `claude-fable-5` for the most capable, `claude-haiku-4-5` for the cheapest.
 ### Adaptive thinking with the effort parameter
 
 ```rust
-use anthropic_rust_sdk::{Client, builders::MessageBuilder, config::models};
-use anthropic_rust_sdk::models::message::OutputEffort;
+use threatflux_anthropic_sdk::{Client, builders::MessageBuilder, config::models};
+use threatflux_anthropic_sdk::models::message::OutputEffort;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -132,7 +135,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Streaming Responses
 
 ```rust
-use anthropic_rust_sdk::{Client, builders::MessageBuilder};
+use threatflux_anthropic_sdk::{Client, builders::MessageBuilder};
 use futures::StreamExt;
 
 #[tokio::main]
@@ -169,8 +172,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Conversation with Context
 
 ```rust
-use anthropic_rust_sdk::{Client, builders::MessageBuilder};
-use anthropic_rust_sdk::models::common::Role;
+use threatflux_anthropic_sdk::{Client, builders::MessageBuilder};
+use threatflux_anthropic_sdk::models::common::Role;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -197,7 +200,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Batch Processing
 
 ```rust
-use anthropic_rust_sdk::{Client, builders::BatchBuilder};
+use threatflux_anthropic_sdk::{Client, builders::BatchBuilder};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -230,7 +233,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Image Analysis (Vision)
 
 ```rust
-use anthropic_rust_sdk::{Client, builders::MessageBuilder};
+use threatflux_anthropic_sdk::{Client, builders::MessageBuilder};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -255,7 +258,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### File Operations
 
 ```rust
-use anthropic_rust_sdk::{Client, models::file::FileUploadRequest};
+use threatflux_anthropic_sdk::{Client, models::file::FileUploadRequest};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -280,7 +283,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Admin Operations
 
 ```rust
-use anthropic_rust_sdk::{Client, models::admin::MemberCreateRequest, models::admin::MemberRole};
+use threatflux_anthropic_sdk::{Client, models::admin::MemberCreateRequest, models::admin::MemberRole};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -306,7 +309,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## API Coverage
 
-Threatflux provides complete coverage of the Anthropic API:
+ThreatFlux Anthropic SDK provides broad coverage of the Anthropic API:
 
 ### Messages API
 - ✅ Create messages
@@ -351,7 +354,7 @@ Threatflux provides complete coverage of the Anthropic API:
 ### Custom Configuration
 
 ```rust
-use anthropic_rust_sdk::{Config, Client};
+use threatflux_anthropic_sdk::{Config, Client};
 use std::time::Duration;
 
 let config = Config::new("your-api-key")?
@@ -365,7 +368,7 @@ let client = Client::new(config);
 ### Error Handling
 
 ```rust
-use anthropic_rust_sdk::{Client, error::AnthropicError};
+use threatflux_anthropic_sdk::{Client, error::AnthropicError};
 
 match client.messages().create(request, None).await {
     Ok(response) => println!("Success: {}", response.text()),
@@ -383,7 +386,7 @@ match client.messages().create(request, None).await {
 ### Builder Presets
 
 ```rust
-use anthropic_rust_sdk::builders::MessageBuilder;
+use threatflux_anthropic_sdk::builders::MessageBuilder;
 
 // Creative writing preset (high temperature)
 let creative = MessageBuilder::new()
@@ -410,7 +413,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-threatflux = "0.1.0"
+threatflux-anthropic-sdk = "0.1.0"
 
 # Required for async
 tokio = { version = "1.0", features = ["full"] }
@@ -423,7 +426,7 @@ anyhow = "1.0"
 
 ```toml
 [dependencies]
-threatflux = { version = "0.1.0", default-features = false, features = ["rustls-tls"] }
+threatflux-anthropic-sdk = { version = "0.1.0", default-features = false, features = ["rustls-tls"] }
 ```
 
 Available features:
@@ -438,7 +441,7 @@ Available features:
 
 ## Documentation
 
-- **API Documentation**: [docs.rs/threatflux](https://docs.rs/threatflux)
+- **API Documentation**: [docs.rs/threatflux-anthropic-sdk](https://docs.rs/threatflux-anthropic-sdk)
 - **Development Guide**: See [CLAUDE.md](CLAUDE.md)
 - **API Reference**: See [API_CURL_DOCS.md](API_CURL_DOCS.md)
 - **Examples**: Check the `/examples` directory
@@ -460,7 +463,7 @@ cargo run --example basic_message
 
 ## Performance
 
-Threatflux is designed for high performance:
+ThreatFlux Anthropic SDK is designed for high performance:
 
 - **Connection Pooling**: Automatic HTTP connection reuse
 - **Streaming**: Low-latency streaming responses
@@ -507,8 +510,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/wyattroersma/threatflux/issues)
-- **Documentation**: [docs.rs/threatflux](https://docs.rs/threatflux)
+- **Issues**: [GitHub Issues](https://github.com/ThreatFlux/anthropic_rust_sdk/issues)
+- **Documentation**: [docs.rs/threatflux-anthropic-sdk](https://docs.rs/threatflux-anthropic-sdk)
 - **Examples**: See `/examples` directory
 - **API Reference**: [Anthropic API Docs](https://docs.anthropic.com/)
 

@@ -8,7 +8,7 @@
 //! and that the `anthropic-beta` header contains the managed-agents beta value.
 
 use serde_json::json;
-use threatflux::{
+use threatflux_anthropic_sdk::{
     models::managed_agents::{
         CredentialUpdateRequest, DeploymentUpdateRequest, MemoryCreateRequest, MemoryRedactRequest,
         MemoryStoreUpdateRequest, MemoryUpdateRequest, VaultUpdateRequest,

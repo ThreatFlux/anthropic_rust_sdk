@@ -8,7 +8,7 @@
 //! assert the wire shape (and round-trip where it matters).
 
 use std::collections::HashMap;
-use threatflux::models::managed_agents::{
+use threatflux_anthropic_sdk::models::managed_agents::{
     CredentialCreateRequest, CredentialKind, CredentialUpdateRequest, DeploymentCreateRequest,
     DeploymentSchedule, DeploymentUpdateRequest, EnvironmentConfig, EnvironmentCreateRequest,
     EnvironmentUpdateRequest, MemoryCreateRequest, MemoryRedactRequest, MemoryStoreCreateRequest,

@@ -3,7 +3,7 @@
 //! Tests MessageBuilder and BatchBuilder functionality, validation, and builder patterns.
 
 use serde_json::json;
-use threatflux::{
+use threatflux_anthropic_sdk::{
     builders::{
         BatchBuilder, FluentBuilder, MessageBuilder, ParameterBuilder, PresetConfig,
         ValidationUtils,

@@ -8,7 +8,7 @@
 //! credential semantics, and request-body serialization.
 
 use std::collections::HashMap;
-use threatflux::models::managed_agents::{
+use threatflux_anthropic_sdk::models::managed_agents::{
     Agent, AgentCreateRequest, AgentModel, AgentSkillRef, AgentTool, CredentialKind,
     EnvironmentConfig, McpServer, NetworkingConfig, SessionAgentRef, SessionCreateRequest,
     SessionResourceSpec,

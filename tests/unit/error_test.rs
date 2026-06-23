@@ -3,7 +3,7 @@
 //! Tests error types, conversions, retry logic, and error handling scenarios.
 
 use std::time::Duration;
-use threatflux::error::{AnthropicError, Result};
+use threatflux_anthropic_sdk::error::{AnthropicError, Result};
 
 #[cfg(test)]
 mod error_tests {

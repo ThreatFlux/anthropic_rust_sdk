@@ -2,7 +2,7 @@
 //! Run: ANTHROPIC_API_KEY=your_key cargo run --bin test_api
 
 use std::env;
-use threatflux::{builders::MessageBuilder, Client, Config};
+use threatflux_anthropic_sdk::{builders::MessageBuilder, Client, Config};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

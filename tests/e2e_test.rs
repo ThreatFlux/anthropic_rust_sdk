@@ -5,7 +5,7 @@
 use futures::StreamExt;
 use std::error::Error;
 use std::time::Duration;
-use threatflux::{
+use threatflux_anthropic_sdk::{
     builders::{BatchBuilder, MessageBuilder},
     config::{models, Config},
     models::{
@@ -180,7 +180,7 @@ async fn test_batch_processing() -> Result<(), Box<dyn Error>> {
         println!("   Checking status: {:?}", status.processing_status);
 
         match status.processing_status {
-            threatflux::models::batch::MessageBatchStatus::Completed => {
+            threatflux_anthropic_sdk::models::batch::MessageBatchStatus::Completed => {
                 println!("✅ Batch completed!");
 
                 // Note: retrieve_results method may not be implemented yet
@@ -188,8 +188,8 @@ async fn test_batch_processing() -> Result<(), Box<dyn Error>> {
                 println!("   Note: Results retrieval not implemented in this test");
                 break;
             }
-            threatflux::models::batch::MessageBatchStatus::Failed
-            | threatflux::models::batch::MessageBatchStatus::Cancelled => {
+            threatflux_anthropic_sdk::models::batch::MessageBatchStatus::Failed
+            | threatflux_anthropic_sdk::models::batch::MessageBatchStatus::Cancelled => {
                 println!(
                     "❌ Batch failed with status: {:?}",
                     status.processing_status
@@ -253,7 +253,7 @@ async fn test_token_counting() -> Result<(), Box<dyn Error>> {
         .user("Calculate 5 + 3")
         .build();
 
-    let request_for_counting = threatflux::models::message::TokenCountRequest {
+    let request_for_counting = threatflux_anthropic_sdk::models::message::TokenCountRequest {
         model: request.model.clone(),
         messages: request.messages.clone(),
         system: request.system.clone(),

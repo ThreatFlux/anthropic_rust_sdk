@@ -1,14 +1,16 @@
 [package]
-name = "threatflux"
+name = "threatflux-anthropic-sdk"
 version = "0.1.0"
 authors = ["Wyatt Roersma <wyattroersma@gmail.com>", "Claude Code", "Codex"]
 edition = "2021"
 rust-version = "1.95.0"
 description = "A Rust SDK for the Anthropic API"
 license = "MIT"
-repository = "https://github.com/wyattroersma/threatflux"
-documentation = "https://docs.rs/threatflux"
+repository = "https://github.com/ThreatFlux/anthropic_rust_sdk"
+homepage = "https://github.com/ThreatFlux/anthropic_rust_sdk"
+documentation = "https://docs.rs/threatflux-anthropic-sdk"
 readme = "README.md"
+exclude = ["plans/"]
 keywords = ["anthropic", "claude", "ai", "api", "sdk"]
 categories = ["api-bindings", "web-programming::http-client"]
 

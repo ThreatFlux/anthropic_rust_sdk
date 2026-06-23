@@ -7,7 +7,7 @@
 mod real_api_tests {
     use dotenvy::dotenv;
     use std::env;
-    use threatflux::{builders::MessageBuilder, Client};
+    use threatflux_anthropic_sdk::{builders::MessageBuilder, Client};
 
     fn setup_client() -> Option<Client> {
         dotenv().ok(); // Load .env file if present
@@ -144,12 +144,18 @@ mod real_api_tests {
             .model("claude-3-5-haiku-20241022")
             .max_tokens(50)
             .conversation(&[
-                (threatflux::models::common::Role::User, "My name is Alice"),
                 (
-                    threatflux::models::common::Role::Assistant,
+                    threatflux_anthropic_sdk::models::common::Role::User,
+                    "My name is Alice",
+                ),
+                (
+                    threatflux_anthropic_sdk::models::common::Role::Assistant,
                     "Hello Alice! Nice to meet you.",
                 ),
-                (threatflux::models::common::Role::User, "What's my name?"),
+                (
+                    threatflux_anthropic_sdk::models::common::Role::User,
+                    "What's my name?",
+                ),
             ])
             .build();
 
@@ -328,7 +334,7 @@ mod real_api_tests {
             .model("claude-3-5-haiku-20241022")
             .max_tokens(20)
             .metadata(
-                threatflux::models::common::Metadata::new()
+                threatflux_anthropic_sdk::models::common::Metadata::new()
                     .with_custom("test_run", serde_json::json!(true))
                     .with_custom("test_id", serde_json::json!("metadata_test")),
             )

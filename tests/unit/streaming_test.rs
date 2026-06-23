@@ -5,7 +5,7 @@
 use chrono::Utc;
 use futures::StreamExt;
 use std::io::Cursor;
-use threatflux::{
+use threatflux_anthropic_sdk::{
     error::AnthropicError,
     models::{
         common::{ContentBlock, Role, StopReason, Usage},

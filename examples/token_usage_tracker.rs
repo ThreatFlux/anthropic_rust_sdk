@@ -9,7 +9,9 @@ use chrono::{DateTime, Utc};
 use futures::StreamExt;
 use std::collections::HashMap;
 use std::error::Error;
-use threatflux::{builders::MessageBuilder, config::models, models::message::StreamEvent, Client};
+use threatflux_anthropic_sdk::{
+    builders::MessageBuilder, config::models, models::message::StreamEvent, Client,
+};
 
 /// Token pricing per million tokens (as of 2025)
 #[derive(Debug, Clone)]

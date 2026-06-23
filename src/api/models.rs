@@ -24,7 +24,7 @@ impl ModelsApi {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use threatflux::{Client, Config, types::Pagination};
+    /// use threatflux_anthropic_sdk::{Client, Config, types::Pagination};
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = Client::from_env()?;
@@ -53,7 +53,7 @@ impl ModelsApi {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use threatflux::{Client, Config};
+    /// use threatflux_anthropic_sdk::{Client, Config};
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = Client::from_env()?;

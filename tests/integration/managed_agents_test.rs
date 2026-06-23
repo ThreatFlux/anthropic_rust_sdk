@@ -7,7 +7,7 @@
 //! response round-trips back into the SDK model.
 
 use serde_json::json;
-use threatflux::{
+use threatflux_anthropic_sdk::{
     models::managed_agents::{
         AgentCreateRequest, AgentUpdateRequest, EnvironmentConfig, EnvironmentCreateRequest,
         NetworkingConfig, SessionCreateRequest,

@@ -3,7 +3,7 @@
 //! Tests Batch API operations with mocked responses.
 
 use serde_json::json;
-use threatflux::{builders::BatchBuilder, types::Pagination, Client, Config};
+use threatflux_anthropic_sdk::{builders::BatchBuilder, types::Pagination, Client, Config};
 use wiremock::{
     matchers::{header, method, path, query_param},
     Mock, MockServer, ResponseTemplate,
@@ -48,7 +48,7 @@ mod batches_api_tests {
         assert_eq!(batch.id, "batch_test123");
         assert_eq!(
             batch.processing_status,
-            threatflux::models::batch::MessageBatchStatus::InProgress
+            threatflux_anthropic_sdk::models::batch::MessageBatchStatus::InProgress
         );
         assert_eq!(batch.request_counts.total, 1);
     }
@@ -150,7 +150,8 @@ mod batches_api_tests {
         let mock_server = MockServer::start().await;
 
         let mut canceled_batch = fixtures::test_batch();
-        canceled_batch.processing_status = threatflux::models::batch::MessageBatchStatus::Cancelled;
+        canceled_batch.processing_status =
+            threatflux_anthropic_sdk::models::batch::MessageBatchStatus::Cancelled;
         canceled_batch.cancelled_at = Some(chrono::Utc::now());
 
         Mock::given(method("POST"))
@@ -168,7 +169,7 @@ mod batches_api_tests {
         let batch = response.unwrap();
         assert_eq!(
             batch.processing_status,
-            threatflux::models::batch::MessageBatchStatus::Cancelled
+            threatflux_anthropic_sdk::models::batch::MessageBatchStatus::Cancelled
         );
         assert!(batch.cancelled_at.is_some());
     }
@@ -237,9 +238,9 @@ mod batches_api_tests {
 
         // Test different batch statuses
         let statuses = [
-            threatflux::models::batch::MessageBatchStatus::InProgress,
-            threatflux::models::batch::MessageBatchStatus::Cancelled,
-            threatflux::models::batch::MessageBatchStatus::Completed,
+            threatflux_anthropic_sdk::models::batch::MessageBatchStatus::InProgress,
+            threatflux_anthropic_sdk::models::batch::MessageBatchStatus::Cancelled,
+            threatflux_anthropic_sdk::models::batch::MessageBatchStatus::Completed,
         ];
 
         for (i, status) in statuses.iter().enumerate() {
@@ -290,7 +291,7 @@ mod batches_api_tests {
         let response = client.message_batches().retrieve("nonexistent", None).await;
         assert!(response.is_err());
 
-        if let Err(threatflux::error::AnthropicError::Api { status, .. }) = response {
+        if let Err(threatflux_anthropic_sdk::error::AnthropicError::Api { status, .. }) = response {
             assert_eq!(status, 404);
         } else {
             panic!("Expected 404 error");
@@ -321,7 +322,7 @@ mod batches_api_tests {
         let response = client.message_batches().create(batch_request, None).await;
         assert!(response.is_err());
 
-        if let Err(threatflux::error::AnthropicError::Api { status, .. }) = response {
+        if let Err(threatflux_anthropic_sdk::error::AnthropicError::Api { status, .. }) = response {
             assert_eq!(status, 400);
         } else {
             panic!("Expected 400 error");
@@ -479,7 +480,7 @@ mod batches_api_tests {
         let batch = response.unwrap();
         assert_eq!(
             batch.processing_status,
-            threatflux::models::batch::MessageBatchStatus::Completed
+            threatflux_anthropic_sdk::models::batch::MessageBatchStatus::Completed
         );
         assert_eq!(batch.request_counts.expired, 5);
         assert!(batch.completed_at.is_some());

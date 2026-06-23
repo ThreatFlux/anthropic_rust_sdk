@@ -279,7 +279,8 @@ impl Config {
     /// Get the default user agent string
     fn default_user_agent() -> String {
         format!(
-            "threatflux/{} (Rust {})",
+            "{}/{} (Rust {})",
+            env!("CARGO_PKG_NAME"),
             env!("CARGO_PKG_VERSION"),
             std::env::var("RUSTC_VERSION").unwrap_or_else(|_| "unknown".to_string())
         )

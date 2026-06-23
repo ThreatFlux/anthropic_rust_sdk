@@ -3,7 +3,7 @@
 //! Tests Messages API with mocked responses, covering all endpoints and scenarios.
 
 use serde_json::json;
-use threatflux::{builders::MessageBuilder, error::AnthropicError, Client, Config};
+use threatflux_anthropic_sdk::{builders::MessageBuilder, error::AnthropicError, Client, Config};
 use wiremock::{
     matchers::{header, method, path},
     Mock, MockServer, ResponseTemplate,
@@ -96,9 +96,18 @@ mod messages_api_tests {
             .model("claude-3-5-haiku-20241022")
             .max_tokens(100)
             .conversation(&[
-                (threatflux::models::common::Role::User, "Hello"),
-                (threatflux::models::common::Role::Assistant, "Hi there!"),
-                (threatflux::models::common::Role::User, "How are you?"),
+                (
+                    threatflux_anthropic_sdk::models::common::Role::User,
+                    "Hello",
+                ),
+                (
+                    threatflux_anthropic_sdk::models::common::Role::Assistant,
+                    "Hi there!",
+                ),
+                (
+                    threatflux_anthropic_sdk::models::common::Role::User,
+                    "How are you?",
+                ),
             ])
             .build();
 
@@ -114,11 +123,13 @@ mod messages_api_tests {
         let mock_server = MockServer::start().await;
 
         let mut response_with_tools = fixtures::test_message_response();
-        response_with_tools.content = vec![threatflux::models::common::ContentBlock::tool_use(
-            "tool_123",
-            "calculator",
-            json!({"expression": "2+2"}),
-        )];
+        response_with_tools.content = vec![
+            threatflux_anthropic_sdk::models::common::ContentBlock::tool_use(
+                "tool_123",
+                "calculator",
+                json!({"expression": "2+2"}),
+            ),
+        ];
 
         Mock::given(method("POST"))
             .and(path("/v1/messages"))
@@ -128,7 +139,7 @@ mod messages_api_tests {
 
         let client = setup_test_client(&mock_server).await;
 
-        let tool = threatflux::models::common::Tool::new(
+        let tool = threatflux_anthropic_sdk::models::common::Tool::new(
             "calculator",
             "A simple calculator",
             json!({
@@ -223,7 +234,7 @@ mod messages_api_tests {
 
         let client = setup_test_client(&mock_server).await;
 
-        let request = threatflux::models::message::TokenCountRequest::new()
+        let request = threatflux_anthropic_sdk::models::message::TokenCountRequest::new()
             .model("claude-3-5-haiku-20241022")
             .add_user_message("Hello, how many tokens is this?");
 
@@ -419,7 +430,7 @@ mod messages_api_tests {
             .max_tokens(100)
             .user("Hello")
             .metadata(
-                threatflux::models::common::Metadata::new()
+                threatflux_anthropic_sdk::models::common::Metadata::new()
                     .with_user_id("test123")
                     .with_custom("session", json!("session_abc")),
             )
@@ -475,7 +486,7 @@ mod messages_api_tests {
             .user("Hello")
             .build();
 
-        let options = threatflux::types::RequestOptions::new()
+        let options = threatflux_anthropic_sdk::types::RequestOptions::new()
             .with_timeout(std::time::Duration::from_secs(30))
             .with_header("x-test", "true")
             .no_retry();

@@ -5,7 +5,7 @@
 //! Usage: cargo run --example basic_message
 
 use std::error::Error;
-use threatflux::{
+use threatflux_anthropic_sdk::{
     builders::{MessageBuilder, ParameterBuilder},
     Client,
 };

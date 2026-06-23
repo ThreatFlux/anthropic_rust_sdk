@@ -64,7 +64,7 @@ impl SessionEventsApi {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use threatflux::Client;
+    /// use threatflux_anthropic_sdk::Client;
     /// use futures::StreamExt;
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {

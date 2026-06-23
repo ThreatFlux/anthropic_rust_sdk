@@ -6,7 +6,7 @@
 
 use std::error::Error;
 use std::time::Duration;
-use threatflux::{
+use threatflux_anthropic_sdk::{
     builders::{BatchBuilder, MessageBuilder},
     Client,
 };
@@ -109,7 +109,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 continue;
             }
 
-            match serde_json::from_str::<threatflux::models::batch::BatchResult>(line) {
+            match serde_json::from_str::<threatflux_anthropic_sdk::models::batch::BatchResult>(line)
+            {
                 Ok(result) => {
                     println!("\n🔹 Request ID: {}", result.custom_id);
                     if let Some(message) = result.message {
@@ -234,7 +235,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let recent_batches = client
         .message_batches()
         .list(
-            Some(threatflux::types::Pagination::new().with_limit(5)),
+            Some(threatflux_anthropic_sdk::types::Pagination::new().with_limit(5)),
             None,
         )
         .await?;

@@ -49,7 +49,8 @@ doc:
 # Prepare for release
 release: all
 	@echo "Checking for release readiness..."
-	@cargo publish --dry-run
+	@cargo generate-lockfile
+	@cargo publish --dry-run --locked
 
 # Quick check
 check:

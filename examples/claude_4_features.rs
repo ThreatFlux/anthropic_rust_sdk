@@ -10,7 +10,7 @@
 
 use futures::StreamExt;
 use std::error::Error;
-use threatflux::{
+use threatflux_anthropic_sdk::{
     builders::MessageBuilder,
     config::models,
     models::{

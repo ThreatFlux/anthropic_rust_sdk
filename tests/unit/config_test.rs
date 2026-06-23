@@ -3,7 +3,7 @@
 //! Tests configuration loading, environment variables, validation, and builder patterns.
 
 use std::time::Duration;
-use threatflux::{config::models, error::AnthropicError, Config};
+use threatflux_anthropic_sdk::{config::models, error::AnthropicError, Config};
 
 #[cfg(test)]
 mod config_tests {

@@ -7,7 +7,7 @@
 use futures::StreamExt;
 use std::error::Error;
 use std::io::{self, Write};
-use threatflux::{
+use threatflux_anthropic_sdk::{
     builders::{MessageBuilder, ParameterBuilder},
     Client, StreamEvent,
 };

@@ -3,7 +3,9 @@
 //! Tests Files API operations with mocked responses.
 
 use serde_json::json;
-use threatflux::{models::file::FileUploadRequest, types::Pagination, Client, Config};
+use threatflux_anthropic_sdk::{
+    models::file::FileUploadRequest, types::Pagination, Client, Config,
+};
 use wiremock::{
     matchers::{body_string_contains, header, method, path, query_param},
     Mock, MockServer, ResponseTemplate,
@@ -71,7 +73,7 @@ mod files_api_tests {
             file_response.filename = filename.to_string();
             file_response.mime_type = mime_type.to_string();
 
-            let upload_response = threatflux::models::file::FileUploadResponse {
+            let upload_response = threatflux_anthropic_sdk::models::file::FileUploadResponse {
                 file: file_response,
             };
 
@@ -167,7 +169,7 @@ mod files_api_tests {
         assert_eq!(file.filename, "test.txt");
         assert_eq!(
             file.status,
-            Some(threatflux::models::file::FileStatus::Ready)
+            Some(threatflux_anthropic_sdk::models::file::FileStatus::Ready)
         );
     }
 
@@ -221,9 +223,9 @@ mod files_api_tests {
 
         // Test different file statuses
         let statuses = [
-            threatflux::models::file::FileStatus::Ready,
-            threatflux::models::file::FileStatus::Processing,
-            threatflux::models::file::FileStatus::Error,
+            threatflux_anthropic_sdk::models::file::FileStatus::Ready,
+            threatflux_anthropic_sdk::models::file::FileStatus::Processing,
+            threatflux_anthropic_sdk::models::file::FileStatus::Error,
         ];
 
         for (i, status) in statuses.iter().enumerate() {
@@ -260,7 +262,7 @@ mod files_api_tests {
             file.purpose = purpose_str.to_string();
 
             let upload_response =
-                threatflux::models::file::FileUploadResponse { file: file.clone() };
+                threatflux_anthropic_sdk::models::file::FileUploadResponse { file: file.clone() };
 
             // Match on the `purpose` form field so each mock only responds to the
             // request carrying that purpose (the values are disjoint substrings).
@@ -312,7 +314,7 @@ mod files_api_tests {
         let response = client.files().upload(upload_request, None).await;
         assert!(response.is_err());
 
-        if let Err(threatflux::error::AnthropicError::Api { status, .. }) = response {
+        if let Err(threatflux_anthropic_sdk::error::AnthropicError::Api { status, .. }) = response {
             assert_eq!(status, 413);
         } else {
             panic!("Expected 413 error");
@@ -369,7 +371,7 @@ mod files_api_tests {
         let response = client.files().get("nonexistent", None).await;
         assert!(response.is_err());
 
-        if let Err(threatflux::error::AnthropicError::Api { status, .. }) = response {
+        if let Err(threatflux_anthropic_sdk::error::AnthropicError::Api { status, .. }) = response {
             assert_eq!(status, 404);
         } else {
             panic!("Expected 404 error");
@@ -407,7 +409,7 @@ mod files_api_tests {
         assert_eq!(file.purpose, "user_data");
         assert_eq!(
             file.status,
-            Some(threatflux::models::file::FileStatus::Ready)
+            Some(threatflux_anthropic_sdk::models::file::FileStatus::Ready)
         );
     }
 
@@ -483,7 +485,7 @@ mod files_api_tests {
             file.filename = format!("concurrent_{}.txt", i);
 
             let upload_response =
-                threatflux::models::file::FileUploadResponse { file: file.clone() };
+                threatflux_anthropic_sdk::models::file::FileUploadResponse { file: file.clone() };
 
             Mock::given(method("POST"))
                 .and(path("/v1/files"))

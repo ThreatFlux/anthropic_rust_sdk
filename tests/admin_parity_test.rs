@@ -1,5 +1,5 @@
 use serde_json::json;
-use threatflux::{types::Pagination, Client, Config};
+use threatflux_anthropic_sdk::{types::Pagination, Client, Config};
 use wiremock::{
     matchers::{header, method, path, query_param},
     Mock, MockServer, ResponseTemplate,

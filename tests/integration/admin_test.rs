@@ -4,11 +4,11 @@
 
 use chrono::TimeZone;
 use serde_json::json;
-use threatflux::models::admin::{
+use threatflux_anthropic_sdk::models::admin::{
     ApiKeyCreateRequest, InviteCreateRequest, InviteCreateRole, MessageUsageReportParams,
     UserUpdateRequest, UserUpdateRole, WorkspaceCreateRequest, WorkspaceUpdateRequest,
 };
-use threatflux::{Client, Config};
+use threatflux_anthropic_sdk::{Client, Config};
 use wiremock::{
     matchers::{header, method, path, query_param},
     Mock, MockServer, ResponseTemplate,
@@ -101,7 +101,7 @@ mod admin_api_tests {
         assert_eq!(workspace.id, "ws_test123");
         assert_eq!(
             workspace.status,
-            Some(threatflux::models::admin::WorkspaceStatus::Active)
+            Some(threatflux_anthropic_sdk::models::admin::WorkspaceStatus::Active)
         );
     }
 
@@ -202,7 +202,7 @@ mod admin_api_tests {
         let workspace = response.unwrap();
         assert_eq!(
             workspace.status,
-            Some(threatflux::models::admin::WorkspaceStatus::Archived)
+            Some(threatflux_anthropic_sdk::models::admin::WorkspaceStatus::Archived)
         );
         assert!(workspace.archived_at.is_some());
     }
@@ -421,7 +421,7 @@ mod admin_api_tests {
         assert_eq!(users.data[0].email, "user@example.com");
         assert_eq!(
             users.data[0].role,
-            threatflux::models::admin::UserRole::Admin
+            threatflux_anthropic_sdk::models::admin::UserRole::Admin
         );
     }
 
@@ -456,7 +456,7 @@ mod admin_api_tests {
         assert_eq!(invite.email, "newuser@example.com");
         assert_eq!(
             invite.status,
-            threatflux::models::admin::InviteStatus::Pending
+            threatflux_anthropic_sdk::models::admin::InviteStatus::Pending
         );
     }
 
@@ -486,7 +486,10 @@ mod admin_api_tests {
 
         assert!(response.is_ok());
         let user = response.unwrap();
-        assert_eq!(user.role, threatflux::models::admin::UserRole::Developer);
+        assert_eq!(
+            user.role,
+            threatflux_anthropic_sdk::models::admin::UserRole::Developer
+        );
     }
 
     #[tokio::test]
@@ -540,7 +543,7 @@ mod admin_api_tests {
         let response = admin.organization().get(None).await;
 
         assert!(response.is_err());
-        if let Err(threatflux::error::AnthropicError::Api { status, .. }) = response {
+        if let Err(threatflux_anthropic_sdk::error::AnthropicError::Api { status, .. }) = response {
             assert_eq!(status, 403);
         } else {
             panic!("Expected 403 error");
@@ -595,11 +598,11 @@ mod admin_api_tests {
         assert_eq!(workspaces.data.len(), 2);
         assert_eq!(
             workspaces.data[0].status,
-            Some(threatflux::models::admin::WorkspaceStatus::Active)
+            Some(threatflux_anthropic_sdk::models::admin::WorkspaceStatus::Active)
         );
         assert_eq!(
             workspaces.data[1].status,
-            Some(threatflux::models::admin::WorkspaceStatus::Archived)
+            Some(threatflux_anthropic_sdk::models::admin::WorkspaceStatus::Archived)
         );
     }
 }

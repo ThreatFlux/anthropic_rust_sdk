@@ -4,7 +4,7 @@
 
 use chrono::Utc;
 use serde_json::{from_str, json, to_string};
-use threatflux::models::{
+use threatflux_anthropic_sdk::models::{
     admin::{ApiKey, MemberRole, Organization, UsageReport, Workspace, WorkspaceStatus},
     batch::{
         BatchRequestItem, MessageBatch, MessageBatchCreateRequest, MessageBatchStatus,
@@ -212,7 +212,10 @@ mod message_models_tests {
             .top_k(50)
             .add_stop_sequence("STOP")
             .stream(false)
-            .metadata(threatflux::models::common::Metadata::new().with_custom("test", json!(true)));
+            .metadata(
+                threatflux_anthropic_sdk::models::common::Metadata::new()
+                    .with_custom("test", json!(true)),
+            );
 
         // Test serialization
         let json = to_string(&request).unwrap();

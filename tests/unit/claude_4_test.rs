@@ -1,6 +1,6 @@
 //! Unit tests for Claude 4 specific features
 
-use threatflux::{
+use threatflux_anthropic_sdk::{
     builders::MessageBuilder, config::models, models::message::ThinkingConfig,
     types::RequestOptions,
 };

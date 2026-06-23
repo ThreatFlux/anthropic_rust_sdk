@@ -1,5 +1,5 @@
 use serde_json::json;
-use threatflux::{
+use threatflux_anthropic_sdk::{
     models::skill::{
         SkillCreateRequest, SkillFileUpload, SkillListParams, SkillVersionCreateRequest,
         SkillVersionListParams,

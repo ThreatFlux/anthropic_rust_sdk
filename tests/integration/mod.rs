@@ -18,7 +18,7 @@ mod models_test;
 #[cfg(test)]
 mod legacy_api_tests {
     use std::env;
-    use threatflux::{builders::MessageBuilder, Client};
+    use threatflux_anthropic_sdk::{builders::MessageBuilder, Client};
 
     fn setup_client() -> Option<Client> {
         if env::var("ANTHROPIC_API_KEY").is_ok() {
@@ -109,7 +109,7 @@ mod legacy_api_tests {
         let models = client
             .models()
             .list(
-                Some(threatflux::types::Pagination::new().with_limit(5)),
+                Some(threatflux_anthropic_sdk::types::Pagination::new().with_limit(5)),
                 None,
             )
             .await;
@@ -168,7 +168,7 @@ mod legacy_api_tests {
 #[cfg(test)]
 mod legacy_batch_tests {
     use std::env;
-    use threatflux::{builders::BatchBuilder, Client};
+    use threatflux_anthropic_sdk::{builders::BatchBuilder, Client};
 
     fn setup_client() -> Option<Client> {
         if env::var("ANTHROPIC_API_KEY").is_ok() {
@@ -207,7 +207,7 @@ mod legacy_batch_tests {
         let batches = client
             .message_batches()
             .list(
-                Some(threatflux::types::Pagination::new().with_limit(5)),
+                Some(threatflux_anthropic_sdk::types::Pagination::new().with_limit(5)),
                 None,
             )
             .await;
@@ -219,7 +219,7 @@ mod legacy_batch_tests {
 #[cfg(test)]
 mod legacy_file_tests {
     use std::env;
-    use threatflux::{models::file::FileUploadRequest, Client};
+    use threatflux_anthropic_sdk::{models::file::FileUploadRequest, Client};
 
     fn setup_client() -> Option<Client> {
         if env::var("ANTHROPIC_API_KEY").is_ok() {
@@ -262,7 +262,7 @@ mod legacy_file_tests {
         let files = client
             .files()
             .list(
-                Some(threatflux::types::Pagination::new().with_limit(5)),
+                Some(threatflux_anthropic_sdk::types::Pagination::new().with_limit(5)),
                 None,
             )
             .await;
@@ -274,7 +274,7 @@ mod legacy_file_tests {
 #[cfg(test)]
 mod legacy_admin_tests {
     use std::env;
-    use threatflux::Client;
+    use threatflux_anthropic_sdk::Client;
 
     fn setup_admin_client() -> Option<Client> {
         if env::var("ANTHROPIC_ADMIN_KEY").is_ok() {
@@ -310,7 +310,7 @@ mod legacy_admin_tests {
             let workspaces = admin
                 .workspaces()
                 .list(
-                    Some(threatflux::types::Pagination::new().with_limit(5)),
+                    Some(threatflux_anthropic_sdk::types::Pagination::new().with_limit(5)),
                     None,
                 )
                 .await;
@@ -344,7 +344,7 @@ mod legacy_admin_tests {
 mod legacy_comprehensive_tests {
     use futures::StreamExt;
     use std::env;
-    use threatflux::{builders::MessageBuilder, Client};
+    use threatflux_anthropic_sdk::{builders::MessageBuilder, Client};
 
     fn setup_client() -> Option<Client> {
         if env::var("ANTHROPIC_API_KEY").is_ok() {
@@ -392,14 +392,17 @@ mod legacy_comprehensive_tests {
 
         while let Some(event) = stream.next().await {
             if let Ok(event) = event {
-                if let threatflux::models::message::StreamEvent::ContentBlockDelta {
-                    delta, ..
+                if let threatflux_anthropic_sdk::models::message::StreamEvent::ContentBlockDelta {
+                    delta,
+                    ..
                 } = event
                 {
                     if delta.text.is_some() {
                         received_text = true;
                     }
-                } else if let threatflux::models::message::StreamEvent::MessageStop = event {
+                } else if let threatflux_anthropic_sdk::models::message::StreamEvent::MessageStop =
+                    event
+                {
                     break;
                 }
             }

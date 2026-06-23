@@ -32,7 +32,7 @@ pub fn env_guard() -> std::sync::MutexGuard<'static, ()> {
 #[cfg(test)]
 mod legacy_config_tests {
     use std::time::Duration;
-    use threatflux::{error::AnthropicError, Config};
+    use threatflux_anthropic_sdk::{error::AnthropicError, Config};
 
     #[test]
     fn test_config_creation() {
@@ -74,8 +74,8 @@ mod legacy_config_tests {
 
 #[cfg(test)]
 mod legacy_message_builder_tests {
-    use threatflux::builders::MessageBuilder;
-    use threatflux::models::common::Role;
+    use threatflux_anthropic_sdk::builders::MessageBuilder;
+    use threatflux_anthropic_sdk::models::common::Role;
 
     #[test]
     fn test_message_builder_basic() {
@@ -151,7 +151,7 @@ mod legacy_message_builder_tests {
 
 #[cfg(test)]
 mod legacy_batch_builder_tests {
-    use threatflux::builders::BatchBuilder;
+    use threatflux_anthropic_sdk::builders::BatchBuilder;
 
     #[test]
     fn test_batch_builder_basic() {
@@ -201,7 +201,7 @@ mod legacy_batch_builder_tests {
 
 #[cfg(test)]
 mod legacy_error_tests {
-    use threatflux::error::AnthropicError;
+    use threatflux_anthropic_sdk::error::AnthropicError;
 
     #[test]
     fn test_error_types() {
@@ -240,7 +240,7 @@ mod legacy_error_tests {
 #[cfg(test)]
 mod legacy_model_tests {
     use chrono::Utc;
-    use threatflux::models::{
+    use threatflux_anthropic_sdk::models::{
         common::{ContentBlock, Role, Usage},
         message::Message,
         model::{Model, ModelFamily, ModelSize},
@@ -339,7 +339,7 @@ mod legacy_model_tests {
 
 #[cfg(test)]
 mod legacy_pagination_tests {
-    use threatflux::types::Pagination;
+    use threatflux_anthropic_sdk::types::Pagination;
 
     #[test]
     fn test_pagination_builder() {

@@ -6,7 +6,7 @@
 //! on HTTP method/path and that the `anthropic-beta` header contains the beta.
 
 use serde_json::json;
-use threatflux::{
+use threatflux_anthropic_sdk::{
     models::managed_agents::{
         CredentialCreateRequest, DeploymentCreateRequest, MemoryStoreCreateRequest,
         VaultCreateRequest,
