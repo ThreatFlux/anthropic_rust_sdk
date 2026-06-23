@@ -8,6 +8,7 @@ mod claude_4_test;
 mod client_test;
 mod config_test;
 mod error_test;
+mod managed_agents_requests_test;
 mod managed_agents_test;
 mod models_test;
 mod session_stream_test;

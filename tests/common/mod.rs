@@ -19,9 +19,9 @@ use threatflux::models::{
     common::{ContentBlock, Role, StopReason, Usage},
     file::{File, FileListResponse, FileStatus, FileUploadResponse},
     managed_agents::{
-        Agent, AgentModel, CredentialKind, Deployment, DeploymentSchedule, Environment,
-        EnvironmentConfig, MemoryStore, NetworkingConfig, Session, SessionAgentRef, SessionStatus,
-        Vault,
+        Agent, AgentModel, Credential, CredentialKind, Deployment, DeploymentRun,
+        DeploymentSchedule, Environment, EnvironmentConfig, Memory, MemoryStore, MemoryVersion,
+        NetworkingConfig, Session, SessionAgentRef, SessionStatus, SessionThread, Vault,
     },
     message::{Message, MessageResponse, StreamEvent},
     model::{Model, ModelListResponse},
@@ -306,6 +306,70 @@ pub mod fixtures {
     pub fn test_credential_kind() -> CredentialKind {
         CredentialKind::StaticBearer {
             token: Some("sk-secret".to_string()),
+        }
+    }
+
+    /// Create a test credential (read shape: metadata only, no secret)
+    pub fn test_credential() -> Credential {
+        Credential {
+            object_type: "credential".to_string(),
+            id: "cred_test123".to_string(),
+            name: "github".to_string(),
+            kind: CredentialKind::StaticBearer { token: None },
+            created_at: Some(Utc::now()),
+            extra: HashMap::new(),
+        }
+    }
+
+    /// Create a test session thread (a multiagent sub-conversation)
+    pub fn test_session_thread() -> SessionThread {
+        SessionThread {
+            object_type: "session_thread".to_string(),
+            id: "thread_test123".to_string(),
+            session_id: Some("session_test123".to_string()),
+            agent_id: Some("agent_test123".to_string()),
+            title: Some("sub-task".to_string()),
+            status: Some(SessionStatus::Running),
+            created_at: Some(Utc::now()),
+            extra: HashMap::new(),
+        }
+    }
+
+    /// Create a test memory entry
+    pub fn test_memory() -> Memory {
+        Memory {
+            object_type: "memory".to_string(),
+            id: "memory_test123".to_string(),
+            content: Some("remember this".to_string()),
+            version: Some("v1".to_string()),
+            created_at: Some(Utc::now()),
+            updated_at: Some(Utc::now()),
+            extra: HashMap::new(),
+        }
+    }
+
+    /// Create a test memory version
+    pub fn test_memory_version() -> MemoryVersion {
+        MemoryVersion {
+            object_type: "memory_version".to_string(),
+            id: "memver_test123".to_string(),
+            memory_id: Some("memory_test123".to_string()),
+            content: Some("remember this (v1)".to_string()),
+            created_at: Some(Utc::now()),
+            extra: HashMap::new(),
+        }
+    }
+
+    /// Create a test deployment run
+    pub fn test_deployment_run() -> DeploymentRun {
+        DeploymentRun {
+            object_type: "deployment_run".to_string(),
+            id: "run_test123".to_string(),
+            deployment_id: Some("deploy_test123".to_string()),
+            session_id: Some("session_test123".to_string()),
+            status: Some("running".to_string()),
+            created_at: Some(Utc::now()),
+            extra: HashMap::new(),
         }
     }
 }

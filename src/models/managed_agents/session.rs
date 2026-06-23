@@ -177,11 +177,13 @@ impl Session {
 }
 
 /// A materialized resource attached to a session.
+///
+/// The wire shape is the resource spec plus an `id`, e.g.
+/// `{"type":"file","id":"res_…","file_id":"…","mount_path":"…"}` — the `type`
+/// field is the spec discriminator (`file` / `github_repository` /
+/// `memory_store`), so there is no separate object-type field.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SessionResource {
-    /// Object type (always `"session_resource"`).
-    #[serde(rename = "type")]
-    pub object_type: String,
     /// Unique resource identifier.
     pub id: String,
     /// The resource specification (the `type` discriminator and its fields).
@@ -416,6 +418,28 @@ mod tests {
             }
             _ => panic!("expected memory_store"),
         }
+    }
+
+    #[test]
+    fn session_resource_roundtrips() {
+        // A materialized resource: the `type` field is the spec discriminator,
+        // alongside an `id`. This must both deserialize and re-serialize with a
+        // single `type` key (regression test for the object_type/flatten clash).
+        let json = serde_json::json!({
+            "type": "file",
+            "id": "res_1",
+            "file_id": "file_1",
+            "mount_path": "/workspace/data.csv"
+        });
+        let res: SessionResource = serde_json::from_value(json).unwrap();
+        assert_eq!(res.id, "res_1");
+        assert!(matches!(res.spec, SessionResourceSpec::File { .. }));
+
+        let back = serde_json::to_value(&res).unwrap();
+        assert_eq!(back["type"], "file");
+        assert_eq!(back["id"], "res_1");
+        assert_eq!(back["file_id"], "file_1");
+        assert_eq!(back["mount_path"], "/workspace/data.csv");
     }
 
     #[test]

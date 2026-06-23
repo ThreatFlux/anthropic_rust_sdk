@@ -31,62 +31,8 @@ impl SessionEventStream {
         }
 
         let (sender, receiver) = mpsc::channel(100);
-        let mut bytes_stream = response.bytes_stream();
-
-        let handle = tokio::spawn(async move {
-            // Raw text buffer; SSE frames are separated by a blank line.
-            let mut buffer = String::new();
-
-            while let Some(chunk_result) = bytes_stream.next().await {
-                match chunk_result {
-                    Ok(chunk) => {
-                        buffer.push_str(&String::from_utf8_lossy(&chunk));
-
-                        // Process every complete frame currently in the buffer. A
-                        // frame boundary is a blank line: "\n\n" (or "\r\n\r\n").
-                        while let Some(boundary) = find_frame_boundary(&buffer) {
-                            let frame: String = buffer.drain(..boundary.end).collect();
-                            let frame = &frame[..boundary.frame_len];
-
-                            match parse_frame(frame) {
-                                Ok(Some(event)) => {
-                                    if sender.send(Ok(event)).await.is_err() {
-                                        return; // Receiver dropped, exit cleanly.
-                                    }
-                                }
-                                Ok(None) => {
-                                    // Comment-only or `[DONE]` frame — skip.
-                                }
-                                Err(e) => {
-                                    let _ = sender.send(Err(e)).await;
-                                    return; // Exit on parse error.
-                                }
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        let error = AnthropicError::stream(format!("Stream chunk error: {}", e))
-                            .with_context("Session event stream processing");
-                        let _ = sender.send(Err(error)).await;
-                        return;
-                    }
-                }
-            }
-
-            // Flush any trailing frame that was not terminated by a blank line.
-            let trailing = buffer.trim();
-            if !trailing.is_empty() {
-                match parse_frame(trailing) {
-                    Ok(Some(event)) => {
-                        let _ = sender.send(Ok(event)).await;
-                    }
-                    Ok(None) => {}
-                    Err(e) => {
-                        let _ = sender.send(Err(e)).await;
-                    }
-                }
-            }
-        });
+        let bytes_stream = response.bytes_stream();
+        let handle = tokio::spawn(pump_frames(bytes_stream, sender));
 
         Ok(Self {
             receiver,
@@ -97,6 +43,71 @@ impl SessionEventStream {
     /// Check if the stream is done.
     pub fn is_done(&self) -> bool {
         self.receiver.is_closed()
+    }
+}
+
+/// Read SSE byte chunks, accumulate frames, and forward decoded events.
+async fn pump_frames<S, B>(mut bytes_stream: S, sender: mpsc::Sender<Result<SessionEvent>>)
+where
+    S: Stream<Item = reqwest::Result<B>> + Unpin + Send + 'static,
+    B: AsRef<[u8]> + Send + 'static,
+{
+    let mut buffer = String::new();
+    while let Some(chunk_result) = bytes_stream.next().await {
+        match chunk_result {
+            Ok(chunk) => {
+                buffer.push_str(&String::from_utf8_lossy(chunk.as_ref()));
+                if !drain_frames(&mut buffer, &sender).await {
+                    return; // Receiver dropped or parse error — stop.
+                }
+            }
+            Err(e) => {
+                let error = AnthropicError::stream(format!("Stream chunk error: {}", e))
+                    .with_context("Session event stream processing");
+                let _ = sender.send(Err(error)).await;
+                return;
+            }
+        }
+    }
+    flush_trailing(&buffer, &sender).await;
+}
+
+/// Drain every complete frame from `buffer`, forwarding events. Returns `false`
+/// to stop the pump (the receiver was dropped, or a parse error was forwarded).
+async fn drain_frames(buffer: &mut String, sender: &mpsc::Sender<Result<SessionEvent>>) -> bool {
+    while let Some(boundary) = find_frame_boundary(buffer) {
+        let frame: String = buffer.drain(..boundary.end).collect();
+        let frame = &frame[..boundary.frame_len];
+        match parse_frame(frame) {
+            Ok(Some(event)) => {
+                if sender.send(Ok(event)).await.is_err() {
+                    return false;
+                }
+            }
+            Ok(None) => {} // Comment-only or `[DONE]` frame — skip.
+            Err(e) => {
+                let _ = sender.send(Err(e)).await;
+                return false;
+            }
+        }
+    }
+    true
+}
+
+/// Flush a trailing frame that was not terminated by a blank line.
+async fn flush_trailing(buffer: &str, sender: &mpsc::Sender<Result<SessionEvent>>) {
+    let trailing = buffer.trim();
+    if trailing.is_empty() {
+        return;
+    }
+    match parse_frame(trailing) {
+        Ok(Some(event)) => {
+            let _ = sender.send(Ok(event)).await;
+        }
+        Ok(None) => {}
+        Err(e) => {
+            let _ = sender.send(Err(e)).await;
+        }
     }
 }
 
@@ -129,25 +140,7 @@ fn find_frame_boundary(buffer: &str) -> Option<FrameBoundary> {
 ///
 /// Returns `Ok(None)` for comment-only frames or a `[DONE]` sentinel.
 fn parse_frame(frame: &str) -> Result<Option<SessionEvent>> {
-    let mut data = String::new();
-
-    for line in frame.lines() {
-        let line = line.trim_end_matches('\r');
-        if line.is_empty() || line.starts_with(':') {
-            continue; // Blank line or SSE comment.
-        }
-        if let Some(rest) = line.strip_prefix("data:") {
-            // SSE allows an optional leading space after the colon.
-            let rest = rest.strip_prefix(' ').unwrap_or(rest);
-            if !data.is_empty() {
-                data.push('\n');
-            }
-            data.push_str(rest);
-        }
-        // `event:` / `id:` / `retry:` lines are ignored; the JSON payload is
-        // internally tagged on `type`, so the `event:` name is redundant.
-    }
-
+    let data = collect_sse_data(frame);
     let data = data.trim();
     if data.is_empty() || data == "[DONE]" {
         return Ok(None);
@@ -158,6 +151,31 @@ fn parse_frame(frame: &str) -> Result<Option<SessionEvent>> {
             .with_context("Session event deserialization")
     })?;
     Ok(Some(event))
+}
+
+/// Concatenate the `data:` payload lines of an SSE frame (newline-joined).
+///
+/// `event:` / `id:` / `retry:` / comment lines are ignored — the JSON payload is
+/// internally tagged on `type`, so the `event:` name is redundant.
+fn collect_sse_data(frame: &str) -> String {
+    let mut data = String::new();
+    for line in frame.lines() {
+        if let Some(rest) = sse_data_payload(line) {
+            if !data.is_empty() {
+                data.push('\n');
+            }
+            data.push_str(rest);
+        }
+    }
+    data
+}
+
+/// Extract the payload of a `data:` SSE line (allowing an optional leading
+/// space), or `None` for blank / comment / non-`data:` lines.
+fn sse_data_payload(line: &str) -> Option<&str> {
+    let line = line.trim_end_matches('\r');
+    let rest = line.strip_prefix("data:")?;
+    Some(rest.strip_prefix(' ').unwrap_or(rest))
 }
 
 impl Stream for SessionEventStream {
