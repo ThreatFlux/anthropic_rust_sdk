@@ -116,6 +116,31 @@ impl RequestOptions {
         self
     }
 
+    /// Enable server-side refusal fallbacks (Claude Fable 5).
+    pub fn with_server_side_fallback(self) -> Self {
+        self.with_beta_feature(crate::client::beta_headers::SERVER_SIDE_FALLBACK)
+    }
+
+    /// Enable agentic task budgets.
+    pub fn with_task_budgets(self) -> Self {
+        self.with_beta_feature(crate::client::beta_headers::TASK_BUDGETS)
+    }
+
+    /// Enable context compaction.
+    pub fn with_compaction(self) -> Self {
+        self.with_beta_feature(crate::client::beta_headers::COMPACTION)
+    }
+
+    /// Enable mid-conversation system messages.
+    pub fn with_mid_conversation_system(self) -> Self {
+        self.with_beta_feature(crate::client::beta_headers::MID_CONVERSATION_SYSTEM)
+    }
+
+    /// Enable the MCP client connector.
+    pub fn with_mcp_client(self) -> Self {
+        self.with_beta_feature(crate::client::beta_headers::MCP_CLIENT)
+    }
+
     /// Create options for Claude 4 with extended thinking
     pub fn for_claude_4_thinking(budget_tokens: u32) -> Self {
         let mut options = Self::new();

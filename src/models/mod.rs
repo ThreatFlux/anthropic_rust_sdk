@@ -38,8 +38,9 @@ pub use file::{
     FileUploadResponse,
 };
 pub use message::{
-    ContentBlockDelta, Message, MessageDelta, MessageRequest, MessageResponse, OutputConfig,
-    OutputEffort, OutputFormat, StreamEvent, TokenCountRequest, TokenCountResponse,
+    ContentBlockDelta, Fallback, Message, MessageDelta, MessageRequest, MessageResponse,
+    OutputConfig, OutputEffort, OutputFormat, StreamEvent, SystemBlock, SystemPrompt, TaskBudget,
+    ThinkingConfig, TokenCountRequest, TokenCountResponse,
 };
 pub use model::{Model, ModelFamily, ModelListResponse, ModelSize};
 pub use skill::{

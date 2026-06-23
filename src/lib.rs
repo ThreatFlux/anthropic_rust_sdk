@@ -28,7 +28,7 @@
 //!     let client = Client::from_env()?;
 //!     
 //!     let request = MessageRequest::new()
-//!         .model("claude-3-5-sonnet-20241022")
+//!         .model("claude-sonnet-4-6")
 //!         .max_tokens(1000)
 //!         .add_user_message("Hello, Claude!");
 //!     
@@ -49,7 +49,7 @@
 //!     let client = Client::from_env()?;
 //!     
 //!     let request = MessageRequest::new()
-//!         .model("claude-3-5-sonnet-20241022")
+//!         .model("claude-sonnet-4-6")
 //!         .max_tokens(1000)
 //!         .add_user_message("Tell me a story");
 //!     
@@ -108,6 +108,8 @@ pub use models::{
     ApiKeyActor,
     ApiKeyListParams,
     BatchResult,
+    // Prompt caching
+    CacheControl,
     ClaudeCodeCoreMetrics,
     ClaudeCodeToolMetric,
     ClaudeCodeUsageActor,
@@ -120,6 +122,8 @@ pub use models::{
     // Common types
     ContentBlock,
     ContentBlockDelta,
+    // Refusal fallbacks
+    Fallback,
     // File types
     File,
     FileDownload,
@@ -182,8 +186,13 @@ pub use models::{
     SkillVersionDeleteResponse,
     SkillVersionListParams,
     SkillVersionListResponse,
+    StopDetails,
     StopReason,
     StreamEvent,
+    SystemBlock,
+    SystemPrompt,
+    TaskBudget,
+    ThinkingConfig,
     TokenCountRequest,
     TokenCountResponse,
     Tool,

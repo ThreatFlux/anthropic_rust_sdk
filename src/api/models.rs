@@ -58,7 +58,7 @@ impl ModelsApi {
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = Client::from_env()?;
     ///
-    /// let model = client.models().get("claude-3-5-haiku-20241022", None).await?;
+    /// let model = client.models().get("claude-haiku-4-5", None).await?;
     /// println!("Model: {} - {}", model.id, model.display_name);
     /// println!("Max tokens: {:?}", model.max_tokens);
     /// # Ok(())

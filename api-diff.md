@@ -1,10 +1,47 @@
 # Anthropic API Support Diff and Upgrade Roadmap
 
-Date: 2026-02-23
+Date: 2026-02-23 (currency upgrade: 2026-06-22)
 Repository: `threatflux`
 
 ## Summary
 This document compares the crate's current API support to the latest Anthropic API docs and defines a concrete implementation roadmap.
+
+## Currency Upgrade (2026-06-22)
+
+Brought the request/response surface current with the flagship model generation:
+
+- **Models**: added current catalog (`claude-fable-5`, `claude-opus-4-8/4-7/4-6`,
+  `claude-sonnet-4-6`, `claude-haiku-4-5`); default model changed off the retired
+  `claude-3-5-haiku`; retired ids marked `#[deprecated]`; `ModelFamily` extended.
+- **Thinking**: added adaptive thinking (`type: "adaptive"` + `display`). `budget_tokens`
+  (`enabled`) retained for legacy models only — it 400s on Opus 4.7+/Fable 5.
+- **Effort / task budgets**: added `xhigh` effort level and `output_config.task_budget`.
+- **Prompt caching**: wired `cache_control` onto text/tool/system blocks, added a
+  cacheable `SystemPrompt`/`SystemBlock`, top-level `auto_cache`, and 1h TTL.
+- **Server-side tools**: `Tool` now models `type` + server-tool constructors
+  (web search/fetch, code execution, bash, text editor, memory), plus `strict`.
+- **Refusal**: `stop_details` on the response, server-side `fallbacks` param +
+  `fallback` content block, and beta-header helpers (server-side fallback, task
+  budgets, compaction, mid-conversation system, MCP client).
+- **Models API**: `Model` deserializes the real list/retrieve shapes
+  (`max_input_tokens`, nested `capabilities`, optional `updated_at`).
+- **Message response**: tolerates responses without `created_at`.
+
+### Test suite resurrection (2026-06-23)
+- The previously-orphaned `tests/unit/`, `tests/integration/`, and `tests/real_api/`
+  directories are now wired into the build via `tests/unit_suite.rs`,
+  `tests/integration_suite.rs`, and `tests/real_api_suite.rs`, reconciled with the
+  current API, and **passing**. Full suite: **522 tests, 0 failures** (`unit_suite`
+  282, `integration_suite` 95, `src` lib 97, doctests 20, plus the pre-existing
+  top-level `tests/*.rs`). `cargo clippy --all-targets --all-features -- -D warnings`
+  is clean and `cargo fmt --check` passes.
+
+### Known remaining gap
+- **Managed Agents** (`/v1/agents`, `/v1/sessions`, `/v1/environments`, vaults,
+  memory stores, deployments) — the server-managed agent platform — is **not yet
+  implemented**. It is a large, separable beta surface (≈20 endpoints + an SSE
+  session event stream) and warrants its own module/PR. A full implementation plan
+  is in [`MANAGED_AGENTS_PLAN.md`](MANAGED_AGENTS_PLAN.md).
 
 ## Current Coverage Snapshot
 

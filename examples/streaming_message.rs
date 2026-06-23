@@ -25,7 +25,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Create a streaming message request
     let request = MessageBuilder::new()
-        .model("claude-3-5-haiku-20241022")
+        .model("claude-haiku-4-5")
         .max_tokens(1500)
         .temperature(0.7)
         .system("You are a helpful AI assistant. Be concise but informative.")
@@ -87,7 +87,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("{}", "=".repeat(60));
 
     let collect_request = MessageBuilder::new()
-        .model("claude-3-5-haiku-20241022")
+        .model("claude-haiku-4-5")
         .max_tokens(800)
         .temperature(0.5)
         .analytical() // Use analytical preset
@@ -117,7 +117,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("{}", "=".repeat(60));
 
     let text_request = MessageBuilder::new()
-        .model("claude-3-5-haiku-20241022")
+        .model("claude-haiku-4-5")
         .max_tokens(500)
         .temperature(0.8)
         .user("Give me 5 creative uses for a paperclip")
@@ -143,7 +143,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     if input.trim() != "quit" {
         let interactive_request = MessageBuilder::new()
-            .model("claude-3-5-haiku-20241022")
+            .model("claude-haiku-4-5")
             .max_tokens(1000)
             .temperature(0.7)
             .conversational() // Use conversational preset

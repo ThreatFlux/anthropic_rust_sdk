@@ -108,10 +108,12 @@ Keys can be loaded from `.env` file or environment.
 
 ## Model Constants
 
-Model identifiers are available in `src/config.rs`:
-- Claude 4: `OPUS_4_1`, `OPUS_4`, `SONNET_4`
-- Claude 3.5: `HAIKU_3_5`, `SONNET_3_5`
-- Claude 3: `OPUS_3`, `SONNET_3`, `HAIKU_3`
+Model identifiers are available in `src/config.rs` (`config::models`):
+- Current: `FABLE_5`, `MYTHOS_5`, `OPUS_4_8`, `OPUS_4_7`, `OPUS_4_6`, `SONNET_4_6`, `HAIKU_4_5`
+- Legacy (active): `OPUS_4_5`, `SONNET_4_5`, `OPUS_4_1`
+- Retired (`#[deprecated]`, return 404): `OPUS_4`, `SONNET_4`, `SONNET_3_7`, `HAIKU_3_5`, `SONNET_3_5`, `OPUS_3`
+- `DEFAULT_MODEL` is `claude-sonnet-4-6`. Use adaptive thinking (`adaptive_thinking()`)
+  and the `effort` parameter on current models — `budget_tokens` 400s on Opus 4.7+/Fable 5.
 
 ## Error Handling
 

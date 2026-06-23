@@ -24,7 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Simple test
     println!("\nTesting Messages API...");
     let request = MessageBuilder::new()
-        .model("claude-3-5-haiku-20241022")
+        .model("claude-haiku-4-5")
         .max_tokens(30)
         .user("Reply with: Hello, SDK is working!")
         .build();

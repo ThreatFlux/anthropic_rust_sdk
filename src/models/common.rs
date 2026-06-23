@@ -3,6 +3,39 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Cache control for prompt caching.
+///
+/// Attach to a content block, tool, or system block to mark a cache breakpoint,
+/// or set [`crate::models::message::MessageRequest::cache_control`] to auto-cache
+/// the last cacheable block.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CacheControl {
+    /// Type of cache control (always `"ephemeral"`).
+    #[serde(rename = "type")]
+    pub cache_type: String,
+    /// Time-to-live for the cache entry: `"5m"` (default) or `"1h"`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ttl: Option<String>,
+}
+
+impl CacheControl {
+    /// Create ephemeral cache control with the default 5-minute TTL.
+    pub fn ephemeral() -> Self {
+        Self {
+            cache_type: "ephemeral".to_string(),
+            ttl: None,
+        }
+    }
+
+    /// Create ephemeral cache control with a 1-hour TTL.
+    pub fn ephemeral_1h() -> Self {
+        Self {
+            cache_type: "ephemeral".to_string(),
+            ttl: Some("1h".to_string()),
+        }
+    }
+}
+
 /// Message role enumeration
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -226,6 +259,8 @@ pub enum ContentBlock {
         text: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         citations: Option<Vec<TextCitation>>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        cache_control: Option<CacheControl>,
     },
     /// Image content.
     Image { source: ImageSource },
@@ -285,6 +320,14 @@ pub enum ContentBlock {
     },
     /// Redacted thinking payload.
     RedactedThinking { data: String },
+    /// Refusal-fallback marker emitted when a server-side fallback model takes
+    /// over a turn (Claude Fable 5 refusal fallbacks).
+    Fallback {
+        #[serde(default)]
+        from: serde_json::Value,
+        #[serde(default)]
+        to: serde_json::Value,
+    },
     /// Unknown content block type.
     #[serde(other)]
     Unknown,
@@ -296,6 +339,7 @@ impl ContentBlock {
         Self::Text {
             text: text.into(),
             citations: None,
+            cache_control: None,
         }
     }
 
@@ -308,7 +352,17 @@ impl ContentBlock {
         Self::Text {
             text: text.into(),
             citations: Some(citations),
+            cache_control: None,
         }
+    }
+
+    /// Attach a cache-control breakpoint to a text content block (no-op on
+    /// other block types).
+    pub fn with_cache_control(mut self, cc: CacheControl) -> Self {
+        if let Self::Text { cache_control, .. } = &mut self {
+            *cache_control = Some(cc);
+        }
+        self
     }
 
     /// Create an image content block.
@@ -474,29 +528,113 @@ impl Usage {
     }
 }
 
-/// Tool definition for function calling
+/// Tool definition for client-side function calling and server-side tools.
+///
+/// Custom tools set `name`, `description`, and `input_schema`. Server tools
+/// (web search, code execution, bash, text editor, memory, ...) set `tool_type`
+/// to a versioned identifier and a fixed `name`; use the dedicated constructors.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Tool {
-    /// Tool name
+    /// Tool type. Omitted for custom tools; a versioned identifier for server
+    /// tools (e.g. `web_search_20260209`, `code_execution_20260120`).
+    #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
+    pub tool_type: Option<String>,
+    /// Tool name.
     pub name: String,
-    /// Tool description
-    pub description: String,
-    /// Input schema (JSON Schema)
-    pub input_schema: serde_json::Value,
+    /// Tool description (custom tools).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Input schema as JSON Schema (custom tools).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input_schema: Option<serde_json::Value>,
+    /// Require schema-valid tool arguments (strict tool use).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub strict: Option<bool>,
+    /// Cache control breakpoint for prompt caching.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_control: Option<CacheControl>,
+    /// Extra server-tool configuration fields (e.g. `max_uses`, `allowed_domains`).
+    #[serde(flatten, default)]
+    pub extra: HashMap<String, serde_json::Value>,
 }
 
 impl Tool {
-    /// Create a new tool definition
+    /// Create a new custom tool definition.
     pub fn new(
         name: impl Into<String>,
         description: impl Into<String>,
         input_schema: serde_json::Value,
     ) -> Self {
         Self {
+            tool_type: None,
             name: name.into(),
-            description: description.into(),
-            input_schema,
+            description: Some(description.into()),
+            input_schema: Some(input_schema),
+            strict: None,
+            cache_control: None,
+            extra: HashMap::new(),
         }
+    }
+
+    /// Create a server-side tool by type + name.
+    pub fn server(tool_type: impl Into<String>, name: impl Into<String>) -> Self {
+        Self {
+            tool_type: Some(tool_type.into()),
+            name: name.into(),
+            description: None,
+            input_schema: None,
+            strict: None,
+            cache_control: None,
+            extra: HashMap::new(),
+        }
+    }
+
+    /// Built-in web search tool (`web_search_20260209`).
+    pub fn web_search() -> Self {
+        Self::server("web_search_20260209", "web_search")
+    }
+
+    /// Built-in web fetch tool (`web_fetch_20260209`).
+    pub fn web_fetch() -> Self {
+        Self::server("web_fetch_20260209", "web_fetch")
+    }
+
+    /// Built-in code execution tool (`code_execution_20260120`).
+    pub fn code_execution() -> Self {
+        Self::server("code_execution_20260120", "code_execution")
+    }
+
+    /// Built-in bash tool (`bash_20250124`).
+    pub fn bash() -> Self {
+        Self::server("bash_20250124", "bash")
+    }
+
+    /// Built-in text editor tool (`text_editor_20250728`).
+    pub fn text_editor() -> Self {
+        Self::server("text_editor_20250728", "str_replace_based_edit_tool")
+    }
+
+    /// Built-in memory tool (`memory_20250818`).
+    pub fn memory() -> Self {
+        Self::server("memory_20250818", "memory")
+    }
+
+    /// Enable strict tool use (schema-valid arguments).
+    pub fn with_strict(mut self, strict: bool) -> Self {
+        self.strict = Some(strict);
+        self
+    }
+
+    /// Attach a cache-control breakpoint to this tool.
+    pub fn with_cache_control(mut self, cache_control: CacheControl) -> Self {
+        self.cache_control = Some(cache_control);
+        self
+    }
+
+    /// Set an extra server-tool configuration field.
+    pub fn with_config(mut self, key: impl Into<String>, value: serde_json::Value) -> Self {
+        self.extra.insert(key.into(), value);
+        self
     }
 }
 
@@ -558,6 +696,26 @@ pub enum StopReason {
     PauseTurn,
     /// Response was declined for safety/policy reasons
     Refusal,
+}
+
+/// Structured detail accompanying a `refusal` (and other) stop reason.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct StopDetails {
+    /// Detail type (e.g. `"refusal"`).
+    #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
+    pub detail_type: Option<String>,
+    /// Policy category, e.g. `"cyber"`, `"bio"`, `"reasoning_extraction"`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
+    /// Human-readable explanation, when provided.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub explanation: Option<String>,
+    /// Recommended model to retry with, when provided.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recommended_model: Option<String>,
+    /// Forward-compatible extra fields.
+    #[serde(flatten, default)]
+    pub extra: HashMap<String, serde_json::Value>,
 }
 
 /// Model capabilities
@@ -753,5 +911,58 @@ mod tests {
         assert_eq!(Role::User.to_string(), "user");
         assert_eq!(Role::Assistant.to_string(), "assistant");
         assert_eq!(Role::System.to_string(), "system");
+    }
+
+    #[test]
+    fn test_server_tool_serialization() {
+        let value = serde_json::to_value(Tool::web_search()).unwrap();
+        assert_eq!(value["type"], "web_search_20260209");
+        assert_eq!(value["name"], "web_search");
+        // Server tools omit description/input_schema.
+        assert!(value.get("description").is_none());
+        assert!(value.get("input_schema").is_none());
+
+        let code = serde_json::to_value(Tool::code_execution()).unwrap();
+        assert_eq!(code["type"], "code_execution_20260120");
+    }
+
+    #[test]
+    fn test_custom_tool_strict_and_cache() {
+        let tool = Tool::new(
+            "get_weather",
+            "Get weather",
+            serde_json::json!({"type": "object"}),
+        )
+        .with_strict(true)
+        .with_cache_control(CacheControl::ephemeral());
+        let value = serde_json::to_value(&tool).unwrap();
+        assert_eq!(value["name"], "get_weather");
+        assert_eq!(value["description"], "Get weather");
+        assert_eq!(value["strict"], true);
+        assert_eq!(value["cache_control"]["type"], "ephemeral");
+        assert!(value.get("type").is_none());
+    }
+
+    #[test]
+    fn test_text_block_cache_control_roundtrip() {
+        let block = ContentBlock::text("hello").with_cache_control(CacheControl::ephemeral_1h());
+        let value = serde_json::to_value(&block).unwrap();
+        assert_eq!(value["type"], "text");
+        assert_eq!(value["cache_control"]["type"], "ephemeral");
+        assert_eq!(value["cache_control"]["ttl"], "1h");
+
+        let parsed: ContentBlock = serde_json::from_value(value).unwrap();
+        assert_eq!(parsed, block);
+    }
+
+    #[test]
+    fn test_fallback_content_block_parses() {
+        let block: ContentBlock = serde_json::from_value(serde_json::json!({
+            "type": "fallback",
+            "from": {"model": "claude-fable-5"},
+            "to": {"model": "claude-opus-4-8"}
+        }))
+        .unwrap();
+        assert!(matches!(block, ContentBlock::Fallback { .. }));
     }
 }
