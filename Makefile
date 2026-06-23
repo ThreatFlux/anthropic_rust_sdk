@@ -1,4 +1,7 @@
-.PHONY: all build test clean fmt lint audit doc release check install dev-setup
+.PHONY: all build test clean fmt lint audit doc release check install dev-setup \
+        ci ci-fmt ci-clippy ci-build ci-test ci-doctest ci-doc ci-audit \
+        ci-examples ci-msrv ci-license ci-coverage pre-commit examples deps \
+        bench coverage watch help
 
 # Default target
 all: clean fmt lint build test doc
@@ -9,12 +12,11 @@ build:
 	@cargo build --all-features
 	@cargo build --release --all-features
 
-# Run all tests
+# Run all tests (full suite, matching CI: lib + integration crates + doctests)
 test:
 	@echo "Running tests..."
-	@cargo test --all-features --lib
+	@cargo test --all-features
 	@cargo test --all-features --doc
-	@cargo test --all-features --examples
 
 # Clean build artifacts
 clean:
@@ -34,15 +36,15 @@ lint:
 	@echo "Running clippy..."
 	@cargo clippy --all-targets --all-features -- -D warnings
 
-# Security audit
+# Security audit (hard-fails, matching CI)
 audit:
 	@echo "Running security audit..."
-	@cargo audit || true
+	@cargo audit
 
-# Generate documentation
+# Generate documentation (RUSTDOCFLAGS=-D warnings, matching CI's doc check)
 doc:
 	@echo "Generating documentation..."
-	@cargo doc --no-deps --all-features --document-private-items
+	@RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features --document-private-items
 
 # Prepare for release
 release: all
@@ -55,6 +57,66 @@ check:
 	@cargo check --all-features
 	@cargo fmt --all -- --check
 	@cargo clippy --all-features -- -D warnings
+
+# ---------------------------------------------------------------------------
+# Local CI gate — mirrors .github/workflows/ci.yml step-for-step so that a
+# green `make ci` means green GitHub CI. RUN THIS BEFORE EVERY COMMIT/PUSH.
+#
+# Reproduced locally (deterministic, blocking in CI): formatting, clippy,
+# build, tests, doc tests, the documentation build, security audit, examples,
+# the MSRV check, and license check.
+# NOT reproducible locally (hosted services; informational): Codecov patch
+# coverage, Codacy, CodeQL/Analyze. Use `make ci-coverage` for local coverage.
+# ---------------------------------------------------------------------------
+ci: ci-fmt ci-clippy ci-build ci-test ci-doctest ci-doc ci-audit ci-examples ci-msrv ci-license
+	@echo ""
+	@echo "✅ make ci: all local CI checks passed — safe to commit/push"
+
+ci-fmt:
+	@echo "[ci] cargo fmt --all -- --check"
+	@cargo fmt --all -- --check
+
+ci-clippy:
+	@echo "[ci] cargo clippy --all-targets --all-features -- -D warnings"
+	@cargo clippy --all-targets --all-features -- -D warnings
+
+ci-build:
+	@echo "[ci] RUSTFLAGS=-D warnings cargo build --all-features"
+	@RUSTFLAGS="-D warnings" cargo build --all-features
+
+ci-test:
+	@echo "[ci] RUSTFLAGS=-D warnings cargo test --all-features"
+	@RUSTFLAGS="-D warnings" cargo test --all-features
+
+ci-doctest:
+	@echo "[ci] RUSTDOCFLAGS=-D warnings cargo test --doc --all-features"
+	@RUSTDOCFLAGS="-D warnings" cargo test --doc --all-features
+
+ci-doc:
+	@echo "[ci] RUSTDOCFLAGS=-D warnings cargo doc --no-deps --all-features --document-private-items"
+	@RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features --document-private-items
+
+ci-audit:
+	@echo "[ci] cargo audit"
+	@cargo audit
+
+ci-examples:
+	@echo "[ci] cargo build --examples --all-features"
+	@cargo build --examples --all-features
+
+ci-msrv:
+	@echo "[ci] MSRV (rustc 1.95.0): cargo check --all-features"
+	@cargo check --all-features
+
+ci-license:
+	@echo "[ci] cargo deny check licenses"
+	@cargo deny check licenses
+
+# Local coverage (codecov is non-blocking in CI: fail_ci_if_error: false).
+ci-coverage:
+	@echo "[ci] cargo tarpaulin --all-features --workspace --out xml"
+	@cargo tarpaulin --all-features --workspace --timeout 120 --out xml \
+		|| echo "NOTE: cargo-tarpaulin missing or failed (codecov is non-blocking in CI; 'cargo install cargo-tarpaulin' to enable)"
 
 # Install development dependencies
 install:
@@ -103,8 +165,8 @@ watch:
 	@echo "Watching for changes..."
 	@cargo watch -x test
 
-# Pre-commit checks
-pre-commit: fmt lint test
+# Pre-commit checks — run the full local CI gate before every commit/push
+pre-commit: ci
 	@echo "Pre-commit checks passed!"
 
 # Help
@@ -120,6 +182,8 @@ help:
 	@echo "  doc        - Generate documentation"
 	@echo "  release    - Prepare for crates.io release"
 	@echo "  check      - Quick check (format, lint)"
+	@echo "  ci         - Full local CI gate mirroring GitHub CI (run before commit)"
+	@echo "  ci-coverage- Local coverage via tarpaulin (codecov is non-blocking)"
 	@echo "  install    - Install development tools"
 	@echo "  dev-setup  - Complete development setup"
 	@echo "  examples   - Build all examples"
