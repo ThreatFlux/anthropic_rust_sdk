@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0](https://github.com/ThreatFlux/anthropic_rust_sdk/compare/v0.1.0...v0.2.0) (2026-06-24)
+
+
+### Features
+
+* complete API parity and move linux workflows to self-hosted ([c40b217](https://github.com/ThreatFlux/anthropic_rust_sdk/commit/c40b2171c9197efefa9fcbe3c0b92cd003c89367))
+
+
+### Bug Fixes
+
+* align with current Anthropic API for auth + Batch round-trip ([62990a9](https://github.com/ThreatFlux/anthropic_rust_sdk/commit/62990a9868ae2a893f4e3d3a085c3edc0f8d66e3))
+* **ci:** route pull request linux jobs to hosted runners ([723eb04](https://github.com/ThreatFlux/anthropic_rust_sdk/commit/723eb0456c18ec03391c661b9297cbb8e34eb62b))
+* **ci:** route pull request linux jobs to hosted runners ([134edb4](https://github.com/ThreatFlux/anthropic_rust_sdk/commit/134edb4989a4786984dbef800574cb51e633de55))
+* **ci:** satisfy newer stable clippy ([5c5aae4](https://github.com/ThreatFlux/anthropic_rust_sdk/commit/5c5aae45c6cf66d151e9ace0c1666029f2df3637))
+* **ci:** skip benchmark publish when no benchmark output ([e14c9fb](https://github.com/ThreatFlux/anthropic_rust_sdk/commit/e14c9fbcd83f20f17d3c67fce1b0012c47daf434))
+* **ci:** stabilize pipeline after dependency upgrade ([33b16dd](https://github.com/ThreatFlux/anthropic_rust_sdk/commit/33b16dd4e78d1a01611514867d5df7e1f0eee929))
+* **dependabot:** remove invalid org assignee ([328d162](https://github.com/ThreatFlux/anthropic_rust_sdk/commit/328d16260255abe098509df26a980aa222587472))
+* **dependabot:** remove invalid org assignee ([59a91d3](https://github.com/ThreatFlux/anthropic_rust_sdk/commit/59a91d3f6336acd83db9b5c652126bd30b44d39a))
+* publish anthropic sdk under threatflux crate ([e5e0522](https://github.com/ThreatFlux/anthropic_rust_sdk/commit/e5e052212c7caa0d8b49bc86f0d5ad818c035b5c))
+* **security:** harden dependencies and GitHub workflows ([656ca2b](https://github.com/ThreatFlux/anthropic_rust_sdk/commit/656ca2be6affe9a46378501f57f042723997ee3e))
+* **skills:** reject symlinks in directory uploads ([7fc8695](https://github.com/ThreatFlux/anthropic_rust_sdk/commit/7fc86959dbc1a4cc500129c2c04f9dc646963d39))
+* **skills:** reject symlinks in directory uploads ([e06c15b](https://github.com/ThreatFlux/anthropic_rust_sdk/commit/e06c15b27493f9b44c5d31296b9864c0e1051c39))
+
 ## [Unreleased]
 
 ### Added (API currency upgrade)
