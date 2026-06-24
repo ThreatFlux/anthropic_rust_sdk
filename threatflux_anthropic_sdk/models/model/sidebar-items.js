@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ModelFamily","ModelSize"],"fn":["deserialize_capabilities"],"struct":["BenchmarkResult","Model","ModelComparison"],"type":["ModelListResponse"]};

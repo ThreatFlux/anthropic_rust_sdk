@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["collect_sse_data","drain_frames","find_frame_boundary","flush_trailing","parse_frame","pump_frames","sse_data_payload"],"struct":["FrameBoundary","SessionEventStream"]};

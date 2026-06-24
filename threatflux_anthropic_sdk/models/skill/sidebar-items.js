@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["SkillLatestVersion"],"struct":["Skill","SkillCreateRequest","SkillDeleteResponse","SkillFileUpload","SkillListParams","SkillListResponse","SkillVersion","SkillVersionCreateRequest","SkillVersionDeleteResponse","SkillVersionListParams","SkillVersionListResponse"]};
