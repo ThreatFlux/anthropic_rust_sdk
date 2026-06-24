@@ -1,0 +1,9 @@
+.git
+.github
+target
+plans
+*.crate
+*.log
+.env
+.env.*
+Cargo.lock

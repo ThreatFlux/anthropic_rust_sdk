@@ -163,6 +163,7 @@ perf.data*
 
 # Docker
 .dockerignore
+!.dockerignore
 
 # Kubernetes
 *.yaml

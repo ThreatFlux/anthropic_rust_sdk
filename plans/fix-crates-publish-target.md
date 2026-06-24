@@ -6,7 +6,7 @@ Publish this Anthropic Rust SDK under a ThreatFlux-owned crates.io target and ma
 
 ## Status
 
-Implemented with `threatflux-anthropic-sdk` as the crates.io package name and `threatflux_anthropic_sdk` as the Rust import path. GitHub releases now publish the crate before creating the release, and the obsolete binary artifact job has been removed.
+Implemented with `threatflux-anthropic-sdk` as the crates.io package name and `threatflux_anthropic_sdk` as the Rust import path. Releases are managed by Release Please, which opens version-bump PRs from conventional commits and creates the GitHub Release/tag after the release PR is merged. The release workflow then publishes crates.io, publishes a GHCR image to GitHub Packages, and uploads crate/checksum assets to the GitHub Release.
 
 ## Scope
 
@@ -104,7 +104,7 @@ Acceptable alternatives if preferred:
      - verify: `cargo test --all-targets --no-run`, `cargo doc --no-deps`, `cargo package --locked`
      - publish: `cargo publish --locked`
    - Ensure publish depends only on successful verification, not on broken binary artifact packaging.
-   - Use `CRATES_IO_TOKEN` via `cargo publish --token "$CRATES_IO_TOKEN"` or `cargo login` plus `cargo publish`.
+   - Use `CARGO_REGISTRY_TOKEN`; Cargo reads it directly during `cargo publish`.
 
 5. Decide binary release policy.
    - Preferred: remove `build-release` for this SDK library release.
@@ -119,7 +119,7 @@ Acceptable alternatives if preferred:
    - `cargo publish --dry-run --locked`
 
 7. Publish.
-   - Confirm `CRATES_IO_TOKEN` belongs to the crates.io account/org that should own the crate.
+   - Confirm `CARGO_REGISTRY_TOKEN` belongs to the crates.io account/org that should own the crate.
    - Publish once from CI or locally, not both.
    - Add additional crates.io owners/team members after the first publish if needed.
 
@@ -146,5 +146,7 @@ Acceptable alternatives if preferred:
 ## Decisions
 
 - Crate name: `threatflux-anthropic-sdk`.
-- GitHub releases publish the library crate only; no binary artifacts are generated.
+- Auto-versioning: Release Please with `release-type = "rust"` and manifest version tracking.
+- GitHub Packages target: GHCR image `ghcr.io/threatflux/anthropic-rust-sdk`, because GitHub Packages does not provide a native Cargo registry.
+- GitHub releases publish the library crate and attach `.crate` plus checksum assets.
 - `plans/` is excluded from the crates.io package archive.

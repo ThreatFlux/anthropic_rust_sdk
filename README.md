@@ -446,6 +446,19 @@ Available features:
 - **API Reference**: See [API_CURL_DOCS.md](API_CURL_DOCS.md)
 - **Examples**: Check the `/examples` directory
 
+## Release Automation
+
+Releases are managed by Release Please from conventional commits on `main`.
+When a release PR is merged, the workflow bumps `Cargo.toml`, updates
+`CHANGELOG.md`, creates the GitHub Release and tag, publishes the crate to
+crates.io, pushes a GHCR image to GitHub Packages, and attaches the `.crate`
+archive plus checksums to the release.
+
+Published package targets:
+
+- Crate: `threatflux-anthropic-sdk`
+- GitHub Packages image: `ghcr.io/threatflux/anthropic-rust-sdk`
+
 ## Testing
 
 ```bash
