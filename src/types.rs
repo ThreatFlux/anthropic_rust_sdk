@@ -110,6 +110,31 @@ impl RequestOptions {
         self
     }
 
+    /// Enable User Profiles beta API.
+    pub fn with_user_profiles(self) -> Self {
+        self.with_beta_feature(crate::client::beta_headers::USER_PROFILES)
+    }
+
+    /// Enable Dreams research-preview API.
+    pub fn with_dreaming(self) -> Self {
+        self.with_beta_feature(crate::client::beta_headers::DREAMING)
+    }
+
+    /// Enable MCP Tunnels research-preview API.
+    pub fn with_mcp_tunnels(self) -> Self {
+        self.with_beta_feature(crate::client::beta_headers::MCP_TUNNELS)
+    }
+
+    /// Enable mid-conversation tool changes.
+    pub fn with_mid_conversation_tool_changes(self) -> Self {
+        self.with_beta_feature(crate::client::beta_headers::MID_CONVERSATION_TOOL_CHANGES)
+    }
+
+    /// Enable agent memory features.
+    pub fn with_agent_memory(self) -> Self {
+        self.with_beta_feature(crate::client::beta_headers::AGENT_MEMORY)
+    }
+
     /// Add a custom beta feature
     pub fn with_beta_feature(mut self, feature: impl Into<String>) -> Self {
         self.beta_features.push(feature.into());
@@ -119,6 +144,11 @@ impl RequestOptions {
     /// Enable server-side refusal fallbacks (Claude Fable 5).
     pub fn with_server_side_fallback(self) -> Self {
         self.with_beta_feature(crate::client::beta_headers::SERVER_SIDE_FALLBACK)
+    }
+
+    /// Enable the thinking-token usage breakdown beta.
+    pub fn with_thinking_token_count(self) -> Self {
+        self.with_beta_feature(crate::client::beta_headers::THINKING_TOKEN_COUNT)
     }
 
     /// Enable agentic task budgets.
@@ -162,7 +192,7 @@ impl RequestOptions {
 }
 
 /// Pagination parameters
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Pagination {
     /// Number of items to return per page
     pub limit: Option<u32>,

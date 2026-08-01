@@ -13,6 +13,16 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum AgentModel {
+    /// Model spec with an explicit reasoning effort.
+    SpecWithEffort {
+        /// Model identifier.
+        id: String,
+        /// Optional speed hint (e.g. `"fast"`).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        speed: Option<String>,
+        /// Optional reasoning effort.
+        effort: String,
+    },
     /// Bare model id string.
     Id(String),
     /// Model spec object with optional speed hint.
@@ -30,7 +40,20 @@ impl AgentModel {
     pub fn id(&self) -> &str {
         match self {
             Self::Id(id) => id.as_str(),
-            Self::Spec { id, .. } => id.as_str(),
+            Self::Spec { id, .. } | Self::SpecWithEffort { id, .. } => id.as_str(),
+        }
+    }
+
+    /// Create an object model configuration with speed and reasoning effort.
+    pub fn configured(
+        id: impl Into<String>,
+        speed: Option<String>,
+        effort: impl Into<String>,
+    ) -> Self {
+        Self::SpecWithEffort {
+            id: id.into(),
+            speed,
+            effort: effort.into(),
         }
     }
 }
@@ -327,6 +350,9 @@ pub struct AgentUpdateRequest {
     /// Replacement metadata.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<HashMap<String, String>>,
+    /// Optional version label for the new agent revision.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<u64>,
 }
 
 impl AgentUpdateRequest {
@@ -358,6 +384,12 @@ impl AgentUpdateRequest {
         self.description = Some(description.into());
         self
     }
+
+    /// Set the version label for the new revision.
+    pub fn version(mut self, version: u64) -> Self {
+        self.version = Some(version);
+        self
+    }
 }
 
 /// Response when listing agents (cursor-style pagination).
@@ -382,7 +414,7 @@ mod tests {
         let parsed: AgentModel =
             serde_json::from_str(r#"{"id":"claude-opus-4-8","speed":"fast"}"#).unwrap();
         match &parsed {
-            AgentModel::Spec { id, speed } => {
+            AgentModel::Spec { id, speed, .. } => {
                 assert_eq!(id, "claude-opus-4-8");
                 assert_eq!(speed.as_deref(), Some("fast"));
             }

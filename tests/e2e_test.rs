@@ -258,6 +258,7 @@ async fn test_token_counting() -> Result<(), Box<dyn Error>> {
         messages: request.messages.clone(),
         system: request.system.clone(),
         tools: request.tools.clone(),
+        user_profile_id: None,
     };
 
     let count = client

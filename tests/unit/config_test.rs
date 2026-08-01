@@ -303,6 +303,8 @@ mod model_tests {
         let all_models = models::all_models();
         assert!(all_models.contains(&models::FABLE_5));
         assert!(all_models.contains(&models::MYTHOS_5));
+        assert!(all_models.contains(&models::OPUS_5));
+        assert!(all_models.contains(&models::SONNET_5));
         assert!(all_models.contains(&models::OPUS_4_8));
         assert!(all_models.contains(&models::OPUS_4_7));
         assert!(all_models.contains(&models::OPUS_4_6));
@@ -311,7 +313,7 @@ mod model_tests {
         assert!(all_models.contains(&models::OPUS_4_5));
         assert!(all_models.contains(&models::SONNET_4_5));
         assert!(all_models.contains(&models::OPUS_4_1));
-        assert_eq!(all_models.len(), 10);
+        assert_eq!(all_models.len(), 12);
     }
 
     #[test]

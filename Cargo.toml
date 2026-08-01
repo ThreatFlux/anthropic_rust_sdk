@@ -16,36 +16,36 @@ categories = ["api-bindings", "web-programming::http-client"]
 
 [dependencies]
 # HTTP client
-reqwest = { version = "0.13.2", default-features = false, features = ["json", "stream", "multipart", "charset", "http2", "system-proxy"] }
+reqwest = { version = "0.13.4", default-features = false, features = ["json", "stream", "multipart", "charset", "http2", "system-proxy"] }
 # Async runtime
-tokio = { version = "1.49.0", features = ["full"] }
+tokio = { version = "1.53.1", features = ["full"] }
 # JSON serialization
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.149"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
 # Error handling
-thiserror = "2.0.18"
-anyhow = "1.0.102"
+thiserror = "2.0.19"
+anyhow = "1.0.104"
 # Environment variables
 dotenvy = "0.15.7"
 # Logging
 tracing = "0.1.44"
-tracing-subscriber = "0.3.22"
+tracing-subscriber = "0.3.23"
 # URL handling
 url = "2.5.8"
 # Base64 encoding/decoding
 base64 = "0.23.0"
 # UUID generation
-uuid = { version = "1.21.0", features = ["v4", "serde"] }
+uuid = { version = "1.24.0", features = ["v4", "serde"] }
 # Date/time handling
-chrono = { version = "0.4.43", features = ["serde"] }
+chrono = { version = "0.4.45", features = ["serde"] }
 # Stream utilities
-futures = "0.3.32"
-tokio-stream = "0.1.18"
+futures = "0.3.33"
+tokio-stream = "0.1.19"
 # Rate limiting
 governor = "0.10.4"
 nonzero_ext = "0.3.0"
 # HTTP headers
-http = "1.4.0"
+http = "1.5.0"
 # Mime types
 mime = "0.3.17"
 # Mime guessing
@@ -54,12 +54,12 @@ mime_guess = "2.0.5"
 [dev-dependencies]
 tokio-test = "0.4.5"
 mockito = "1.7.2"
-tempfile = "3.25.0"
+tempfile = "3.27.0"
 wiremock = "0.6.5"
 pretty_assertions = "1.4.1"
-serde_json = "1.0.149"
-tokio = { version = "1.49.0", features = ["full", "test-util"] }
-futures-util = "0.3.32"
+serde_json = "1.0.151"
+tokio = { version = "1.53.1", features = ["full", "test-util"] }
+futures-util = "0.3.33"
 
 [features]
 default = ["native-tls"]

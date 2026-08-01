@@ -1,12 +1,30 @@
 # Anthropic API Support Diff and Upgrade Roadmap
 
-Date: 2026-02-23 (currency upgrade: 2026-06-22)
+Date: 2026-08-01 (currency upgrade: 2026-08-01)
 Repository: `threatflux`
 
 ## Summary
 This document compares the crate's current API support to the latest Anthropic API docs and defines a concrete implementation roadmap.
 
-## Currency Upgrade (2026-06-22)
+## Currency Upgrade (2026-08-01)
+
+Added the current Anthropic beta and model surface:
+
+- **Models**: added `claude-opus-5` and `claude-sonnet-5`, including adaptive thinking,
+  effort, xhigh effort, and 1M-context capability checks.
+- **Messages**: added default/explicit fallback chains, fallback-credit redemption modes,
+  diagnostics, speed, user-profile attribution headers, current tool-result blocks, and
+  output-token detail/iteration usage fields.
+- **Dreams**: added create/list/retrieve/archive/cancel and research-preview models.
+- **MCP Tunnels**: added tunnel and certificate lifecycle APIs plus token reveal/rotation.
+- **User Profiles**: added create/list/retrieve/update and enrollment URL APIs.
+- **Managed Agents**: added model effort/version updates, session initial events, and
+  event-delta stream query helpers.
+- **Webhooks**: added forward-compatible event envelope models and JSON parsing helpers.
+- **Dependencies**: refreshed direct Rust dependencies to their current compatible releases
+  and validated with Rust 1.97.1; MSRV remains Rust 1.95.0.
+
+## Previous Currency Upgrade (2026-06-22)
 
 Brought the request/response surface current with the flagship model generation:
 
@@ -36,12 +54,11 @@ Brought the request/response surface current with the flagship model generation:
   top-level `tests/*.rs`). `cargo clippy --all-targets --all-features -- -D warnings`
   is clean and `cargo fmt --check` passes.
 
-### Known remaining gap
-- **Managed Agents** (`/v1/agents`, `/v1/sessions`, `/v1/environments`, vaults,
-  memory stores, deployments) — the server-managed agent platform — is **not yet
-  implemented**. It is a large, separable beta surface (≈20 endpoints + an SSE
-  session event stream) and warrants its own module/PR. A full implementation plan
-  is in [`MANAGED_AGENTS_PLAN.md`](MANAGED_AGENTS_PLAN.md).
+### Previously identified gap
+- **Managed Agents** is now implemented across `/v1/agents`, `/v1/sessions`,
+  `/v1/environments`, vaults, memory stores, deployments, and SSE session events.
+  This upgrade adds the remaining current initial-event, model-effort, version, and
+  event-delta request controls.
 
 ## Current Coverage Snapshot
 
@@ -55,6 +72,11 @@ Brought the request/response surface current with the flagship model generation:
 | Message batch results endpoint | `GET /v1/messages/batches/{message_batch_id}/results` | Added in P0 | New endpoint + JSONL parsing helpers added. |
 | Files | Upload/list/get/download/delete | Supported | Implemented. |
 | Skills | Skills API (`/v1/skills`) | Supported | List/get/create/delete + skill-version endpoints are implemented and now covered by dedicated integration tests. |
+| Dreams | `/v1/dreams` | Supported (research preview) | Create/list/retrieve/archive/cancel with current beta header. |
+| MCP Tunnels | `/v1/tunnels` and certificates | Supported (research preview) | Tunnel lifecycle, connector token reveal/rotation, and CA certificates. |
+| User Profiles | `/v1/user_profiles` | Supported (beta) | Profile lifecycle, enrollment URLs, and Messages attribution header. |
+| Managed Agents extensions | Sessions/agents event deltas and initial events | Supported (beta) | Current request controls are exposed in addition to the existing Managed Agents APIs. |
+| Webhooks | Managed Agents webhook payloads | Supported (local parsing) | Forward-compatible envelope and event-data models. |
 | Admin API | Organizations/workspaces/keys/usage/cost reports | Supported | Paths/models aligned to current docs, including Claude Code usage reporting and updated report query semantics. |
 | Legacy text completions | `POST /v1/complete` | Supported | Implemented with typed request/response models and compatibility tests. |
 

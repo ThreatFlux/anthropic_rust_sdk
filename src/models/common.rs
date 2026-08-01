@@ -312,6 +312,46 @@ pub enum ContentBlock {
         #[serde(skip_serializing_if = "Option::is_none")]
         is_error: Option<bool>,
     },
+    /// Code execution tool result.
+    CodeExecutionToolResult {
+        tool_use_id: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        content: Option<serde_json::Value>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        is_error: Option<bool>,
+    },
+    /// Bash code execution tool result.
+    BashCodeExecutionToolResult {
+        tool_use_id: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        content: Option<serde_json::Value>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        is_error: Option<bool>,
+    },
+    /// Text editor code execution tool result.
+    TextEditorCodeExecutionToolResult {
+        tool_use_id: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        content: Option<serde_json::Value>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        is_error: Option<bool>,
+    },
+    /// MCP tool result.
+    McpToolResult {
+        tool_use_id: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        content: Option<serde_json::Value>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        is_error: Option<bool>,
+    },
+    /// Tool-search tool result.
+    ToolSearchToolResult {
+        tool_use_id: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        content: Option<serde_json::Value>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        is_error: Option<bool>,
+    },
     /// Thinking content.
     Thinking {
         thinking: String,
@@ -455,7 +495,7 @@ impl ContentBlock {
 }
 
 /// Usage statistics.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct Usage {
     /// Number of input tokens.
     #[serde(default)]
@@ -481,6 +521,26 @@ pub struct Usage {
     /// Service tier used for the request.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub service_tier: Option<String>,
+    /// Outcome of a fallback-credit redemption, when requested.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fallback_credit: Option<serde_json::Value>,
+    /// Inference speed used for the response.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub speed: Option<String>,
+    /// Breakdown of output tokens by reasoning category.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_tokens_details: Option<OutputTokensDetails>,
+    /// Iteration-level usage details, when returned by the API.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub iterations: Option<Vec<serde_json::Value>>,
+}
+
+/// Output token breakdown returned by newer reasoning models.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct OutputTokensDetails {
+    /// Number of tokens used for model thinking.
+    #[serde(default)]
+    pub thinking_tokens: u32,
 }
 
 /// Cache-creation usage breakdown.
@@ -514,6 +574,10 @@ impl Usage {
             server_tool_use: None,
             inference_geo: None,
             service_tier: None,
+            fallback_credit: None,
+            speed: None,
+            output_tokens_details: None,
+            iterations: None,
         }
     }
 
@@ -713,6 +777,12 @@ pub struct StopDetails {
     /// Recommended model to retry with, when provided.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recommended_model: Option<String>,
+    /// Opaque token used to redeem fallback credit on a retry.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fallback_credit_token: Option<String>,
+    /// Whether the refusal token can be redeemed with assistant-prefill form.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fallback_has_prefill_claim: Option<bool>,
     /// Forward-compatible extra fields.
     #[serde(flatten, default)]
     pub extra: HashMap<String, serde_json::Value>,
