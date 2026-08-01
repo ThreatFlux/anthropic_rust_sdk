@@ -24,6 +24,10 @@ pub mod models {
     pub const FABLE_5: &str = "claude-fable-5";
     /// Claude Mythos 5 — same capabilities as Fable 5 (Project Glasswing only).
     pub const MYTHOS_5: &str = "claude-mythos-5";
+    /// Claude Opus 5 — current frontier model.
+    pub const OPUS_5: &str = "claude-opus-5";
+    /// Claude Sonnet 5 — current balanced model.
+    pub const SONNET_5: &str = "claude-sonnet-5";
     /// Claude Opus 4.8 — most capable Opus-tier model.
     pub const OPUS_4_8: &str = "claude-opus-4-8";
     /// Claude Opus 4.7 — previous-generation Opus.
@@ -74,7 +78,7 @@ pub mod models {
     pub fn supports_adaptive_thinking(model: &str) -> bool {
         matches!(
             model,
-            FABLE_5 | MYTHOS_5 | OPUS_4_8 | OPUS_4_7 | OPUS_4_6 | SONNET_4_6
+            FABLE_5 | MYTHOS_5 | OPUS_5 | SONNET_5 | OPUS_4_8 | OPUS_4_7 | OPUS_4_6 | SONNET_4_6
         )
     }
 
@@ -82,20 +86,36 @@ pub mod models {
     pub fn supports_effort(model: &str) -> bool {
         matches!(
             model,
-            FABLE_5 | MYTHOS_5 | OPUS_4_8 | OPUS_4_7 | OPUS_4_6 | OPUS_4_5 | SONNET_4_6
+            FABLE_5
+                | MYTHOS_5
+                | OPUS_5
+                | SONNET_5
+                | OPUS_4_8
+                | OPUS_4_7
+                | OPUS_4_6
+                | OPUS_4_5
+                | SONNET_4_6
         )
     }
 
     /// Models that support the `xhigh` effort level.
     pub fn supports_xhigh_effort(model: &str) -> bool {
-        matches!(model, FABLE_5 | MYTHOS_5 | OPUS_4_8 | OPUS_4_7)
+        matches!(model, FABLE_5 | MYTHOS_5 | OPUS_5 | OPUS_4_8 | OPUS_4_7)
     }
 
     /// Check if a model supports a 1M-token context window.
     pub fn supports_1m_context(model: &str) -> bool {
         matches!(
             model,
-            FABLE_5 | MYTHOS_5 | OPUS_4_8 | OPUS_4_7 | OPUS_4_6 | SONNET_4_6 | SONNET_4_5
+            FABLE_5
+                | MYTHOS_5
+                | OPUS_5
+                | SONNET_5
+                | OPUS_4_8
+                | OPUS_4_7
+                | OPUS_4_6
+                | SONNET_4_6
+                | SONNET_4_5
         )
     }
 
@@ -114,8 +134,8 @@ pub mod models {
     /// Get all current (non-retired) models.
     pub fn all_models() -> &'static [&'static str] {
         &[
-            FABLE_5, MYTHOS_5, OPUS_4_8, OPUS_4_7, OPUS_4_6, SONNET_4_6, HAIKU_4_5, OPUS_4_5,
-            SONNET_4_5, OPUS_4_1,
+            FABLE_5, MYTHOS_5, OPUS_5, SONNET_5, OPUS_4_8, OPUS_4_7, OPUS_4_6, SONNET_4_6,
+            HAIKU_4_5, OPUS_4_5, SONNET_4_5, OPUS_4_1,
         ]
     }
 

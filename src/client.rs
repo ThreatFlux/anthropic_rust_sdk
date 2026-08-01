@@ -22,10 +22,16 @@ pub mod beta_headers {
     pub const EXTENDED_THINKING_TOOLS: &str = "extended-thinking-tools-2025-05-01";
     /// Skills API beta header
     pub const SKILLS_API: &str = "skills-2025-10-02";
-    /// Server-side refusal fallbacks (Claude Fable 5)
-    pub const SERVER_SIDE_FALLBACK: &str = "server-side-fallback-2026-06-01";
-    /// Fallback credit repricing for client-side retries
-    pub const FALLBACK_CREDIT: &str = "fallback-credit-2026-06-01";
+    /// Server-side refusal fallbacks (current beta revision).
+    pub const SERVER_SIDE_FALLBACK: &str = "server-side-fallback-2026-07-01";
+    /// Legacy server-side fallback beta revision.
+    pub const SERVER_SIDE_FALLBACK_2026_06: &str = "server-side-fallback-2026-06-01";
+    /// Fallback credit repricing for client-side retries (current revision).
+    pub const FALLBACK_CREDIT: &str = "fallback-credit-2026-07-01";
+    /// Legacy fallback credit beta revision.
+    pub const FALLBACK_CREDIT_2026_06: &str = "fallback-credit-2026-06-01";
+    /// Thinking-token usage breakdown.
+    pub const THINKING_TOKEN_COUNT: &str = "thinking-token-count-2026-05-13";
     /// Agentic task budgets
     pub const TASK_BUDGETS: &str = "task-budgets-2026-03-13";
     /// Context compaction
@@ -34,6 +40,16 @@ pub mod beta_headers {
     pub const MID_CONVERSATION_SYSTEM: &str = "mid-conversation-system-2026-04-07";
     /// MCP client connector
     pub const MCP_CLIENT: &str = "mcp-client-2025-11-20";
+    /// User Profiles attribution and enrollment API
+    pub const USER_PROFILES: &str = "user-profiles-2026-03-24";
+    /// Dreams research-preview API
+    pub const DREAMING: &str = "dreaming-2026-04-21";
+    /// MCP Tunnels research-preview API
+    pub const MCP_TUNNELS: &str = "mcp-tunnels-2026-06-22";
+    /// Mid-conversation tool additions/removals
+    pub const MID_CONVERSATION_TOOL_CHANGES: &str = "mid-conversation-tool-changes-2026-07-01";
+    /// Agent memory beta capabilities
+    pub const AGENT_MEMORY: &str = "agent-memory-2026-07-22";
     /// Managed agents
     pub const MANAGED_AGENTS: &str = "managed-agents-2026-04-01";
 }
@@ -42,6 +58,7 @@ use crate::{
     api::{
         admin::AdminApi,
         completions::CompletionsApi,
+        dreams::DreamsApi,
         files::FilesApi,
         managed_agents::{
             AgentsApi, DeploymentsApi, EnvironmentsApi, MemoryStoresApi, SessionsApi, VaultsApi,
@@ -50,6 +67,8 @@ use crate::{
         messages::MessagesApi,
         models::ModelsApi,
         skills::SkillsApi,
+        tunnels::TunnelsApi,
+        user_profiles::UserProfilesApi,
     },
     config::Config,
     error::{AnthropicError, Result},
@@ -134,6 +153,21 @@ impl Client {
     /// Access the Skills API
     pub fn skills(&self) -> SkillsApi {
         SkillsApi::new(self.clone())
+    }
+
+    /// Access the Dreams research-preview API.
+    pub fn dreams(&self) -> DreamsApi {
+        DreamsApi::new(self.clone())
+    }
+
+    /// Access the MCP Tunnels research-preview API.
+    pub fn tunnels(&self) -> TunnelsApi {
+        TunnelsApi::new(self.clone())
+    }
+
+    /// Access the User Profiles beta API.
+    pub fn user_profiles(&self) -> UserProfilesApi {
+        UserProfilesApi::new(self.clone())
     }
 
     /// Access the Managed Agents — Agents API (beta).

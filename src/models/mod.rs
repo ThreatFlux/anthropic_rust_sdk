@@ -4,11 +4,15 @@ pub mod admin;
 pub mod batch;
 pub mod common;
 pub mod completion;
+pub mod dream;
 pub mod file;
 pub mod managed_agents;
 pub mod message;
 pub mod model;
 pub mod skill;
+pub mod tunnel;
+pub mod user_profile;
+pub mod webhook;
 
 // Re-export commonly used types
 pub use admin::{
@@ -34,6 +38,10 @@ pub use common::*;
 pub use completion::{
     CompletionRequest, CompletionResponse, CompletionStopReason, DEFAULT_COMPLETION_MODEL,
 };
+pub use dream::{
+    Dream, DreamCreateRequest, DreamError, DreamInput, DreamListParams, DreamListResponse,
+    DreamModel, DreamModelConfig, DreamOutput, DreamStatus, DreamUsage,
+};
 pub use file::{
     File, FileDownload, FileListParams, FileListResponse, FilePurpose, FileStatus,
     FileUploadRequest, FileUploadResponse,
@@ -54,9 +62,9 @@ pub use managed_agents::{
     SessionUpdateRequest, Vault, VaultCreateRequest, VaultListResponse, VaultUpdateRequest,
 };
 pub use message::{
-    ContentBlockDelta, Fallback, Message, MessageDelta, MessageRequest, MessageResponse,
-    OutputConfig, OutputEffort, OutputFormat, StreamEvent, SystemBlock, SystemPrompt, TaskBudget,
-    ThinkingConfig, TokenCountRequest, TokenCountResponse,
+    ContentBlockDelta, Fallback, FallbackCreditToken, Fallbacks, Message, MessageDelta,
+    MessageRequest, MessageResponse, OutputConfig, OutputEffort, OutputFormat, StreamEvent,
+    SystemBlock, SystemPrompt, TaskBudget, ThinkingConfig, TokenCountRequest, TokenCountResponse,
 };
 pub use model::{Model, ModelFamily, ModelListResponse, ModelSize};
 pub use skill::{
@@ -64,3 +72,14 @@ pub use skill::{
     SkillListParams, SkillListResponse, SkillVersion, SkillVersionCreateRequest,
     SkillVersionDeleteResponse, SkillVersionListParams, SkillVersionListResponse,
 };
+pub use tunnel::{
+    Tunnel, TunnelCertificate, TunnelCertificateCreateRequest, TunnelCertificateListResponse,
+    TunnelCreateRequest, TunnelListParams, TunnelListResponse, TunnelRotateTokenRequest,
+    TunnelToken,
+};
+pub use user_profile::{
+    EnrollmentUrl, TrustGrant, TrustGrantStatus, UserProfile, UserProfileCreateRequest,
+    UserProfileListParams, UserProfileListResponse, UserProfileRelationship,
+    UserProfileUpdateRequest,
+};
+pub use webhook::{WebhookEvent, WebhookEventData};

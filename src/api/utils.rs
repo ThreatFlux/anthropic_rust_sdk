@@ -26,11 +26,25 @@ pub fn build_path_with_query(base_path: &str, query_params: Vec<String>) -> Stri
     let mut path = base_path.to_string();
 
     if !query_params.is_empty() {
-        path.push('?');
+        path.push(if base_path.contains('?') { '&' } else { '?' });
         path.push_str(&query_params.join("&"));
     }
 
     path
+}
+
+/// Builds a path with URL-encoded key/value query parameters.
+pub fn build_query_path(base_path: &str, query_params: Vec<(String, String)>) -> String {
+    if query_params.is_empty() {
+        return base_path.to_string();
+    }
+
+    let mut serializer = url::form_urlencoded::Serializer::new(String::new());
+    for (key, value) in query_params {
+        serializer.append_pair(&key, &value);
+    }
+    let separator = if base_path.contains('?') { '&' } else { '?' };
+    format!("{}{}{}", base_path, separator, serializer.finish())
 }
 
 /// Builds pagination query parameters and adds them to a path
@@ -98,6 +112,27 @@ mod tests {
             vec!["limit=50".to_string(), "after=123".to_string()],
         );
         assert_eq!(path, "/test?limit=50&after=123");
+    }
+
+    #[test]
+    fn test_build_query_path_encodes_values() {
+        let path = build_query_path(
+            "/dreams",
+            vec![(
+                "created_at[gt]".to_string(),
+                "2026-07-01T00:00:00Z".to_string(),
+            )],
+        );
+        assert_eq!(path, "/dreams?created_at%5Bgt%5D=2026-07-01T00%3A00%3A00Z");
+    }
+
+    #[test]
+    fn test_build_query_path_appends_to_existing_query() {
+        let path = build_query_path(
+            "/dreams?beta=true",
+            vec![("limit".to_string(), "10".to_string())],
+        );
+        assert_eq!(path, "/dreams?beta=true&limit=10");
     }
 
     #[test]

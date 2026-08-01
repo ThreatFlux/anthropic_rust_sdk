@@ -7,6 +7,7 @@ use crate::{
     streaming::message_stream::MessageStream,
     types::{HttpMethod, RequestOptions},
 };
+use serde_json::Value;
 
 /// API client for Messages endpoints
 #[derive(Clone)]
@@ -18,6 +19,36 @@ impl MessagesApi {
     /// Create a new Messages API client
     pub fn new(client: Client) -> Self {
         Self { client }
+    }
+
+    /// Serialize a message request and move the profile attribution into the
+    /// header required by Anthropic's Messages API.
+    fn prepare_request(
+        mut request: MessageRequest,
+        options: Option<RequestOptions>,
+    ) -> Result<(Value, Option<RequestOptions>)> {
+        let user_profile_id = request.user_profile_id.take();
+        let mut options = options.unwrap_or_default();
+        if let Some(user_profile_id) = user_profile_id {
+            options
+                .headers
+                .insert("anthropic-user-profile-id".to_string(), user_profile_id);
+        }
+        Ok((serde_json::to_value(request)?, Some(options)))
+    }
+
+    fn prepare_token_count_request(
+        mut request: TokenCountRequest,
+        options: Option<RequestOptions>,
+    ) -> Result<(Value, Option<RequestOptions>)> {
+        let user_profile_id = request.user_profile_id.take();
+        let mut options = options.unwrap_or_default();
+        if let Some(user_profile_id) = user_profile_id {
+            options
+                .headers
+                .insert("anthropic-user-profile-id".to_string(), user_profile_id);
+        }
+        Ok((serde_json::to_value(request)?, Some(options)))
     }
 
     /// Create a message
@@ -43,7 +74,7 @@ impl MessagesApi {
         request: MessageRequest,
         options: Option<RequestOptions>,
     ) -> Result<MessageResponse> {
-        let body = serde_json::to_value(request)?;
+        let (body, options) = Self::prepare_request(request, options)?;
         self.client
             .request(HttpMethod::Post, "/messages", Some(body), options)
             .await
@@ -82,7 +113,7 @@ impl MessagesApi {
         // Ensure streaming is enabled
         request.stream = Some(true);
 
-        let body = serde_json::to_value(request)?;
+        let (body, options) = Self::prepare_request(request, options)?;
         let response = self
             .client
             .request_stream(HttpMethod::Post, "/messages", Some(body), options)
@@ -113,7 +144,7 @@ impl MessagesApi {
         request: TokenCountRequest,
         options: Option<RequestOptions>,
     ) -> Result<TokenCountResponse> {
-        let body = serde_json::to_value(request)?;
+        let (body, options) = Self::prepare_token_count_request(request, options)?;
         self.client
             .request(
                 HttpMethod::Post,

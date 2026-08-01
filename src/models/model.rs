@@ -163,6 +163,8 @@ pub struct BenchmarkResult {
 pub enum ModelFamily {
     /// Claude Fable / Mythos family
     Fable,
+    /// Claude 5 family.
+    Claude5,
     /// Claude 4 family (4.0–4.8)
     Claude4,
     /// Claude 3.5 / 3.7 family
@@ -181,6 +183,11 @@ impl std::str::FromStr for ModelFamily {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.starts_with("claude-fable") || s.starts_with("claude-mythos") {
             Ok(Self::Fable)
+        } else if s.starts_with("claude-opus-5")
+            || s.starts_with("claude-sonnet-5")
+            || s.starts_with("claude-haiku-5")
+        {
+            Ok(Self::Claude5)
         } else if s.starts_with("claude-opus-4")
             || s.starts_with("claude-sonnet-4")
             || s.starts_with("claude-haiku-4")

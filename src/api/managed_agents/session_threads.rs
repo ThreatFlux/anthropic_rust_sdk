@@ -2,7 +2,7 @@
 
 use crate::{
     api::managed_agents::with_managed_agents_beta,
-    api::utils::build_paginated_path,
+    api::utils::{build_paginated_path, build_query_path},
     client::Client,
     error::Result,
     models::managed_agents::session::{SessionThread, SessionThreadListResponse},
@@ -105,9 +105,27 @@ impl SessionThreadsApi {
         thread_id: &str,
         options: Option<RequestOptions>,
     ) -> Result<SessionEventStream> {
-        let path = format!(
-            "/sessions/{}/threads/{}/events/stream",
-            self.session_id, thread_id
+        self.stream_events_with_event_deltas(thread_id, &[], options)
+            .await
+    }
+
+    /// Stream a thread's events and request incremental event-delta payloads.
+    pub async fn stream_events_with_event_deltas(
+        &self,
+        thread_id: &str,
+        event_deltas: &[String],
+        options: Option<RequestOptions>,
+    ) -> Result<SessionEventStream> {
+        let query = event_deltas
+            .iter()
+            .map(|delta| ("event_deltas[]".to_string(), delta.clone()))
+            .collect();
+        let path = build_query_path(
+            &format!(
+                "/sessions/{}/threads/{}/events/stream",
+                self.session_id, thread_id
+            ),
+            query,
         );
         let response = self
             .client

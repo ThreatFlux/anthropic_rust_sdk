@@ -9,17 +9,21 @@
 [![Security Audit](https://github.com/ThreatFlux/anthropic_rust_sdk/workflows/Security%20Audit/badge.svg)](https://github.com/ThreatFlux/anthropic_rust_sdk/security)
 [![Dependency Status](https://deps.rs/repo/github/ThreatFlux/anthropic_rust_sdk/status.svg)](https://deps.rs/repo/github/ThreatFlux/anthropic_rust_sdk)
 
-A comprehensive Rust SDK for the Anthropic API, providing async support, streaming capabilities, and broad coverage of Anthropic API endpoints including Messages, Models, Batches, Files, Skills, and Admin operations. Tracks the **current model generation** (Opus 4.x, Sonnet 4.6, Haiku 4.5, Fable 5) with adaptive thinking, the `effort` parameter, prompt caching, server-side tools, structured outputs, and refusal fallbacks.
+A comprehensive Rust SDK for the Anthropic API, providing async support, streaming capabilities, and broad coverage of Anthropic API endpoints including Messages, Models, Batches, Files, Skills, Managed Agents, Dreams, MCP Tunnels, User Profiles, and Admin operations. Tracks the current model generation (Opus 5, Sonnet 5, Opus 4.x, Sonnet 4.6, Haiku 4.5, Fable 5) with adaptive thinking, effort controls, prompt caching, server-side tools, structured outputs, and refusal fallbacks.
 
 ## Features
 
-- **🚀 Broad API Coverage**: Messages, Models, Batches, Files, Skills, and Admin endpoints
+- **🚀 Broad API Coverage**: Messages, Models, Batches, Files, Skills, Managed Agents, Dreams, MCP Tunnels, User Profiles, and Admin endpoints
 - **🧠 Adaptive Thinking + Effort**: `thinking: {type: "adaptive"}` with `low`/`medium`/`high`/`xhigh`/`max` effort
 - **📜 1M Context Window**: Supported on current Opus/Sonnet/Fable models
 - **💾 Prompt Caching**: Cacheable system/content/tool blocks with 5m/1h TTLs
 - **🔧 Server-Side Tools**: Web search, web fetch, code execution, bash, text editor, memory
 - **📐 Structured Outputs**: JSON-schema-constrained responses
-- **🛟 Refusal Fallbacks**: Server-side fallback models for Claude Fable 5
+- **🛟 Refusal Fallbacks**: Server-side fallback models, fallback-credit retries, and current fallback diagnostics
+- **🧠 Managed Agents**: Agents, sessions, event streams, initial events, and event-delta previews
+- **🌙 Dreams**: Research-preview memory consolidation jobs
+- **🔌 MCP Tunnels**: Tunnel lifecycle, connector tokens, and CA certificates
+- **👤 User Profiles**: Profile attribution and enrollment URLs
 - **⚡ Async/Await**: Built on `tokio` for high-performance async operations
 - **🌊 Streaming Support**: Real-time streaming responses with Server-Sent Events
 - **📦 Batch Processing**: Efficient batch message processing
@@ -37,7 +41,7 @@ Add the Anthropic Rust SDK to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-threatflux-anthropic-sdk = "0.1.0"
+    threatflux-anthropic-sdk = "0.2.0"
 tokio = { version = "1.0", features = ["full"] }
 ```
 
@@ -92,6 +96,8 @@ export ANTHROPIC_API_KEY="your_api_key_here"
 ## Supported Models
 
 ### Current Models
+- **Claude Opus 5** (`claude-opus-5`) - Current frontier model with 1M context
+- **Claude Sonnet 5** (`claude-sonnet-5`) - Current balanced model with 1M context
 - **Claude Fable 5** (`claude-fable-5`) - Most capable widely released model (always-on thinking; 30-day retention)
 - **Claude Opus 4.8** (`claude-opus-4-8`) - Most capable Opus-tier model, 1M context
 - **Claude Opus 4.7** (`claude-opus-4-7`) - Previous-generation Opus, 1M context
@@ -100,8 +106,9 @@ export ANTHROPIC_API_KEY="your_api_key_here"
 - **Claude Haiku 4.5** (`claude-haiku-4-5`) - Fastest and most cost-effective
 
 Model ids are passed as plain strings; constants for the current catalog live in
-`config::models` (retired ids are kept, marked deprecated). Use `claude-opus-4-8`
-or `claude-fable-5` for the most capable, `claude-haiku-4-5` for the cheapest.
+`config::models` (retired ids are kept, marked deprecated). Use `claude-opus-5`
+for the most capable, `claude-sonnet-5` for a balance of speed and intelligence, or
+`claude-haiku-4-5` for the cheapest.
 
 ## Examples
 
@@ -319,6 +326,15 @@ ThreatFlux Anthropic SDK provides broad coverage of the Anthropic API:
 - ✅ Tool use (function calling)
 - ✅ System prompts
 - ✅ Conversation history
+- ✅ Server-side fallbacks, fallback credit, diagnostics, and user-profile attribution
+- ✅ Current code-execution, MCP, tool-search, and text-editor result blocks
+
+### Current beta APIs
+- ✅ Managed Agents: agents, sessions, event streams, initial events, and event-delta previews
+- ✅ Dreams: create, list, retrieve, archive, and cancel
+- ✅ MCP Tunnels: tunnel and certificate lifecycle plus token reveal/rotation
+- ✅ User Profiles: create, list, retrieve, update, and enrollment URLs
+- ✅ Webhook event envelope models with forward-compatible payload fields
 
 ### Models API
 - ✅ List available models
@@ -426,7 +442,7 @@ anyhow = "1.0"
 
 ```toml
 [dependencies]
-threatflux-anthropic-sdk = { version = "0.1.0", default-features = false, features = ["rustls-tls"] }
+    threatflux-anthropic-sdk = { version = "0.2.0", default-features = false, features = ["rustls-tls"] }
 ```
 
 Available features:

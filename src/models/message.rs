@@ -316,13 +316,52 @@ impl From<Vec<SystemBlock>> for SystemPrompt {
 /// (Claude Fable 5). On a policy decline the API re-serves the request on the
 /// fallback model in the same call. Requires the `server-side-fallback-2026-06-01`
 /// beta header (see [`crate::types::RequestOptions::with_server_side_fallback`]).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Fallback {
     /// Fallback model id (e.g. `claude-opus-4-8`).
     pub model: String,
     /// Optional per-hop `max_tokens` override.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_tokens: Option<u32>,
+    /// Optional output settings for this fallback hop.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_config: Option<OutputConfig>,
+    /// Optional thinking configuration for this fallback hop.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thinking: Option<ThinkingConfig>,
+    /// Optional inference speed for this fallback hop.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub speed: Option<String>,
+}
+
+/// A fallback credit token can be sent as a bare token or with a redemption
+/// mode on the current fallback-credit beta.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum FallbackCreditToken {
+    /// The legacy/strict bare-token form.
+    Token(String),
+    /// Token with an explicit redemption mode (`strict` or `best_effort`).
+    Config {
+        token: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        mode: Option<String>,
+    },
+}
+
+impl FallbackCreditToken {
+    /// Use the strict bare-token form.
+    pub fn new(token: impl Into<String>) -> Self {
+        Self::Token(token.into())
+    }
+
+    /// Use a token with an explicit redemption mode.
+    pub fn with_mode(token: impl Into<String>, mode: impl Into<String>) -> Self {
+        Self::Config {
+            token: token.into(),
+            mode: Some(mode.into()),
+        }
+    }
 }
 
 impl Fallback {
@@ -331,7 +370,33 @@ impl Fallback {
         Self {
             model: model.into(),
             max_tokens: None,
+            output_config: None,
+            thinking: None,
+            speed: None,
         }
+    }
+}
+
+/// Server-side fallback selection. The string form `"default"` asks Anthropic
+/// to choose the fallback chain, while the array form supplies explicit hops.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Fallbacks {
+    /// Explicit fallback model entries.
+    Models(Vec<Fallback>),
+    /// Anthropic-managed fallback chain (currently `"default"`).
+    Default(String),
+}
+
+impl Fallbacks {
+    /// Use Anthropic's default fallback chain.
+    pub fn default_model_chain() -> Self {
+        Self::Default("default".to_string())
+    }
+
+    /// Create an explicit fallback chain.
+    pub fn models(models: Vec<Fallback>) -> Self {
+        Self::Models(models)
     }
 }
 
@@ -383,6 +448,21 @@ pub struct MessageRequest {
     /// Output configuration (structured outputs and effort settings)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_config: Option<OutputConfig>,
+    /// Output speed preference (`standard` or `fast`, where supported).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub speed: Option<String>,
+    /// Structured output format shortcut.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_format: Option<OutputFormat>,
+    /// Credit token returned by a previous server-side fallback response.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fallback_credit_token: Option<FallbackCreditToken>,
+    /// Optional diagnostic controls for the request.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diagnostics: Option<serde_json::Value>,
+    /// User profile attribution for this request.
+    #[serde(skip)]
+    pub user_profile_id: Option<String>,
     /// Reusable execution container configuration (beta)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub container: Option<serde_json::Value>,
@@ -397,7 +477,7 @@ pub struct MessageRequest {
     pub cache_control: Option<CacheControl>,
     /// Refusal-fallback models (beta; Claude Fable 5).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub fallbacks: Option<Vec<Fallback>>,
+    pub fallbacks: Option<Fallbacks>,
 }
 
 impl MessageRequest {
@@ -420,6 +500,11 @@ impl MessageRequest {
             service_tier: None,
             inference_geo: None,
             output_config: None,
+            speed: None,
+            output_format: None,
+            fallback_credit_token: None,
+            diagnostics: None,
+            user_profile_id: None,
             container: None,
             context_management: None,
             mcp_servers: None,
@@ -478,13 +563,25 @@ impl MessageRequest {
 
     /// Replace the refusal-fallback model list
     pub fn fallbacks(mut self, fallbacks: Vec<Fallback>) -> Self {
-        self.fallbacks = Some(fallbacks);
+        self.fallbacks = Some(Fallbacks::Models(fallbacks));
+        self
+    }
+
+    /// Use Anthropic's default server-side fallback chain.
+    pub fn default_fallbacks(mut self) -> Self {
+        self.fallbacks = Some(Fallbacks::default_model_chain());
         self
     }
 
     /// Add a refusal-fallback model
     pub fn add_fallback(mut self, model: impl Into<String>) -> Self {
-        self.fallbacks.push_item(Fallback::new(model));
+        match self.fallbacks.take() {
+            Some(Fallbacks::Models(mut fallbacks)) => {
+                fallbacks.push(Fallback::new(model));
+                self.fallbacks = Some(Fallbacks::Models(fallbacks));
+            }
+            _ => self.fallbacks = Some(Fallbacks::Models(vec![Fallback::new(model)])),
+        }
         self
     }
 
@@ -569,6 +666,46 @@ impl MessageRequest {
     /// Set output config.
     pub fn output_config(mut self, output_config: OutputConfig) -> Self {
         self.output_config = Some(output_config);
+        self
+    }
+
+    /// Set the output speed preference.
+    pub fn speed(mut self, speed: impl Into<String>) -> Self {
+        self.speed = Some(speed.into());
+        self
+    }
+
+    /// Set the structured output format shortcut.
+    pub fn output_format(mut self, format: OutputFormat) -> Self {
+        self.output_format = Some(format);
+        self
+    }
+
+    /// Set a server-side fallback credit token.
+    pub fn fallback_credit_token(mut self, token: impl Into<String>) -> Self {
+        self.fallback_credit_token = Some(FallbackCreditToken::new(token));
+        self
+    }
+
+    /// Set a fallback credit token with an explicit redemption mode.
+    pub fn fallback_credit_token_with_mode(
+        mut self,
+        token: impl Into<String>,
+        mode: impl Into<String>,
+    ) -> Self {
+        self.fallback_credit_token = Some(FallbackCreditToken::with_mode(token, mode));
+        self
+    }
+
+    /// Set diagnostic request controls as raw JSON.
+    pub fn diagnostics(mut self, diagnostics: serde_json::Value) -> Self {
+        self.diagnostics = Some(diagnostics);
+        self
+    }
+
+    /// Attribute the request to a user profile.
+    pub fn user_profile_id(mut self, profile_id: impl Into<String>) -> Self {
+        self.user_profile_id = Some(profile_id.into());
         self
     }
 
@@ -701,6 +838,9 @@ pub struct TokenCountRequest {
     /// Tools to include in token count
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<Tool>>,
+    /// User profile attribution, sent as the Anthropic profile header.
+    #[serde(skip)]
+    pub user_profile_id: Option<String>,
 }
 
 impl TokenCountRequest {
@@ -711,6 +851,7 @@ impl TokenCountRequest {
             messages: Vec::new(),
             system: None,
             tools: None,
+            user_profile_id: None,
         }
     }
 
@@ -741,6 +882,12 @@ impl TokenCountRequest {
     /// Add a tool
     pub fn add_tool(mut self, tool: Tool) -> Self {
         self.tools.push_item(tool);
+        self
+    }
+
+    /// Attribute token counting to a user profile.
+    pub fn user_profile_id(mut self, profile_id: impl Into<String>) -> Self {
+        self.user_profile_id = Some(profile_id.into());
         self
     }
 }
@@ -801,6 +948,7 @@ pub struct ContentBlockDelta {
 /// Streaming event types
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[allow(clippy::large_enum_variant)]
 pub enum StreamEvent {
     /// Message started
     MessageStart { message: MessageResponse },

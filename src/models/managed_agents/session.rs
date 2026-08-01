@@ -211,6 +211,9 @@ pub struct SessionCreateRequest {
     /// Arbitrary metadata.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub metadata: HashMap<String, String>,
+    /// Events to seed into the session (up to 50, as accepted by the API).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub initial_events: Vec<serde_json::Value>,
 }
 
 impl SessionCreateRequest {
@@ -223,6 +226,7 @@ impl SessionCreateRequest {
             resources: Vec::new(),
             vault_ids: Vec::new(),
             metadata: HashMap::new(),
+            initial_events: Vec::new(),
         }
     }
 
@@ -253,6 +257,12 @@ impl SessionCreateRequest {
     /// Insert a metadata entry.
     pub fn metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.metadata.insert(key.into(), value.into());
+        self
+    }
+
+    /// Add an initial client-originated event to the session.
+    pub fn initial_event(mut self, event: serde_json::Value) -> Self {
+        self.initial_events.push(event);
         self
     }
 }
