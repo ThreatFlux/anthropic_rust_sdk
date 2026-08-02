@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0](https://github.com/ThreatFlux/anthropic_rust_sdk/compare/v0.2.0...v0.3.0) (2026-08-02)
+
+
+### Features
+
+* update Anthropic API surface ([#42](https://github.com/ThreatFlux/anthropic_rust_sdk/issues/42)) ([60c1c10](https://github.com/ThreatFlux/anthropic_rust_sdk/commit/60c1c102eef27bb4984ca531fc65fb5b2268cf97))
+
 ## [0.2.0](https://github.com/ThreatFlux/anthropic_rust_sdk/compare/v0.1.0...v0.2.0) (2026-06-24)
 
 
