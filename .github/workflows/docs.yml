@@ -5,6 +5,11 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -13,8 +18,75 @@ permissions:
   contents: read
 
 jobs:
+  contract:
+    name: Documentation Contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate README metadata, quickstart, and local links
+        run: python3 scripts/check_docs.py
+
+      - name: Create markdownlint configuration
+        id: markdownlint-config
+        shell: bash
+        run: |
+          config_path="${RUNNER_TEMP}/markdownlint.jsonc"
+          printf '%s\n' \
+            '{' \
+            '  "MD013": false,' \
+            '  "MD024": { "siblings_only": true },' \
+            '  "MD034": false' \
+            '}' > "${config_path}"
+          echo "path=${config_path}" >> "${GITHUB_OUTPUT}"
+
+      - name: Lint maintained Markdown
+        uses: DavidAnson/markdownlint-cli2-action@3b11e4c3e2eac5207914843511bd517908954018 # v24.1.0
+        with:
+          config: ${{ steps.markdownlint-config.outputs.path }}
+          globs: |
+            README.md
+            CONTRIBUTING.md
+            SECURITY.md
+            docs/**/*.md
+
+  quickstart:
+    name: Quickstart (${{ matrix.channel }})
+    needs: contract
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        channel: [msrv, stable]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Resolve Rust toolchain
+        id: toolchain
+        shell: bash
+        run: |
+          if [[ "${{ matrix.channel }}" == "msrv" ]]; then
+            value="$(python3 scripts/check_docs.py --print-msrv)"
+          else
+            value="stable"
+          fi
+          echo "value=${value}" >> "${GITHUB_OUTPUT}"
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+        with:
+          toolchain: ${{ steps.toolchain.outputs.value }}
+
+      - name: Compile quickstart
+        run: cargo check --example quickstart
+
   build-docs:
     name: Build Documentation
+    needs: [contract, quickstart]
     runs-on: ubuntu-latest
     permissions:
       contents: write
