@@ -113,7 +113,7 @@ Public API changes normally require:
 
 The README quickstart is mirrored in `examples/quickstart.rs`. Update both and
 run `python3 scripts/check_docs.py`; CI rejects drift between them. The checker
-also verifies the documented package version, MSRV, Cargo features, and local
+also verifies the release-safe install command, MSRV, Cargo features, and local
 documentation links.
 
 Model IDs, beta header versions, limits, and prices are time-sensitive. Verify

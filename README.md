@@ -34,13 +34,11 @@ is authoritative for service behavior and availability.
 
 ## Installation
 
-The current crates.io release is `0.2.0`. Depend on the compatible `0.2`
-series unless you need to pin an exact patch:
+Add the latest published crates.io release and a Tokio runtime:
 
-```toml
-[dependencies]
-threatflux-anthropic-sdk = "0.2"
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+```bash
+cargo add threatflux-anthropic-sdk
+cargo add tokio --features macros,rt-multi-thread
 ```
 
 The Cargo package name uses hyphens; Rust imports use underscores:
@@ -67,8 +65,9 @@ export ANTHROPIC_API_KEY="your-api-key"
 export ANTHROPIC_MODEL="model-id-available-to-your-account" # optional
 ```
 
-The following program is mirrored by `examples/quickstart.rs` and compiled in
-CI on the MSRV and stable Rust.
+The following program is a complete `src/main.rs` for a consuming binary crate.
+It is mirrored by `examples/quickstart.rs` and compiled in CI on the MSRV and
+stable Rust.
 
 <!-- BEGIN QUICKSTART -->
 
@@ -95,11 +94,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 <!-- END QUICKSTART -->
 
-Run it with:
+In a consuming crate, save the program as `src/main.rs` and run:
 
 ```bash
-cargo run --example quickstart
+cargo run
 ```
+
+In a clone of this repository, run the mirrored example with
+`cargo run --example quickstart`.
 
 `Client::from_env()` also reads a local `.env` file through `dotenvy`. Keep
 that file out of version control and prefer a secrets manager in deployed
@@ -120,11 +122,10 @@ Choose one TLS backend. The default build uses the platform-native TLS stack.
 
 <!-- END CARGO FEATURES -->
 
-For a Rustls-only build:
+For a Rustls-only dependency:
 
-```toml
-[dependencies]
-threatflux-anthropic-sdk = { version = "0.2", default-features = false, features = ["rustls-tls"] }
+```bash
+cargo add threatflux-anthropic-sdk --no-default-features --features rustls-tls
 ```
 
 ## API surface
@@ -188,7 +189,7 @@ Important current behavior:
   request before the client observed a failure. Choose retry settings with the
   endpoint's semantics in mind.
 - The rate-limiter types in `utils::rate_limit` and the related `Config` fields
-  are not automatically applied by `Client` in version 0.2.0. Enforce
+  are not automatically applied by `Client` in the current source. Enforce
   application-level concurrency or rate limits where required.
 - `MessageBuilder` initializes from the crate's `DEFAULT_MODEL`. To use
   `ANTHROPIC_DEFAULT_MODEL`, pass `client.config().default_model.clone()` to

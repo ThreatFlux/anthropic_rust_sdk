@@ -28,6 +28,7 @@ LINK_RE = re.compile(r"!?\[[^\]\n]*\]\((?P<target><[^>]+>|[^\s)]+)")
 BANNED_README_TEXT = (
     "complete implementation of all Anthropic API endpoints",
     "full API coverage",
+    "current crates.io release is",
     'threatflux-anthropic-sdk = "0.1',
     "CLAUDE.md#contributing",
 )
@@ -46,15 +47,9 @@ def extract(pattern: re.Pattern[str], text: str, name: str, errors: list[str]) -
     return match.group(1).strip()
 
 
-def check_manifest_values(
-    readme: str, package: dict, errors: list[str]
-) -> None:
-    version = package["version"]
+def check_msrv(readme: str, package: dict, errors: list[str]) -> None:
     rust_version = package["rust-version"]
-    expected_version = f"current crates.io release is `{version}`"
     expected_msrv = f"Rust {rust_version} or newer"
-    if expected_version not in readme:
-        errors.append(f"README.md: expected package version statement: {version}")
     if expected_msrv not in readme:
         errors.append(f"README.md: expected MSRV statement: {rust_version}")
 
@@ -115,6 +110,8 @@ def check_local_links(errors: list[str]) -> None:
 def check_readme_language(readme: str, errors: list[str]) -> None:
     if "unofficial, community-maintained SDK" not in readme:
         errors.append("README.md: missing unofficial affiliation disclosure")
+    if "cargo add threatflux-anthropic-sdk" not in readme:
+        errors.append("README.md: missing release-safe crates.io install command")
     for banned in BANNED_README_TEXT:
         if banned.lower() in readme.lower():
             errors.append(f"README.md: banned stale or absolute text: {banned}")
@@ -140,7 +137,7 @@ def main() -> int:
 
     readme = README_PATH.read_text(encoding="utf-8")
     errors: list[str] = []
-    check_manifest_values(readme, manifest["package"], errors)
+    check_msrv(readme, manifest["package"], errors)
     check_features(readme, manifest, errors)
     check_quickstart(readme, errors)
     check_local_links(errors)

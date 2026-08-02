@@ -1,8 +1,9 @@
 # Configuration and operations
 
-This guide describes behavior implemented by version 0.2.0 and the current
-`main` source. It complements the type-level documentation on
-[docs.rs](https://docs.rs/threatflux-anthropic-sdk).
+This guide describes behavior implemented by the current `main` source.
+Published releases can differ; select the matching crate version in the
+[docs.rs version menu](https://docs.rs/crate/threatflux-anthropic-sdk). This
+guide complements the type-level API documentation.
 
 ## Constructing a client
 
@@ -68,8 +69,9 @@ configuration when deployments need to change them without a rebuild.
 
 ## Per-request options
 
-Every high-level method accepts `Option<RequestOptions>`. Options can override
-the timeout, disable retry, add headers, or opt into a beta feature:
+Individual resource request methods accept `Option<RequestOptions>`. Options
+can override the timeout, disable retry, add headers, or opt into a beta
+feature:
 
 ```rust
 use std::time::Duration;
@@ -88,6 +90,12 @@ async fn send_once(client: &Client, request: MessageRequest) -> Result<(), Anthr
 
 Custom headers are inserted after the SDK's standard headers and can replace
 them. Do not accept arbitrary header names or values from untrusted callers.
+
+Polling and convenience helpers can have a narrower signature. In particular,
+message-batch `wait_for_completion` and managed-agent session
+`wait_until_idle` call their underlying retrieval methods with `None`; callers
+cannot use those helpers to override request options. Poll manually with
+`retrieve` or `get` when per-request options are required.
 
 ## Retries and idempotency
 
@@ -114,7 +122,7 @@ replay a partially consumed stream.
 ## Rate limiting and concurrency
 
 The crate exposes standalone rate-limiter utilities in `utils::rate_limit`, and
-`Config` contains rate-limit fields. In version 0.2.0 those fields are not
+`Config` contains rate-limit fields. In the current source those fields are not
 applied automatically by the core `Client`. Production callers should enforce
 their own concurrency and throughput policy and still handle service-side 429
 responses.
@@ -172,12 +180,11 @@ authentication or request transformations required by a different provider.
 
 ## TLS backends
 
-The default `native-tls` feature uses the platform-native backend. To select
-Rustls only:
+The default `native-tls` feature uses the platform-native backend. To add the
+crate with Rustls only:
 
-```toml
-[dependencies]
-threatflux-anthropic-sdk = { version = "0.2", default-features = false, features = ["rustls-tls"] }
+```bash
+cargo add threatflux-anthropic-sdk --no-default-features --features rustls-tls
 ```
 
 Build and test the chosen feature set on every target platform used in

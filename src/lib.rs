@@ -19,7 +19,7 @@
 //! - Streaming requests are not automatically reconnected, resumed, or retried.
 //! - Request timeouts apply per attempt; total retry time can be longer.
 //! - Rate-limiter utilities are available in [`utils::rate_limit`], but
-//!   [`Client`] does not automatically apply them in version 0.2.0.
+//!   [`Client`] does not automatically apply them in the current implementation.
 //! - A custom base URL receives the configured credential and must be trusted.
 //!
 //! ## Quick Start
