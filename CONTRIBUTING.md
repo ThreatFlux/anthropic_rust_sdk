@@ -1,200 +1,179 @@
-# Contributing to Anthropic Rust SDK
+# Contributing to the Anthropic Rust SDK
 
-First off, thank you for considering contributing to the Anthropic Rust SDK! It's people like you that make this SDK a great tool for the Rust community.
+Thanks for helping improve the project. Contributions should keep the public API,
+documentation, tests, and release metadata consistent.
 
-## Code of Conduct
+This is an unofficial community SDK. Do not present a change as reviewed or
+endorsed by Anthropic, and do not copy credentials or customer data into an
+issue, test, commit, or pull request.
 
-This project and everyone participating in it is governed by our Code of Conduct. By participating, you are expected to uphold this code.
+## Before you start
 
-## How Can I Contribute?
+- Search [existing issues](https://github.com/ThreatFlux/anthropic_rust_sdk/issues)
+  and pull requests for related work.
+- Open an issue before a large API redesign or breaking change so maintainers
+  can align on scope.
+- Report vulnerabilities privately through [SECURITY.md](SECURITY.md).
+- Base normal work on `main` and keep unrelated changes in separate pull
+  requests.
 
-### Reporting Bugs
+## Development setup
 
-Before creating bug reports, please check existing issues as you might find out that you don't need to create one. When you are creating a bug report, please include as many details as possible:
+1. Fork and clone the repository:
 
-* Use a clear and descriptive title
-* Describe the exact steps which reproduce the problem
-* Provide specific examples to demonstrate the steps
-* Describe the behavior you observed after following the steps
-* Explain which behavior you expected to see instead and why
-* Include Rust version, OS, and any relevant environment details
+   ```bash
+   git clone https://github.com/YOUR-USER/anthropic_rust_sdk.git
+   cd anthropic_rust_sdk
+   git remote add upstream https://github.com/ThreatFlux/anthropic_rust_sdk.git
+   ```
 
-### Suggesting Enhancements
+2. Install the declared MSRV and useful components:
 
-Enhancement suggestions are tracked as GitHub issues. When creating an enhancement suggestion, please include:
+   ```bash
+   rustup toolchain install 1.95.0 --component rustfmt,clippy
+   ```
 
-* Use a clear and descriptive title
-* Provide a step-by-step description of the suggested enhancement
-* Provide specific examples to demonstrate the steps
-* Describe the current behavior and explain which behavior you expected to see instead
-* Explain why this enhancement would be useful
+3. Create a branch:
 
-### Pull Requests
+   ```bash
+   git switch -c feature/short-description
+   ```
 
-1. Fork the repo and create your branch from `main`
-2. If you've added code that should be tested, add tests
-3. If you've changed APIs, update the documentation
-4. Ensure the test suite passes (`cargo test`)
-5. Make sure your code lints (`cargo clippy -- -D warnings`)
-6. Format your code (`cargo fmt`)
-7. Issue that pull request!
+No API key is needed for the unit and mock-server test paths. Set live
+credentials only when deliberately running opt-in real API tests.
 
-## Development Setup
+## Validation
 
-1. Clone your fork:
+Run the checks relevant to the change. The standard credential-free set is:
+
 ```bash
-git clone git@github.com:your-username/anthropic_rust_sdk.git
-cd anthropic_rust_sdk
+cargo +1.95.0 fmt --all -- --check
+cargo +1.95.0 clippy --all-targets --all-features -- -D warnings
+cargo +1.95.0 test --test unit_suite
+cargo +1.95.0 test --test integration_suite
+cargo +1.95.0 test --doc --all-features
+RUSTDOCFLAGS="-D warnings" cargo +1.95.0 doc --no-deps --all-features
+python3 scripts/check_docs.py
 ```
 
-2. Install Rust (if not already installed):
+When changing TLS features, validate both supported configurations:
+
 ```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+cargo +1.95.0 check --no-default-features --features native-tls
+cargo +1.95.0 check --no-default-features --features rustls-tls
 ```
 
-3. Install development tools:
+Run `cargo audit` and `cargo deny check` for dependency or release changes when
+those tools are available. CI is the final authority for the supported operating
+system and toolchain matrix.
+
+## Live API tests
+
+Live tests are opt-in because they can consume account quota, create remote
+resources, and incur charges:
+
 ```bash
-cargo install cargo-watch cargo-tarpaulin cargo-audit cargo-outdated
+export ANTHROPIC_API_KEY="dedicated-test-key"
+cargo +1.95.0 test --features real_api_tests --test real_api_suite
 ```
 
-4. Set up your environment:
-```bash
-cp .env.example .env
-# Edit .env with your Anthropic API key for testing
+Some end-to-end tests are also marked `#[ignore]`. Read the test before adding
+`--ignored`; confirm its cleanup behavior and selected model first. Use a
+dedicated least-privilege credential and never use production prompts, files, or
+responses as fixtures.
+
+Administration tests require a separate `ANTHROPIC_ADMIN_KEY` and appropriate
+organization permissions.
+
+## Making a code change
+
+- Preserve source compatibility unless the issue and pull request explicitly
+  justify a breaking change.
+- Use typed request and response models where the service schema is stable
+  enough; retain forward compatibility for evolving enum/event surfaces.
+- Return `AnthropicError` variants with actionable context and without secrets.
+- Add unit tests for serialization, validation, and error behavior.
+- Add mock-server tests for paths, methods, headers, request bodies, and response
+  handling.
+- Keep live tests narrowly scoped and feature-gated.
+- Avoid logging credentials or complete sensitive request/response bodies.
+- Consider retries, timeouts, pagination, streaming termination, and cleanup for
+  every new endpoint.
+
+## Documentation changes
+
+Public API changes normally require:
+
+- rustdoc on public items;
+- an update to [API coverage](docs/api-coverage.md);
+- an example or compile-checked doctest for a new workflow;
+- README changes when installation, configuration, features, or primary usage
+  changes; and
+- changelog context when the change is user-visible.
+
+The README quickstart is mirrored in `examples/quickstart.rs`. Update both and
+run `python3 scripts/check_docs.py`; CI rejects drift between them. The checker
+also verifies the release-safe install command, MSRV, Cargo features, and local
+documentation links.
+
+Model IDs, beta header versions, limits, and prices are time-sensitive. Verify
+them against Anthropic's current official documentation and include the source
+link and verification date in the pull request.
+
+## Pull requests
+
+A focused pull request should include:
+
+- a clear problem statement and scope;
+- user-visible behavior and compatibility impact;
+- linked issue or official API reference when relevant;
+- tests and documentation that cover the change;
+- exact validation commands and results; and
+- remaining risks, live-test gaps, or follow-up work.
+
+Use Conventional Commit-style subjects, for example:
+
+```text
+feat(messages): support a new content block
+fix(streaming): retain partial SSE frames
+docs: clarify retry behavior
 ```
 
-5. Run tests:
-```bash
-cargo test
-```
+Keep the subject concise and explain the reason and tradeoffs in the commit or
+pull-request body. Review the staged diff before committing so generated files,
+credentials, `.env`, and unrelated edits are not included.
 
-6. Run with watching:
-```bash
-cargo watch -x test
-```
+## Reporting bugs
 
-## Development Workflow
+A useful bug report contains:
 
-### Before Committing
+1. The crate version or Git commit.
+2. Rust version, target, operating system, and enabled Cargo features.
+3. A minimal reproduction.
+4. Expected and observed behavior.
+5. Sanitized status, error variant, and response details.
+6. Whether the issue reproduces against the current `main` branch.
 
-1. **Format your code:**
-```bash
-cargo fmt
-```
+Do not include API keys, bearer tokens, admin credentials, private files, or
+unredacted customer content.
 
-2. **Run clippy:**
-```bash
-cargo clippy -- -D warnings
-```
+## Release process
 
-3. **Run tests:**
-```bash
-cargo test
-```
+Releases are managed by Release Please and the workflows under
+`.github/workflows/`:
 
-4. **Check documentation:**
-```bash
-cargo doc --no-deps --open
-```
+1. Conventional commits merged to `main` feed the release pull request.
+2. The release pull request updates the crate version and changelog.
+3. Merging it creates the tag and GitHub release.
+4. The release workflow validates and publishes the crate and associated
+   artifacts when repository credentials and environments permit.
 
-5. **Run security audit:**
-```bash
-cargo audit
-```
+Maintainers should verify the package with `cargo package` and its generated
+file list before publishing. Do not manually edit a release tag after it has
+been published.
 
-### Testing
+## Getting help
 
-* Write unit tests for new functionality
-* Ensure all tests pass before submitting PR
-* Add integration tests for API interactions where appropriate
-* Mock external API calls in tests
-
-### Documentation
-
-* Add documentation comments to all public APIs
-* Include examples in doc comments
-* Update README.md if adding new features
-* Update CHANGELOG.md following Keep a Changelog format
-
-## Style Guidelines
-
-### Rust Code Style
-
-* Follow standard Rust naming conventions
-* Use `rustfmt` for formatting
-* Keep functions small and focused
-* Prefer composition over inheritance
-* Use descriptive variable names
-* Add comments for complex logic
-
-### Commit Messages
-
-* Use the present tense ("Add feature" not "Added feature")
-* Use the imperative mood ("Move cursor to..." not "Moves cursor to...")
-* Limit the first line to 72 characters or less
-* Reference issues and pull requests liberally after the first line
-
-Format:
-```
-<type>(<scope>): <subject>
-
-<body>
-
-<footer>
-```
-
-Types:
-* `feat`: New feature
-* `fix`: Bug fix
-* `docs`: Documentation only changes
-* `style`: Formatting, missing semi colons, etc
-* `refactor`: Code change that neither fixes a bug nor adds a feature
-* `perf`: Code change that improves performance
-* `test`: Adding missing tests
-* `chore`: Changes to the build process or auxiliary tools
-
-### Example Workflow
-
-1. Create a feature branch:
-```bash
-git checkout -b feature/my-new-feature
-```
-
-2. Make your changes and commit:
-```bash
-git add .
-git commit -m "feat(messages): add support for new message format"
-```
-
-3. Push to your fork:
-```bash
-git push origin feature/my-new-feature
-```
-
-4. Open a Pull Request
-
-## Release Process
-
-Releases are automated through GitHub Actions when a new tag is pushed:
-
-1. Update version in `Cargo.toml`
-2. Update CHANGELOG.md
-3. Commit changes
-4. Create and push tag:
-```bash
-git tag -a v0.1.0 -m "Release version 0.1.0"
-git push origin v0.1.0
-```
-
-## Questions?
-
-Feel free to open an issue with your question or reach out to the maintainers.
-
-## Recognition
-
-Contributors will be recognized in:
-* The CHANGELOG.md file
-* The project README
-* GitHub's contributor graph
-
-Thank you for contributing!
+Use [GitHub Issues](https://github.com/ThreatFlux/anthropic_rust_sdk/issues) for
+reproducible SDK questions and proposals. Account, billing, service status, and
+model-access questions belong with Anthropic support.

@@ -1,90 +1,63 @@
-//! # Threatflux - Anthropic API Rust SDK
+//! # Anthropic Rust SDK
 //!
-//! A comprehensive Rust SDK for the Anthropic API, providing async support,
-//! streaming capabilities, and full coverage of the Anthropic API endpoints.
+//! An async, typed client for the Anthropic API. This is an unofficial,
+//! community-maintained SDK and is not developed, endorsed, or supported by
+//! Anthropic.
 //!
-//! ## Features
+//! The crate provides high-level clients for Messages, Models, Message Batches,
+//! Files, Skills, selected administration resources, and selected beta or
+//! research-preview resources. API schemas and preview availability can change
+//! independently of a crate release; consult the repository's coverage notes
+//! and Anthropic's official API documentation before relying on a less common
+//! surface.
 //!
-//! - **Full API Coverage**: Complete implementation of all Anthropic API endpoints
-//! - **Streaming Support**: Real-time message streaming with Server-Sent Events
-//! - **Async/Await**: Built on tokio for high-performance async operations
-//! - **Rate Limiting**: Built-in rate limiting with configurable limits
-//! - **Retry Logic**: Exponential backoff retry with configurable policies
-//! - **Type Safety**: Strongly typed models for all API requests and responses
-//! - **File Uploads**: Support for uploading and managing files
-//! - **Batch Processing**: Process multiple messages in batches
-//! - **Admin API**: Full admin functionality for organizations and workspaces
-//! - **Vision Support**: Image processing capabilities with base64 encoding
-//! - **Tool Calling**: Function calling support with structured responses
+//! ## Operational behavior
+//!
+//! - Non-streaming requests retry eligible network, timeout, rate-limit, and
+//!   selected server errors by default. Use [`RequestOptions::no_retry`] when a
+//!   mutation must not be replayed automatically.
+//! - Streaming requests are not automatically reconnected, resumed, or retried.
+//! - Request timeouts apply per attempt; total retry time can be longer.
+//! - Rate-limiter utilities are available in [`utils::rate_limit`], but
+//!   [`Client`] does not automatically apply them in the current implementation.
+//! - A custom base URL receives the configured credential and must be trusted.
 //!
 //! ## Quick Start
 //!
-//! ### Basic Message
 //! ```rust,no_run
-//! use threatflux_anthropic_sdk::{Client, Config, models::MessageRequest};
+//! use threatflux_anthropic_sdk::{Client, MessageBuilder, DEFAULT_MODEL};
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     let client = Client::from_env()?;
-//!     
-//!     let request = MessageRequest::new()
-//!         .model("claude-sonnet-4-6")
-//!         .max_tokens(1000)
-//!         .add_user_message("Hello, Claude!");
-//!     
+//!     let model = std::env::var("ANTHROPIC_MODEL")
+//!         .unwrap_or_else(|_| DEFAULT_MODEL.to_owned());
+//!
+//!     let request = MessageBuilder::new()
+//!         .model(model)
+//!         .max_tokens(256)
+//!         .user("Explain Rust ownership in one short paragraph.")
+//!         .build_validated()?;
+//!
 //!     let response = client.messages().create(request, None).await?;
-//!     println!("Response: {}", response.text());
-//!     
+//!     println!("{}", response.text());
+//!
 //!     Ok(())
 //! }
 //! ```
 //!
-//! ### Streaming Messages
-//! ```rust,no_run
-//! use threatflux_anthropic_sdk::{Client, models::MessageRequest};
-//! use futures::StreamExt;
+//! ## Configuration
 //!
-//! #[tokio::main]
-//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let client = Client::from_env()?;
-//!     
-//!     let request = MessageRequest::new()
-//!         .model("claude-sonnet-4-6")
-//!         .max_tokens(1000)
-//!         .add_user_message("Tell me a story");
-//!     
-//!     let mut stream = client.messages().create_stream(request, None).await?;
-//!     
-//!     while let Some(event) = stream.next().await {
-//!         match event? {
-//!             threatflux_anthropic_sdk::models::StreamEvent::ContentBlockDelta { delta, .. } => {
-//!                 if let Some(text) = delta.text {
-//!                     print!("{}", text);
-//!                 }
-//!             }
-//!             threatflux_anthropic_sdk::models::StreamEvent::MessageStop => break,
-//!             _ => {}
-//!         }
-//!     }
-//!     
-//!     Ok(())
-//! }
-//! ```
-//!
-//! ### Configuration
 //! ```rust,no_run
-//! use threatflux_anthropic_sdk::{Client, Config};
 //! use std::time::Duration;
+//! use threatflux_anthropic_sdk::{Client, Config, Result};
 //!
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let config = Config::from_env()?
-//!     .with_timeout(Duration::from_secs(30))
-//!     .with_max_retries(3)
-//!     .with_rate_limit_rps(50);
-//!     
-//! let client = Client::try_new(config)?;
-//! # Ok(())
-//! # }
+//! fn configured_client(api_key: &str) -> Result<Client> {
+//!     let config = Config::new(api_key)?
+//!         .with_timeout(Duration::from_secs(30))
+//!         .with_max_retries(2);
+//!     Client::try_new(config)
+//! }
 //! ```
 
 pub mod api;

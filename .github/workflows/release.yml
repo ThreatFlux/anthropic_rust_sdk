@@ -40,8 +40,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        persist-credentials: false
         with:
+          persist-credentials: false
           ref: ${{ needs.release-please.outputs.tag_name }}
 
       - name: Install Rust
@@ -98,8 +98,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        persist-credentials: false
         with:
+          persist-credentials: false
           ref: ${{ needs.release-please.outputs.tag_name }}
 
       - name: Install Rust
@@ -162,8 +162,8 @@ jobs:
       digest: ${{ steps.build.outputs.digest }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        persist-credentials: false
         with:
+          persist-credentials: false
           ref: ${{ needs.release-please.outputs.tag_name }}
 
       - name: Set up Docker Buildx
@@ -211,8 +211,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        persist-credentials: false
         with:
+          persist-credentials: false
           ref: ${{ needs.release-please.outputs.tag_name }}
 
       - name: Install Rust

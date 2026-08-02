@@ -1,6 +1,6 @@
 .PHONY: all build test clean fmt lint audit doc release check install dev-setup \
         ci ci-fmt ci-clippy ci-build ci-test ci-doctest ci-doc ci-audit \
-        ci-examples ci-msrv ci-license ci-coverage pre-commit examples deps \
+        ci-examples ci-msrv ci-license ci-docs ci-coverage pre-commit examples deps \
         bench coverage watch help
 
 # Default target
@@ -64,12 +64,12 @@ check:
 # green `make ci` means green GitHub CI. RUN THIS BEFORE EVERY COMMIT/PUSH.
 #
 # Reproduced locally (deterministic, blocking in CI): formatting, clippy,
-# build, tests, doc tests, the documentation build, security audit, examples,
-# the MSRV check, and license check.
+# build, tests, doc tests, the documentation build and contract, security audit,
+# examples, the MSRV check, and license check.
 # NOT reproducible locally (hosted services; informational): Codecov patch
 # coverage, Codacy, CodeQL/Analyze. Use `make ci-coverage` for local coverage.
 # ---------------------------------------------------------------------------
-ci: ci-fmt ci-clippy ci-build ci-test ci-doctest ci-doc ci-audit ci-examples ci-msrv ci-license
+ci: ci-fmt ci-clippy ci-build ci-test ci-doctest ci-doc ci-docs ci-audit ci-examples ci-msrv ci-license
 	@echo ""
 	@echo "✅ make ci: all local CI checks passed — safe to commit/push"
 
@@ -96,6 +96,12 @@ ci-doctest:
 ci-doc:
 	@echo "[ci] RUSTDOCFLAGS=-D warnings cargo doc --no-deps --all-features --document-private-items"
 	@RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features --document-private-items
+
+ci-docs:
+	@echo "[ci] python3 scripts/check_docs.py"
+	@python3 scripts/check_docs.py
+	@echo "[ci] cargo check --example quickstart"
+	@cargo check --example quickstart
 
 ci-audit:
 	@echo "[ci] cargo audit"
@@ -184,6 +190,7 @@ help:
 	@echo "  release    - Prepare for crates.io release"
 	@echo "  check      - Quick check (format, lint)"
 	@echo "  ci         - Full local CI gate mirroring GitHub CI (run before commit)"
+	@echo "  ci-docs    - Validate documentation contracts and the quickstart"
 	@echo "  ci-coverage- Local coverage via tarpaulin (codecov is non-blocking)"
 	@echo "  install    - Install development tools"
 	@echo "  dev-setup  - Complete development setup"

@@ -1,555 +1,299 @@
 # Anthropic Rust SDK
 
-[![CI](https://github.com/ThreatFlux/anthropic_rust_sdk/workflows/CI/badge.svg)](https://github.com/ThreatFlux/anthropic_rust_sdk/actions)
-[![Coverage Status](https://codecov.io/gh/ThreatFlux/anthropic_rust_sdk/branch/main/graph/badge.svg)](https://codecov.io/gh/ThreatFlux/anthropic_rust_sdk)
-[![Crates.io](https://img.shields.io/crates/v/threatflux-anthropic-sdk.svg)](https://crates.io/crates/threatflux-anthropic-sdk)
+[![CI](https://github.com/ThreatFlux/anthropic_rust_sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/ThreatFlux/anthropic_rust_sdk/actions/workflows/ci.yml)
 [![Documentation](https://docs.rs/threatflux-anthropic-sdk/badge.svg)](https://docs.rs/threatflux-anthropic-sdk)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Rust](https://img.shields.io/badge/rust-1.95%2B-blue.svg)](https://www.rust-lang.org/)
-[![Security Audit](https://github.com/ThreatFlux/anthropic_rust_sdk/workflows/Security%20Audit/badge.svg)](https://github.com/ThreatFlux/anthropic_rust_sdk/security)
-[![Dependency Status](https://deps.rs/repo/github/ThreatFlux/anthropic_rust_sdk/status.svg)](https://deps.rs/repo/github/ThreatFlux/anthropic_rust_sdk)
-
-A comprehensive Rust SDK for the Anthropic API, providing async support, streaming capabilities, and broad coverage of Anthropic API endpoints including Messages, Models, Batches, Files, Skills, Managed Agents, Dreams, MCP Tunnels, User Profiles, and Admin operations. Tracks the current model generation (Opus 5, Sonnet 5, Opus 4.x, Sonnet 4.6, Haiku 4.5, Fable 5) with adaptive thinking, effort controls, prompt caching, server-side tools, structured outputs, and refusal fallbacks.
-
-## Features
-
-- **🚀 Broad API Coverage**: Messages, Models, Batches, Files, Skills, Managed Agents, Dreams, MCP Tunnels, User Profiles, and Admin endpoints
-- **🧠 Adaptive Thinking + Effort**: `thinking: {type: "adaptive"}` with `low`/`medium`/`high`/`xhigh`/`max` effort
-- **📜 1M Context Window**: Supported on current Opus/Sonnet/Fable models
-- **💾 Prompt Caching**: Cacheable system/content/tool blocks with 5m/1h TTLs
-- **🔧 Server-Side Tools**: Web search, web fetch, code execution, bash, text editor, memory
-- **📐 Structured Outputs**: JSON-schema-constrained responses
-- **🛟 Refusal Fallbacks**: Server-side fallback models, fallback-credit retries, and current fallback diagnostics
-- **🧠 Managed Agents**: Agents, sessions, event streams, initial events, and event-delta previews
-- **🌙 Dreams**: Research-preview memory consolidation jobs
-- **🔌 MCP Tunnels**: Tunnel lifecycle, connector tokens, and CA certificates
-- **👤 User Profiles**: Profile attribution and enrollment URLs
-- **⚡ Async/Await**: Built on `tokio` for high-performance async operations
-- **🌊 Streaming Support**: Real-time streaming responses with Server-Sent Events
-- **📦 Batch Processing**: Efficient batch message processing
-- **📁 File Management**: Upload, download, and manage files
-- **👑 Admin Operations**: Organization and workspace management
-- **🛠 Builder Pattern**: Intuitive request builders for easy usage
-- **🔄 Automatic Retries**: Intelligent retry logic with exponential backoff
-- **⚖️ Rate Limiting**: Built-in rate limiting and throttling
-- **🛡️ Type Safety**: Fully typed API with comprehensive error handling
-- **📚 Rich Documentation**: Extensive examples and documentation
-
-## Quick Start
-
-Add the Anthropic Rust SDK to your `Cargo.toml`:
-
-```toml
-[dependencies]
-    threatflux-anthropic-sdk = "0.2.0"
-tokio = { version = "1.0", features = ["full"] }
-```
-
-The Cargo package uses hyphens, while Rust imports use underscores:
-`use threatflux_anthropic_sdk::Client;`.
-
-### Basic Usage
-
-```rust
-use threatflux_anthropic_sdk::{Client, builders::MessageBuilder};
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize the client with your API key
-    let client = Client::from_env()?;
-    
-    // Create a message using the builder pattern
-    let request = MessageBuilder::new()
-        .model("claude-sonnet-4-6")  // Or the most capable: "claude-opus-4-8" / "claude-fable-5"
-        .max_tokens(1000)
-        .user("Hello, Claude! Tell me about Rust programming.")
-        .build();
-    
-    // Send the message and get response
-    let response = client.messages().create(request, None).await?;
-    
-    println!("Claude says: {}", response.text());
-    println!("Usage: {} input + {} output tokens", 
-             response.usage.input_tokens, 
-             response.usage.output_tokens);
-    
-    Ok(())
-}
-```
-
-### Environment Setup
-
-Create a `.env` file in your project root:
-
-```env
-ANTHROPIC_API_KEY=your_api_key_here
-# Optional: for admin operations
-ANTHROPIC_ADMIN_KEY=your_admin_key_here
-```
-
-Or set the environment variable directly:
-
-```bash
-export ANTHROPIC_API_KEY="your_api_key_here"
-```
-
-## Supported Models
-
-### Current Models
-- **Claude Opus 5** (`claude-opus-5`) - Current frontier model with 1M context
-- **Claude Sonnet 5** (`claude-sonnet-5`) - Current balanced model with 1M context
-- **Claude Fable 5** (`claude-fable-5`) - Most capable widely released model (always-on thinking; 30-day retention)
-- **Claude Opus 4.8** (`claude-opus-4-8`) - Most capable Opus-tier model, 1M context
-- **Claude Opus 4.7** (`claude-opus-4-7`) - Previous-generation Opus, 1M context
-- **Claude Opus 4.6** (`claude-opus-4-6`) - 1M context
-- **Claude Sonnet 4.6** (`claude-sonnet-4-6`) - Best balance of speed and intelligence, 1M context
-- **Claude Haiku 4.5** (`claude-haiku-4-5`) - Fastest and most cost-effective
-
-Model ids are passed as plain strings; constants for the current catalog live in
-`config::models` (retired ids are kept, marked deprecated). Use `claude-opus-5`
-for the most capable, `claude-sonnet-5` for a balance of speed and intelligence, or
-`claude-haiku-4-5` for the cheapest.
-
-## Examples
-
-### Adaptive thinking with the effort parameter
-
-```rust
-use threatflux_anthropic_sdk::{Client, builders::MessageBuilder, config::models};
-use threatflux_anthropic_sdk::models::message::OutputEffort;
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client = Client::from_env()?;
-
-    // Adaptive thinking lets Claude decide how much to reason; `effort`
-    // controls depth. `budget_tokens` is removed on current models.
-    let request = MessageBuilder::new()
-        .model(models::OPUS_4_8)
-        .max_tokens(16000)
-        .adaptive_thinking_summarized()
-        .effort(OutputEffort::XHigh)  // best for coding/agentic work
-        .user("Solve this complex algorithmic problem...")
-        .build();
-    
-    let response = client.messages().create(request, None).await?;
-    println!("Solution: {}", response.text());
-    
-    Ok(())
-}
-```
-
-### Streaming Responses
-
-```rust
-use threatflux_anthropic_sdk::{Client, builders::MessageBuilder};
-use futures::StreamExt;
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client = Client::from_env()?;
-    
-    let request = MessageBuilder::new()
-        .model("claude-haiku-4-5")
-        .max_tokens(500)
-        .user("Write a short story about a robot learning to paint")
-        .stream()  // Enable streaming
-        .build();
-    
-    let mut stream = client.messages().create_stream(request, None).await?;
-    
-    print!("Claude: ");
-    while let Some(event) = stream.next().await {
-        match event? {
-            StreamEvent::ContentBlockDelta { delta, .. } => {
-                if let Some(text) = delta.text {
-                    print!("{}", text);
-                }
-            }
-            StreamEvent::MessageStop => break,
-            _ => continue,
-        }
-    }
-    println!();
-    
-    Ok(())
-}
-```
-
-### Conversation with Context
-
-```rust
-use threatflux_anthropic_sdk::{Client, builders::MessageBuilder};
-use threatflux_anthropic_sdk::models::common::Role;
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client = Client::from_env()?;
-    
-    let request = MessageBuilder::new()
-        .model("claude-haiku-4-5")
-        .max_tokens(800)
-        .system("You are a helpful coding mentor specializing in Rust.")
-        .conversation(&[
-            (Role::User, "I'm new to Rust. What should I learn first?"),
-            (Role::Assistant, "Great choice! I'd recommend starting with ownership and borrowing, as these are Rust's key concepts."),
-            (Role::User, "Can you give me a simple example of ownership?"),
-        ])
-        .build();
-    
-    let response = client.messages().create(request, None).await?;
-    println!("{}", response.text());
-    
-    Ok(())
-}
-```
-
-### Batch Processing
-
-```rust
-use threatflux_anthropic_sdk::{Client, builders::BatchBuilder};
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client = Client::from_env()?;
-    
-    // Create a batch of requests
-    let batch = BatchBuilder::new()
-        .add_simple_request("req1", "claude-haiku-4-5", "What is 2+2?", 100)
-        .add_simple_request("req2", "claude-haiku-4-5", "What is 3+3?", 100)
-        .add_creative("story", "claude-haiku-4-5", "Write a haiku about coding", 200)
-        .build();
-    
-    // Submit the batch
-    let batch_response = client.message_batches().create(batch, None).await?;
-    println!("Batch created: {}", batch_response.id);
-    
-    // Wait for completion
-    let completed = client.message_batches()
-        .wait_for_completion(&batch_response.id, 
-                           std::time::Duration::from_secs(5),  // poll interval
-                           std::time::Duration::from_secs(300)) // max wait
-        .await?;
-    
-    println!("Batch completed with {} requests", completed.request_counts.completed);
-    
-    Ok(())
-}
-```
-
-### Image Analysis (Vision)
-
-```rust
-use threatflux_anthropic_sdk::{Client, builders::MessageBuilder};
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client = Client::from_env()?;
-    
-    let request = MessageBuilder::new()
-        .model("claude-haiku-4-5")
-        .max_tokens(500)
-        .user_with_image_file(
-            "What do you see in this image?",
-            "path/to/your/image.jpg"
-        ).await?
-        .build();
-    
-    let response = client.messages().create(request, None).await?;
-    println!("Claude sees: {}", response.text());
-    
-    Ok(())
-}
-```
-
-### File Operations
-
-```rust
-use threatflux_anthropic_sdk::{Client, models::file::FileUploadRequest};
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client = Client::from_env()?;
-    
-    // Upload a file
-    let content = std::fs::read("document.pdf")?;
-    let request = FileUploadRequest::new(content, "document.pdf", "application/pdf")
-        .purpose("user_data");
-    
-    let file = client.files().upload(request, None).await?;
-    println!("File uploaded: {} ({})", file.file.filename, file.file.id);
-    
-    // List files
-    let files = client.files().list(None, None).await?;
-    println!("You have {} files", files.data.len());
-    
-    Ok(())
-}
-```
-
-### Admin Operations
-
-```rust
-use threatflux_anthropic_sdk::{Client, models::admin::MemberCreateRequest, models::admin::MemberRole};
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client = Client::from_env()?;
-    let admin = client.admin()?; // Requires admin key
-    
-    // Get organization info
-    let org = admin.organization().get(None).await?;
-    println!("Organization: {}", org.name);
-    
-    // List members
-    let members = admin.organization().list_members(None, None).await?;
-    println!("Members: {}", members.data.len());
-    
-    // Get usage report
-    let usage = admin.usage().get_current_billing_usage(None, None).await?;
-    println!("Usage: {} input tokens, {} output tokens", 
-             usage.input_tokens, usage.output_tokens);
-    
-    Ok(())
-}
-```
-
-## API Coverage
-
-ThreatFlux Anthropic SDK provides broad coverage of the Anthropic API:
-
-### Messages API
-- ✅ Create messages
-- ✅ Streaming responses
-- ✅ Token counting
-- ✅ Vision (image analysis)
-- ✅ Tool use (function calling)
-- ✅ System prompts
-- ✅ Conversation history
-- ✅ Server-side fallbacks, fallback credit, diagnostics, and user-profile attribution
-- ✅ Current code-execution, MCP, tool-search, and text-editor result blocks
-
-### Current beta APIs
-- ✅ Managed Agents: agents, sessions, event streams, initial events, and event-delta previews
-- ✅ Dreams: create, list, retrieve, archive, and cancel
-- ✅ MCP Tunnels: tunnel and certificate lifecycle plus token reveal/rotation
-- ✅ User Profiles: create, list, retrieve, update, and enrollment URLs
-- ✅ Webhook event envelope models with forward-compatible payload fields
-
-### Models API
-- ✅ List available models
-- ✅ Get model details
-- ✅ Model capabilities and pricing
-
-### Message Batches API
-- ✅ Create batches
-- ✅ Retrieve batch status
-- ✅ List batches
-- ✅ Cancel batches
-- ✅ Delete batches
-- ✅ Download results
-
-### Files API
-- ✅ Upload files
-- ✅ List files
-- ✅ Get file info
-- ✅ Download files
-- ✅ Delete files
-- ✅ Multiple file formats
-
-### Admin API
-- ✅ Organization management
-- ✅ Workspace management
-- ✅ Member management
-- ✅ API key management
-- ✅ Usage reporting
-- ✅ Billing information
-
-## Advanced Features
-
-### Custom Configuration
-
-```rust
-use threatflux_anthropic_sdk::{Config, Client};
-use std::time::Duration;
-
-let config = Config::new("your-api-key")?
-    .with_timeout(Duration::from_secs(30))
-    .with_max_retries(5)
-    .with_default_model("claude-3-sonnet-20240229");
-
-let client = Client::new(config);
-```
-
-### Error Handling
-
-```rust
-use threatflux_anthropic_sdk::{Client, error::AnthropicError};
-
-match client.messages().create(request, None).await {
-    Ok(response) => println!("Success: {}", response.text()),
-    Err(AnthropicError::RateLimit(msg)) => {
-        println!("Rate limited: {}", msg);
-        // Implement backoff strategy
-    }
-    Err(AnthropicError::Api { status, message, .. }) => {
-        println!("API error {}: {}", status, message);
-    }
-    Err(e) => println!("Other error: {}", e),
-}
-```
-
-### Builder Presets
-
-```rust
-use threatflux_anthropic_sdk::builders::MessageBuilder;
-
-// Creative writing preset (high temperature)
-let creative = MessageBuilder::new()
-    .creative()
-    .user("Write a poem about the ocean")
-    .build();
-
-// Code generation preset (low temperature, stop sequences)
-let code = MessageBuilder::new()
-    .code_generation()
-    .user("Write a Rust function to reverse a string")
-    .build();
-
-// Analytical preset (low temperature, focused)
-let analytical = MessageBuilder::new()
-    .analytical()
-    .user("Analyze the pros and cons of microservices")
-    .build();
-```
-
-## Installation
-
-Add this to your `Cargo.toml`:
-
-```toml
-[dependencies]
-threatflux-anthropic-sdk = "0.1.0"
-
-# Required for async
-tokio = { version = "1.0", features = ["full"] }
-
-# Optional: for better error handling
-anyhow = "1.0"
-```
-
-### Feature Flags
-
-```toml
-[dependencies]
-    threatflux-anthropic-sdk = { version = "0.2.0", default-features = false, features = ["rustls-tls"] }
-```
-
-Available features:
-- `native-tls` (default): Use system TLS implementation
-- `rustls-tls`: Use rustls for TLS (pure Rust)
+[![Crates.io](https://img.shields.io/crates/v/threatflux-anthropic-sdk.svg)](https://crates.io/crates/threatflux-anthropic-sdk)
+[![MSRV](https://img.shields.io/badge/MSRV-1.95.0-blue.svg)](https://www.rust-lang.org/)
+[![License](https://img.shields.io/crates/l/threatflux-anthropic-sdk.svg)](LICENSE)
+[![Dependencies](https://deps.rs/repo/github/ThreatFlux/anthropic_rust_sdk/status.svg)](https://deps.rs/repo/github/ThreatFlux/anthropic_rust_sdk)
+
+An async, typed Rust client for the Anthropic API, with Messages, streaming,
+token counting, batches, files, models, administration, and selected beta and
+research-preview surfaces.
+
+This is an **unofficial, community-maintained SDK**. It is not developed,
+endorsed, or supported by Anthropic. The documentation in this repository
+describes the `main` branch; the [crates.io release](https://crates.io/crates/threatflux-anthropic-sdk)
+can differ. Anthropic's [API documentation](https://platform.claude.com/docs/en/api/overview)
+is authoritative for service behavior and availability.
+
+## Why use it
+
+- Async-first API built on Tokio and Reqwest.
+- Typed request, response, error, and SSE event models.
+- Fluent builders for messages and batch workloads.
+- Configurable timeouts, retries, base URL, and TLS backend.
+- Source-level clients for core, administrative, and selected preview APIs.
+- Compile-checked examples and rustdoc with warnings denied in CI.
 
 ## Requirements
 
-- **Rust**: 1.95.0 or later
-- **Anthropic API Key**: Get one from the [Anthropic Console](https://console.anthropic.com/)
-- **Tokio**: For async runtime
+- Rust 1.95.0 or newer (the minimum supported Rust version, or MSRV).
+- An Anthropic API key for live requests.
+- An Anthropic Admin API key for administration endpoints.
 
-## Documentation
+## Installation
 
-- **API Documentation**: [docs.rs/threatflux-anthropic-sdk](https://docs.rs/threatflux-anthropic-sdk)
-- **Development Guide**: See [CLAUDE.md](CLAUDE.md)
-- **API Reference**: See [API_CURL_DOCS.md](API_CURL_DOCS.md)
-- **Examples**: Check the `/examples` directory
-
-## Release Automation
-
-Releases are managed by Release Please from conventional commits on `main`.
-When a release PR is merged, the workflow bumps `Cargo.toml`, updates
-`CHANGELOG.md`, creates the GitHub Release and tag, publishes the crate to
-crates.io, pushes a GHCR image to GitHub Packages, and attaches the `.crate`
-archive plus checksums to the release.
-
-Published package targets:
-
-- Crate: `threatflux-anthropic-sdk`
-- GitHub Packages image: `ghcr.io/threatflux/anthropic-rust-sdk`
-
-## Testing
+Add the latest published crates.io release and a Tokio runtime:
 
 ```bash
-# Unit tests (no API key required)
-cargo test --lib
-
-# Integration tests (API key required)
-export ANTHROPIC_API_KEY="your-api-key"
-cargo test
-
-# Run specific example
-export ANTHROPIC_API_KEY="your-api-key"
-cargo run --example basic_message
+cargo add threatflux-anthropic-sdk
+cargo add tokio --features macros,rt-multi-thread
 ```
 
-## Performance
+The Cargo package name uses hyphens; Rust imports use underscores:
+`threatflux_anthropic_sdk`.
 
-ThreatFlux Anthropic SDK is designed for high performance:
+To test unreleased `main` code, use a Git dependency explicitly:
 
-- **Connection Pooling**: Automatic HTTP connection reuse
-- **Streaming**: Low-latency streaming responses
-- **Batch Processing**: Efficient bulk operations
-- **Rate Limiting**: Built-in request throttling
-- **Retry Logic**: Intelligent exponential backoff
+```toml
+[dependencies]
+threatflux-anthropic-sdk = { git = "https://github.com/ThreatFlux/anthropic_rust_sdk", branch = "main" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+```
 
-## Error Handling
+Do not use the Git form when reproducible crates.io releases are required.
 
-Comprehensive error handling with detailed error types:
+## Quickstart
+
+Create an API key in the [Anthropic Console](https://platform.claude.com/settings/keys),
+then expose it to the process. Model availability changes independently of this
+crate, so the example allows an environment override:
+
+```bash
+export ANTHROPIC_API_KEY="your-api-key"
+export ANTHROPIC_MODEL="model-id-available-to-your-account" # optional
+```
+
+The following program is a complete `src/main.rs` for a consuming binary crate.
+It is mirrored by `examples/quickstart.rs` and compiled in CI on the MSRV and
+stable Rust.
+
+<!-- BEGIN QUICKSTART -->
 
 ```rust
-pub enum AnthropicError {
-    Http(reqwest::Error),           // Network errors
-    Json(serde_json::Error),        // Parsing errors
-    Api { status, message, .. },    // API errors
-    Auth(String),                   // Authentication errors
-    RateLimit(String),              // Rate limiting
-    InvalidInput(String),           // Input validation
-    // ... more
+use threatflux_anthropic_sdk::{Client, MessageBuilder, DEFAULT_MODEL};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let client = Client::from_env()?;
+    let model = std::env::var("ANTHROPIC_MODEL").unwrap_or_else(|_| DEFAULT_MODEL.to_owned());
+
+    let request = MessageBuilder::new()
+        .model(model)
+        .max_tokens(256)
+        .user("Explain Rust ownership in one short paragraph.")
+        .build_validated()?;
+
+    let response = client.messages().create(request, None).await?;
+    println!("{}", response.text());
+
+    Ok(())
 }
 ```
 
-## Contributing
+<!-- END QUICKSTART -->
 
-Contributions are welcome! Please see our [contributing guidelines](CLAUDE.md#contributing) for details.
+In a consuming crate, save the program as `src/main.rs` and run:
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Submit a pull request
+```bash
+cargo run
+```
+
+In a clone of this repository, run the mirrored example with
+`cargo run --example quickstart`.
+
+`Client::from_env()` also reads a local `.env` file through `dotenvy`. Keep
+that file out of version control and prefer a secrets manager in deployed
+environments.
+
+## Cargo features
+
+Choose one TLS backend. The default build uses the platform-native TLS stack.
+
+<!-- BEGIN CARGO FEATURES -->
+
+| Feature | Default | Purpose |
+| --- | --- | --- |
+| `default` | Yes | Enables the `native-tls` feature. |
+| `native-tls` | Yes | Enables Reqwest's platform-native TLS backend. |
+| `rustls-tls` | No | Enables Reqwest's Rustls TLS backend. Disable default features when selecting only Rustls. |
+| `real_api_tests` | No | Compiles opt-in tests that can call the live Anthropic API and incur usage. |
+
+<!-- END CARGO FEATURES -->
+
+For a Rustls-only dependency:
+
+```bash
+cargo add threatflux-anthropic-sdk --no-default-features --features rustls-tls
+```
+
+## API surface
+
+The table describes clients present in this source tree. It is not a promise of
+complete parity with every current API field or endpoint. See the
+[detailed coverage notes](docs/api-coverage.md) before adopting a less common
+surface.
+
+| Surface | Source-level support | Entry point |
+| --- | --- | --- |
+| Messages | Create messages, stream SSE events, and count input tokens | `client.messages()` |
+| Models | List, retrieve, and locally filter models | `client.models()` |
+| Message batches | Create, retrieve, list, cancel, delete, fetch results, and poll | `client.message_batches()` |
+| Files | Upload, list, retrieve, download, and delete | `client.files()` |
+| Skills | Skill and version lifecycle helpers | `client.skills()` |
+| Administration | Organization users/invites/members, workspaces, API-key listing/updating, and usage reports | `client.admin()?` |
+| Text completions | A legacy completion client for existing integrations | `client.completions()` |
+
+The repository also contains clients for Dreams, MCP Tunnels, User Profiles,
+and Managed Agents resources. Treat these as beta or research-preview surfaces:
+availability may be account-specific, schemas may change, and the appropriate
+`RequestOptions` beta header may be required.
+
+## Configuration
+
+`Client::from_env()` recognizes these variables:
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `ANTHROPIC_API_KEY` | Required | Standard API credential. |
+| `ANTHROPIC_ADMIN_KEY` | Unset | Admin credential used by `client.admin()`. |
+| `ANTHROPIC_BASE_URL` | `https://api.anthropic.com` | API origin or compatible proxy base; the SDK appends `/v1`. |
+| `ANTHROPIC_TIMEOUT` | `60` | Per-attempt request timeout in seconds. |
+| `ANTHROPIC_MAX_RETRIES` | `3` | Retry attempts after the initial non-streaming request. |
+| `ANTHROPIC_DEFAULT_MODEL` | SDK default | Stored in `Config.default_model`; pass it to a builder to apply the override. |
+| `ANTHROPIC_ENABLE_RATE_LIMITING` | `true` | Stored rate-limiter setting; see the operational caveat below. |
+| `ANTHROPIC_RATE_LIMIT_RPS` | `50` | Stored requests-per-second setting; see the operational caveat below. |
+
+Programmatic configuration is available through `Config`:
+
+```rust
+use std::time::Duration;
+use threatflux_anthropic_sdk::{Client, Config, Result};
+
+fn configured_client(api_key: &str) -> Result<Client> {
+    let config = Config::new(api_key)?
+        .with_timeout(Duration::from_secs(30))
+        .with_max_retries(2);
+    Client::try_new(config)
+}
+```
+
+Important current behavior:
+
+- Non-streaming calls retry connection/request failures, timeouts, HTTP 429,
+  and selected 5xx responses. `max_retries = 3` permits up to four attempts.
+- Streaming requests are not automatically retried or resumed.
+- `RequestOptions::no_retry()` disables retries for one non-streaming call.
+- Retries can duplicate a non-idempotent operation if the server accepted a
+  request before the client observed a failure. Choose retry settings with the
+  endpoint's semantics in mind.
+- The rate-limiter types in `utils::rate_limit` and the related `Config` fields
+  are not automatically applied by `Client` in the current source. Enforce
+  application-level concurrency or rate limits where required.
+- `MessageBuilder` initializes from the crate's `DEFAULT_MODEL`. To use
+  `ANTHROPIC_DEFAULT_MODEL`, pass `client.config().default_model.clone()` to
+  `.model(...)`.
+
+See [configuration and operations](docs/configuration.md) for request options,
+errors, retries, preview headers, proxy considerations, and production safety.
+
+## Models and beta features
+
+Model IDs are strings. `config::models` provides convenience constants, but
+the service catalog can change between crate releases. Check Anthropic's
+[models documentation](https://platform.claude.com/docs/en/about-claude/models/overview)
+and use a model available to your account.
+
+Beta headers are explicit through `RequestOptions`, for example:
+
+```rust
+use threatflux_anthropic_sdk::{AnthropicError, Client, RequestOptions};
+
+async fn list_files(client: &Client) -> Result<(), AnthropicError> {
+    let options = RequestOptions::new().with_files_api();
+    let files = client.files().list(None, Some(options)).await?;
+    println!("{} file(s)", files.data.len());
+    Ok(())
+}
+```
+
+Review the corresponding API module before enabling preview helpers; some
+methods add their required header automatically while others accept caller
+options.
+
+## Examples
+
+All examples require `ANTHROPIC_API_KEY` at runtime unless noted otherwise.
+
+| Example | Demonstrates | Command |
+| --- | --- | --- |
+| [`quickstart.rs`](examples/quickstart.rs) | Minimal message request | `cargo run --example quickstart` |
+| [`basic_message.rs`](examples/basic_message.rs) | Messages, conversations, presets, and token counting | `cargo run --example basic_message` |
+| [`streaming_message.rs`](examples/streaming_message.rs) | SSE events and collection helpers | `cargo run --example streaming_message` |
+| [`batch_processing.rs`](examples/batch_processing.rs) | Batch creation, polling, results, and cancellation | `cargo run --example batch_processing` |
+| [`claude_4_features.rs`](examples/claude_4_features.rs) | Thinking, caching, tools, structured output, and beta options | `cargo run --example claude_4_features` |
+| [`token_usage_tracker.rs`](examples/token_usage_tracker.rs) | Local token accounting sample | `cargo run --example token_usage_tracker` |
+
+Pricing embedded in an example is illustrative, not a billing authority. Check
+Anthropic's current pricing before using it for cost reporting.
+
+## Errors
+
+API operations return `threatflux_anthropic_sdk::Result<T>`, whose error type is
+`AnthropicError`. Match specific variants when behavior differs by failure
+class, and use `status_code()` or `is_retryable()` when appropriate:
+
+```rust
+use threatflux_anthropic_sdk::{AnthropicError, Client, MessageRequest};
+
+async fn send(client: &Client, request: MessageRequest) -> Result<(), AnthropicError> {
+    match client.messages().create(request, None).await {
+        Ok(message) => println!("{}", message.text()),
+        Err(AnthropicError::Api { status: 429, .. }) => eprintln!("rate limited"),
+        Err(error) if error.is_retryable() => eprintln!("retryable failure: {error}"),
+        Err(error) => return Err(error),
+    }
+    Ok(())
+}
+```
+
+## Documentation
+
+- [API documentation](https://docs.rs/threatflux-anthropic-sdk)
+- [API coverage and maturity](docs/api-coverage.md)
+- [Configuration and operations](docs/configuration.md)
+- [Endpoint request notes](API_CURL_DOCS.md)
+- [Changelog](CHANGELOG.md)
+- [Contributing guide](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
+- [Official Anthropic API documentation](https://platform.claude.com/docs/en/api/overview)
+
+## Development
+
+The fast, credential-free validation path is:
+
+```bash
+cargo +1.95.0 fmt --all -- --check
+cargo +1.95.0 clippy --all-targets --all-features -- -D warnings
+cargo +1.95.0 test --test unit_suite
+python3 scripts/check_docs.py
+```
+
+Live API tests are opt-in and can incur usage. See [CONTRIBUTING.md](CONTRIBUTING.md)
+for the complete workflow and release process.
 
 ## Security
 
-- **Never commit API keys** to version control
-- **Use environment variables** for configuration
-- **Rotate keys regularly**
-- **Monitor usage** in the Anthropic Console
+Never commit API keys, admin keys, captured authorization headers, or unredacted
+customer prompts and responses. A custom `ANTHROPIC_BASE_URL` receives the
+configured credential, so use only a trusted endpoint. Report vulnerabilities
+privately according to [SECURITY.md](SECURITY.md).
 
-## License
+## Support and license
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Use [GitHub Issues](https://github.com/ThreatFlux/anthropic_rust_sdk/issues) for
+reproducible SDK bugs and feature requests. Use Anthropic's support channels for
+account, billing, model-access, and service-availability questions.
 
-## Support
-
-- **Issues**: [GitHub Issues](https://github.com/ThreatFlux/anthropic_rust_sdk/issues)
-- **Documentation**: [docs.rs/threatflux-anthropic-sdk](https://docs.rs/threatflux-anthropic-sdk)
-- **Examples**: See `/examples` directory
-- **API Reference**: [Anthropic API Docs](https://docs.anthropic.com/)
-
-## Acknowledgments
-
-- Built with ❤️ by [Wyatt Roersma](https://github.com/wyattroersma), Claude Code, and Codex
-- Powered by the [Anthropic API](https://www.anthropic.com/)
-- Built on excellent Rust libraries: `tokio`, `reqwest`, `serde`, and more
-
----
-
-**Made with 🦀 Rust and ⚡ Anthropic Claude**
+This project is available under the [MIT License](LICENSE).
