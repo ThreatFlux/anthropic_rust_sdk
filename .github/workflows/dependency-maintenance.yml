@@ -1,0 +1,51 @@
+name: Dependency Maintenance
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Report available updates without writing anything
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      create-pr:
+        description: Open a pull request with the updates
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    name: Update dependencies
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Updates GitHub Actions pins and cargo dependencies together. Scheduled
+      # runs apply updates and open a pull request; manual dispatches default
+      # to a dry run so the maintainer can preview what would change.
+      - name: Run dependency updates
+        uses: ThreatFlux/github_actions@v0
+        with:
+          command: update
+          all: "true"
+          dry-run: ${{ github.event_name == 'schedule' && 'false' || inputs.dry-run }}
+          create-pr: ${{ github.event_name == 'schedule' && 'true' || inputs.create-pr }}
+          token: ${{ secrets.GITHUB_TOKEN }}
