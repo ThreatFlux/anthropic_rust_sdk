@@ -42,7 +42,7 @@ jobs:
       # runs apply updates and open a pull request; manual dispatches default
       # to a dry run so the maintainer can preview what would change.
       - name: Run dependency updates
-        uses: ThreatFlux/github_actions@v0
+        uses: ThreatFlux/github_actions@ac70e4a8921f97d0ade0f0774b425c6655b98efa # v0.6.1
         with:
           command: update
           all: "true"
