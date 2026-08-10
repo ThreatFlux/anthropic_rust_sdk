@@ -43,7 +43,7 @@ jobs:
           echo "path=${config_path}" >> "${GITHUB_OUTPUT}"
 
       - name: Lint maintained Markdown
-        uses: DavidAnson/markdownlint-cli2-action@3b11e4c3e2eac5207914843511bd517908954018 # v24.1.0
+        uses: DavidAnson/markdownlint-cli2-action@6bf21b07787794f89a243495939cd651942aeabe # v24.1.0
         with:
           config: ${{ steps.markdownlint-config.outputs.path }}
           globs: |
