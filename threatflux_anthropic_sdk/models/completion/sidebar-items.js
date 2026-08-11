@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["DEFAULT_COMPLETION_MODEL"],"enum":["CompletionStopReason"],"struct":["CompletionRequest","CompletionResponse"]};

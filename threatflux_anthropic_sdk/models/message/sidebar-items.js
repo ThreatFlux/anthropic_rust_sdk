@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["FallbackCreditToken","Fallbacks","OutputEffort","OutputFormat","StreamEvent","SystemPrompt"],"struct":["ContentBlockDelta","Fallback","Message","MessageDelta","MessageRequest","MessageResponse","OutputConfig","SystemBlock","TaskBudget","ThinkingConfig","TokenCountRequest","TokenCountResponse"]};

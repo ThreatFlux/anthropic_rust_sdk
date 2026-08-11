@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["Deployment","DeploymentCreateRequest","DeploymentRun","DeploymentSchedule","DeploymentUpdateRequest"],"type":["DeploymentListResponse","DeploymentRunListResponse"]};
