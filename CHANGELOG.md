@@ -37,6 +37,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (toolchain and dependencies)
+- Raise the minimum supported Rust version to 1.99.0 and pin the development,
+  CI MSRV, and Docker toolchains to the same stable release.
+- Update all direct dependencies to their latest non-yanked stable releases as
+  of 2026-10-03, including reqwest 0.13.5, Tokio 1.53.2, thiserror 2.0.21,
+  base64 0.23.1, UUID 1.27.0, futures/futures-util 0.3.34, and tokio-test 0.4.6.
+
 ### Added (API currency upgrade)
 - Current model catalog: `FABLE_5`, `MYTHOS_5`, `OPUS_4_8`, `OPUS_4_7`, `OPUS_4_6`,
   `SONNET_4_6`, `HAIKU_4_5` (plus active legacy `OPUS_4_5`, `SONNET_4_5`, `OPUS_4_1`);

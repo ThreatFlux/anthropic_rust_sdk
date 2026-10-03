@@ -3,6 +3,8 @@
         ci-examples ci-msrv ci-license ci-docs ci-coverage pre-commit examples deps \
         bench coverage watch help
 
+MSRV = $(shell python3 scripts/check_docs.py --print-msrv)
+
 # Default target
 all: clean fmt lint build test doc
 
@@ -112,8 +114,8 @@ ci-examples:
 	@cargo build --examples --all-features
 
 ci-msrv:
-	@echo "[ci] MSRV (rustc 1.95.0): cargo check --all-features"
-	@cargo check --all-features
+	@echo "[ci] MSRV: cargo +$(MSRV) check --all-features"
+	@cargo +$(MSRV) check --all-features
 
 ci-license:
 	@echo "[ci] cargo deny check licenses"

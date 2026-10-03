@@ -54,6 +54,19 @@ def check_msrv(readme: str, package: dict, errors: list[str]) -> None:
         errors.append(f"README.md: expected MSRV statement: {rust_version}")
 
 
+def check_toolchains(package: dict, errors: list[str]) -> None:
+    rust_version = package["rust-version"]
+    with (ROOT / "rust-toolchain.toml").open("rb") as toolchain_file:
+        toolchain = tomllib.load(toolchain_file)["toolchain"]
+    if toolchain["channel"] != rust_version:
+        errors.append(f"rust-toolchain.toml: expected Rust {rust_version}")
+
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    expected_image = f"FROM rust:{rust_version}-bookworm AS builder"
+    if expected_image not in dockerfile.splitlines():
+        errors.append(f"Dockerfile: expected builder image rust:{rust_version}-bookworm")
+
+
 def check_features(readme: str, manifest: dict, errors: list[str]) -> None:
     table = extract(FEATURES_RE, readme, "Cargo feature", errors)
     documented = set(FEATURE_ROW_RE.findall(table))
@@ -138,6 +151,7 @@ def main() -> int:
     readme = README_PATH.read_text(encoding="utf-8")
     errors: list[str] = []
     check_msrv(readme, manifest["package"], errors)
+    check_toolchains(manifest["package"], errors)
     check_features(readme, manifest, errors)
     check_quickstart(readme, errors)
     check_local_links(errors)

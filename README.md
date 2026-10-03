@@ -3,7 +3,7 @@
 [![CI](https://github.com/ThreatFlux/anthropic_rust_sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/ThreatFlux/anthropic_rust_sdk/actions/workflows/ci.yml)
 [![Documentation](https://docs.rs/threatflux-anthropic-sdk/badge.svg)](https://docs.rs/threatflux-anthropic-sdk)
 [![Crates.io](https://img.shields.io/crates/v/threatflux-anthropic-sdk.svg)](https://crates.io/crates/threatflux-anthropic-sdk)
-[![MSRV](https://img.shields.io/badge/MSRV-1.95.0-blue.svg)](https://www.rust-lang.org/)
+[![MSRV](https://img.shields.io/badge/MSRV-1.99.0-blue.svg)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/crates/l/threatflux-anthropic-sdk.svg)](LICENSE)
 [![Dependencies](https://deps.rs/repo/github/ThreatFlux/anthropic_rust_sdk/status.svg)](https://deps.rs/repo/github/ThreatFlux/anthropic_rust_sdk)
 
@@ -28,7 +28,7 @@ is authoritative for service behavior and availability.
 
 ## Requirements
 
-- Rust 1.95.0 or newer (the minimum supported Rust version, or MSRV).
+- Rust 1.99.0 or newer (the minimum supported Rust version, or MSRV).
 - An Anthropic API key for live requests.
 - An Anthropic Admin API key for administration endpoints.
 
@@ -262,6 +262,7 @@ async fn send(client: &Client, request: MessageRequest) -> Result<(), AnthropicE
 
 - [API documentation](https://docs.rs/threatflux-anthropic-sdk)
 - [API coverage and maturity](docs/api-coverage.md)
+- [SDK feature audit (2026-10-03)](docs/feature-audit-2026-10-03.md)
 - [Configuration and operations](docs/configuration.md)
 - [Endpoint request notes](API_CURL_DOCS.md)
 - [Changelog](CHANGELOG.md)
@@ -274,9 +275,9 @@ async fn send(client: &Client, request: MessageRequest) -> Result<(), AnthropicE
 The fast, credential-free validation path is:
 
 ```bash
-cargo +1.95.0 fmt --all -- --check
-cargo +1.95.0 clippy --all-targets --all-features -- -D warnings
-cargo +1.95.0 test --test unit_suite
+cargo +1.99.0 fmt --all -- --check
+cargo +1.99.0 clippy --all-targets --all-features -- -D warnings
+cargo +1.99.0 test --test unit_suite
 python3 scripts/check_docs.py
 ```
 

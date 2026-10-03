@@ -13,6 +13,7 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  RUSTUP_TOOLCHAIN: stable
 
 permissions:
   contents: read
@@ -83,6 +84,8 @@ jobs:
 
       - name: Compile quickstart
         run: cargo check --example quickstart
+        env:
+          RUSTUP_TOOLCHAIN: ${{ steps.toolchain.outputs.value }}
 
   build-docs:
     name: Build Documentation
@@ -103,6 +106,7 @@ jobs:
       - name: Build documentation
         run: cargo doc --no-deps --all-features --document-private-items
         env:
+          RUSTUP_TOOLCHAIN: nightly
           RUSTDOCFLAGS: "--enable-index-page -Zunstable-options"
       
       - name: Add redirect index.html

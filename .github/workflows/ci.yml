@@ -11,6 +11,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  RUSTUP_TOOLCHAIN: stable
   RUST_BACKTRACE: 1
   RUSTFLAGS: "-D warnings"
 
@@ -21,6 +22,8 @@ jobs:
   test:
     name: Test Suite
     runs-on: ${{ matrix.os }}
+    env:
+      RUSTUP_TOOLCHAIN: ${{ matrix.rust }}
     strategy:
       fail-fast: false
       matrix:
@@ -146,13 +149,13 @@ jobs:
         with:
           persist-credentials: false
       
-      - name: Install Rust 1.95.0
+      - name: Install Rust 1.99.0
         uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
         with:
-          toolchain: "1.95.0"
+          toolchain: "1.99.0"
       
       - name: Check MSRV
-        run: cargo check --all-features
+        run: cargo +1.99.0 check --all-features
 
   examples:
     name: Build Examples
