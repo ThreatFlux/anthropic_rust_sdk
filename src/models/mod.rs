@@ -62,11 +62,12 @@ pub use managed_agents::{
     SessionUpdateRequest, Vault, VaultCreateRequest, VaultListResponse, VaultUpdateRequest,
 };
 pub use message::{
-    ContentBlockDelta, Fallback, FallbackCreditToken, Fallbacks, Message, MessageDelta,
-    MessageRequest, MessageResponse, OutputConfig, OutputEffort, OutputFormat, StreamEvent,
-    SystemBlock, SystemPrompt, TaskBudget, ThinkingConfig, TokenCountRequest, TokenCountResponse,
+    ContentBlockDelta, Fallback, FallbackCreditToken, Fallbacks, FieldUpdate, Message,
+    MessageDelta, MessageRequest, MessageResponse, OutputConfig, OutputEffort, OutputFormat,
+    PromptOptions, StreamEvent, SystemBlock, SystemPrompt, TaskBudget, ThinkingConfig,
+    TokenCountRequest, TokenCountResponse, UsageDelta,
 };
-pub use model::{Model, ModelFamily, ModelListResponse, ModelSize};
+pub use model::{Model, ModelCapabilities, ModelFamily, ModelListResponse, ModelSize};
 pub use skill::{
     Skill, SkillCreateRequest, SkillDeleteResponse, SkillFileUpload, SkillLatestVersion,
     SkillListParams, SkillListResponse, SkillVersion, SkillVersionCreateRequest,

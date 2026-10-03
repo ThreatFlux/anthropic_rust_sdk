@@ -423,6 +423,12 @@ impl MessageBuilder {
         self
     }
 
+    /// Use Sonnet 5.5's thinking updates between tool calls, at low/medium/high effort.
+    pub fn between_tools_thinking(mut self) -> Self {
+        self.request.thinking = Some(ThinkingConfig::between_tools());
+        self
+    }
+
     /// Enable adaptive thinking with a summarized reasoning display
     pub fn adaptive_thinking_summarized(mut self) -> Self {
         self.request.thinking = Some(ThinkingConfig::adaptive_summarized());
@@ -510,6 +516,8 @@ impl MessageBuilder {
             ValidationUtils::validate_thinking_config(&request.model, thinking.budget_tokens)?;
         }
 
+        validate_model_options(&request)?;
+
         Ok(request)
     }
 
@@ -517,6 +525,75 @@ impl MessageBuilder {
     pub fn as_request(&self) -> &MessageRequest {
         &self.request
     }
+}
+
+/// Validate documented restrictions for exact known model IDs.
+///
+/// Unknown IDs pass through unchanged. Low-level HTTP calls remain available for
+/// callers deliberately bypassing local validation as service capabilities evolve.
+pub fn validate_model_options(
+    request: &MessageRequest,
+) -> Result<(), crate::error::AnthropicError> {
+    use crate::config::models::{FABLE_5_1, MYTHOS_5_1, OPUS_5_5, SONNET_5_5};
+    use crate::error::AnthropicError;
+    let is_new = matches!(
+        request.model.as_str(),
+        OPUS_5_5 | SONNET_5_5 | FABLE_5_1 | MYTHOS_5_1
+    );
+    if !is_new {
+        return Ok(());
+    }
+    if request
+        .tool_choice
+        .as_ref()
+        .is_some_and(|choice| matches!(choice.kind(), "any" | "tool"))
+    {
+        return Err(AnthropicError::invalid_input(
+            "This model supports auto or none tool choice; forced tools are unsupported",
+        ));
+    }
+    if request
+        .messages
+        .last()
+        .is_some_and(|message| message.role == Role::Assistant)
+    {
+        return Err(AnthropicError::invalid_input(
+            "This model does not accept assistant prefill",
+        ));
+    }
+    // Current guides recommend omission and do not publish numeric defaults.
+    // Validated builders therefore require omission instead of guessing defaults;
+    // unvalidated low-level calls still preserve explicitly supplied parameters.
+    if request.temperature.is_some() || request.top_p.is_some() || request.top_k.is_some() {
+        return Err(AnthropicError::invalid_input("Omit sampling parameters in validated requests for this model; current numeric defaults are unspecified"));
+    }
+    if let Some(thinking) = &request.thinking {
+        let mode = thinking.thinking_type.as_str();
+        if mode != "adaptive" && !(request.model == SONNET_5_5 && mode == "between_tools") {
+            return Err(AnthropicError::invalid_input(
+                "This model requires adaptive thinking (Sonnet 5.5 also accepts between_tools)",
+            ));
+        }
+        if thinking.budget_tokens.is_some() || thinking.allow_tool_use.is_some() {
+            return Err(AnthropicError::invalid_input(
+                "Legacy thinking budgets and allow_tool_use are unsupported on this model",
+            ));
+        }
+        if mode == "between_tools" {
+            thinking.validate_between_tools()?;
+            if request
+                .output_config
+                .as_ref()
+                .and_then(|config| config.effort.as_ref())
+                .is_some_and(|effort| matches!(effort, OutputEffort::XHigh | OutputEffort::Max))
+            {
+                return Err(AnthropicError::invalid_input(
+                    "between_tools requires low, medium or high effort",
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 impl Default for MessageBuilder {

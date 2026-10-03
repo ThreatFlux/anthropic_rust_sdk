@@ -235,6 +235,103 @@ impl Pagination {
         self.before = Some(before.into());
         self
     }
+
+    /// Validate the page size and mutually exclusive directional cursors.
+    pub fn validate(&self) -> crate::error::Result<()> {
+        if self.after.is_some() && self.before.is_some() {
+            return Err(crate::error::AnthropicError::invalid_input(
+                "Pagination cannot contain both after and before",
+            ));
+        }
+        if self.limit == Some(0) {
+            return Err(crate::error::AnthropicError::invalid_input(
+                "Pagination limit must be positive",
+            ));
+        }
+        if self.after.as_deref() == Some("") || self.before.as_deref() == Some("") {
+            return Err(crate::error::AnthropicError::invalid_input(
+                "Pagination cursors must not be empty",
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// Finite traversal ceilings. Reaching a ceiling while more data exists is an error.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct PaginationLimits {
+    /// Maximum number of HTTP pages. Defaults to 100.
+    pub max_pages: usize,
+    /// Maximum number of items. Defaults to 10,000.
+    pub max_items: usize,
+}
+
+impl Default for PaginationLimits {
+    fn default() -> Self {
+        Self {
+            max_pages: 100,
+            max_items: 10_000,
+        }
+    }
+}
+
+impl PaginationLimits {
+    /// Construct and validate finite, positive traversal limits.
+    pub fn new(max_pages: usize, max_items: usize) -> crate::error::Result<Self> {
+        let limits = Self {
+            max_pages,
+            max_items,
+        };
+        limits.validate()?;
+        Ok(limits)
+    }
+
+    /// Reject zero limits before requesting any page.
+    pub fn validate(&self) -> crate::error::Result<()> {
+        if self.max_pages == 0 || self.max_items == 0 {
+            return Err(crate::error::AnthropicError::invalid_input(
+                "Pagination limits must be positive",
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// Lazily fetched pages. Polling applies backpressure; dropping cancels in-flight work.
+pub struct PageStream<T> {
+    inner: std::pin::Pin<Box<dyn futures::Stream<Item = crate::error::Result<Vec<T>>> + Send>>,
+}
+
+impl<T> PageStream<T> {
+    pub(crate) fn new(
+        stream: impl futures::Stream<Item = crate::error::Result<Vec<T>>> + Send + 'static,
+    ) -> Self {
+        Self {
+            inner: Box::pin(stream),
+        }
+    }
+
+    /// Collect every page, returning an error rather than a truncated vector.
+    pub async fn collect_items(mut self) -> crate::error::Result<Vec<T>> {
+        use futures::StreamExt;
+        let mut items = Vec::new();
+        while let Some(page) = self.next().await {
+            items.extend(page?);
+        }
+        Ok(items)
+    }
+}
+
+impl<T> futures::Stream for PageStream<T> {
+    type Item = crate::error::Result<Vec<T>>;
+
+    fn poll_next(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        self.inner.as_mut().poll_next(cx)
+    }
 }
 
 /// Paginated response wrapper

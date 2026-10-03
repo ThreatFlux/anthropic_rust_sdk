@@ -287,11 +287,7 @@ impl SendEvent {
     /// Build a user text message event.
     pub fn user_text(text: impl Into<String>) -> Self {
         Self::UserMessage {
-            content: vec![ContentBlock::Text {
-                text: text.into(),
-                citations: None,
-                cache_control: None,
-            }],
+            content: vec![ContentBlock::text(text)],
         }
     }
 

@@ -66,7 +66,9 @@ pub mod client;
 pub mod config;
 pub mod error;
 pub mod models;
+pub mod oauth;
 pub mod streaming;
+pub mod tool_runner;
 pub mod types;
 pub mod utils;
 
@@ -74,6 +76,7 @@ pub mod utils;
 pub use client::Client;
 pub use config::{Config, DEFAULT_MODEL};
 pub use error::{AnthropicError, Result};
+pub use oauth::{OAuthAdminClient, OAuthConfig, OAuthPrincipal, OAuthToken, TokenProvider};
 
 // Re-export commonly used model types
 pub use models::{
@@ -260,6 +263,17 @@ pub use models::{
     WorkspaceStatus,
     DEFAULT_COMPLETION_MODEL,
 };
+
+pub use api::message_batches::{BatchResultsStream, BatchResultsStreamOptions};
+pub use models::common::{RawContentBlock, ReplayUnknownPolicy};
+pub use models::message::{FieldUpdate, PromptOptions, UsageDelta};
+pub use models::model::ModelCapabilities;
+pub use models::skill::{
+    CurrentSkill, CurrentSkillCreateRequest, CurrentSkillListResponse, CurrentSkillVersion,
+    CurrentSkillVersionCreateRequest, CurrentSkillVersionListResponse,
+};
+pub use streaming::StreamLimits;
+pub use types::{PageStream, PaginationLimits};
 
 // Re-export utility types
 pub use types::{

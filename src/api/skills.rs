@@ -1,20 +1,19 @@
 //! Skills API implementation
 
 use crate::{
-    api::utils::build_path_with_query,
-    client::{beta_headers, Client, API_VERSION},
+    api::utils::{build_path_with_query, encode_query_value, paginate, TraversalPage},
+    client::{beta_headers, Client},
     error::{AnthropicError, Result},
     models::skill::{
-        Skill, SkillCreateRequest, SkillDeleteResponse, SkillFileUpload, SkillListParams,
+        CurrentSkill, CurrentSkillCreateRequest, CurrentSkillListResponse, CurrentSkillVersion,
+        CurrentSkillVersionCreateRequest, CurrentSkillVersionListResponse, Skill,
+        SkillCreateRequest, SkillDeleteResponse, SkillFileUpload, SkillListParams,
         SkillListResponse, SkillVersion, SkillVersionCreateRequest, SkillVersionDeleteResponse,
         SkillVersionListParams, SkillVersionListResponse,
     },
-    types::{HttpMethod, RequestOptions},
+    types::{HttpMethod, PageStream, PaginationLimits, RequestOptions},
 };
-use reqwest::{
-    header::{HeaderMap, HeaderValue},
-    multipart::{Form, Part},
-};
+use reqwest::multipart::{Form, Part};
 use serde::de::DeserializeOwned;
 use std::{collections::HashMap, path::Path};
 
@@ -33,70 +32,6 @@ impl SkillsApi {
     /// Ensure requests to the Skills API include the required beta header.
     fn with_skills_beta(options: Option<RequestOptions>) -> Option<RequestOptions> {
         Some(options.unwrap_or_default().with_skills_api())
-    }
-
-    /// Build headers for multipart skill requests.
-    fn build_skill_headers(&self, options: &Option<RequestOptions>) -> Result<HeaderMap> {
-        let mut headers = HeaderMap::new();
-
-        let auth_value = format!("Bearer {}", self.client.config().api_key);
-        headers.insert(
-            "Authorization",
-            HeaderValue::from_str(&auth_value)
-                .map_err(|e| AnthropicError::config(format!("Invalid auth header: {}", e)))?,
-        );
-
-        headers.insert("anthropic-version", HeaderValue::from_static(API_VERSION));
-
-        headers.insert(
-            "User-Agent",
-            HeaderValue::from_str(&self.client.config().user_agent)
-                .map_err(|e| AnthropicError::config(format!("Invalid user agent: {}", e)))?,
-        );
-
-        let mut beta_features = vec![beta_headers::SKILLS_API];
-
-        if let Some(options) = options {
-            if options.enable_files_api {
-                beta_features.push(beta_headers::FILES_API);
-            }
-            if options.enable_pdf_support {
-                beta_features.push(beta_headers::PDF_SUPPORT);
-            }
-            if options.enable_prompt_caching {
-                beta_features.push(beta_headers::PROMPT_CACHING);
-            }
-            if options.enable_1m_context {
-                beta_features.push(beta_headers::CONTEXT_1M);
-            }
-            if options.enable_extended_thinking_tools {
-                beta_features.push(beta_headers::EXTENDED_THINKING_TOOLS);
-            }
-
-            beta_features.extend(options.beta_features.iter().map(|s| s.as_str()));
-        }
-
-        let beta_header_value = beta_features.join(",");
-        headers.insert(
-            "anthropic-beta",
-            HeaderValue::from_str(&beta_header_value)
-                .map_err(|e| AnthropicError::config(format!("Invalid beta header: {}", e)))?,
-        );
-
-        if let Some(options) = options {
-            for (key, value) in &options.headers {
-                let header_name = reqwest::header::HeaderName::from_bytes(key.as_bytes())
-                    .map_err(|e| AnthropicError::config(format!("Invalid header name: {}", e)))?;
-                headers.insert(
-                    header_name,
-                    HeaderValue::from_str(value).map_err(|e| {
-                        AnthropicError::config(format!("Invalid header value: {}", e))
-                    })?,
-                );
-            }
-        }
-
-        Ok(headers)
     }
 
     /// Build multipart form payload for skill upload operations.
@@ -134,42 +69,9 @@ impl SkillsApi {
     where
         T: DeserializeOwned,
     {
-        let mut url = self.client.config().base_url.clone();
-        url.set_path(&format!("/v1{}", path));
-
-        let options = Self::with_skills_beta(options);
-        let headers = self.build_skill_headers(&options)?;
-
-        let request_client = reqwest::Client::new();
-        let mut request_builder = match method {
-            HttpMethod::Post => request_client.post(url),
-            HttpMethod::Put => request_client.put(url),
-            HttpMethod::Patch => request_client.patch(url),
-            _ => {
-                return Err(AnthropicError::invalid_input(
-                    "Multipart skills requests only support POST, PUT, or PATCH",
-                ))
-            }
-        }
-        .headers(headers)
-        .multipart(form);
-
-        if let Some(timeout) = options.as_ref().and_then(|o| o.timeout) {
-            request_builder = request_builder.timeout(timeout);
-        }
-
-        let response = request_builder.send().await?;
-        let status = response.status();
-
-        if !status.is_success() {
-            let error_text = response.text().await.unwrap_or_default();
-            return Err(AnthropicError::api_error(status.as_u16(), error_text, None));
-        }
-
-        response
-            .json::<T>()
+        self.client
+            .request_multipart(method, path, form, Self::with_skills_beta(options))
             .await
-            .map_err(|e| AnthropicError::json(e.to_string()))
     }
 
     /// Convert a local directory into skill upload files.
@@ -297,14 +199,15 @@ impl SkillsApi {
         let mut query_params = Vec::new();
 
         if let Some(params) = params {
+            validate_skill_pagination(params.limit, params.page.as_deref())?;
             if let Some(limit) = params.limit {
                 query_params.push(format!("limit={}", limit));
             }
             if let Some(page) = params.page {
-                query_params.push(format!("page={}", page));
+                query_params.push(format!("page={}", encode_query_value(&page)));
             }
             if let Some(source) = params.source {
-                query_params.push(format!("source={}", source));
+                query_params.push(format!("source={}", encode_query_value(&source)));
             }
         }
 
@@ -321,33 +224,12 @@ impl SkillsApi {
 
     /// List all skills by following pagination
     pub async fn list_all(&self, options: Option<RequestOptions>) -> Result<Vec<Skill>> {
-        let mut all_skills = Vec::new();
-        let mut next_page: Option<String> = None;
-
-        loop {
-            let mut params = SkillListParams::new().with_limit(100);
-            if let Some(page) = &next_page {
-                params = params.with_page(page.clone());
-            }
-
-            let response = self.list(Some(params), options.clone()).await?;
-            all_skills.extend(response.data);
-
-            if !response.has_more {
-                break;
-            }
-
-            if let Some(page) = response.next_page {
-                if page.is_empty() {
-                    break;
-                }
-                next_page = Some(page);
-            } else {
-                break;
-            }
-        }
-
-        Ok(all_skills)
+        self.list_all_with_limits(
+            SkillListParams::new().with_limit(100),
+            PaginationLimits::default(),
+            options,
+        )
+        .await
     }
 
     /// Retrieve a skill
@@ -444,11 +326,12 @@ impl SkillsApi {
         let mut query_params = Vec::new();
 
         if let Some(params) = params {
+            validate_skill_pagination(params.limit, params.page.as_deref())?;
             if let Some(limit) = params.limit {
                 query_params.push(format!("limit={}", limit));
             }
             if let Some(page) = params.page {
-                query_params.push(format!("page={}", page));
+                query_params.push(format!("page={}", encode_query_value(&page)));
             }
         }
 
@@ -469,35 +352,13 @@ impl SkillsApi {
         skill_id: &str,
         options: Option<RequestOptions>,
     ) -> Result<Vec<SkillVersion>> {
-        let mut all_versions = Vec::new();
-        let mut next_page: Option<String> = None;
-
-        loop {
-            let mut params = SkillVersionListParams::new().with_limit(100);
-            if let Some(page) = &next_page {
-                params = params.with_page(page.clone());
-            }
-
-            let response = self
-                .list_versions(skill_id, Some(params), options.clone())
-                .await?;
-            all_versions.extend(response.data);
-
-            if !response.has_more {
-                break;
-            }
-
-            if let Some(page) = response.next_page {
-                if page.is_empty() {
-                    break;
-                }
-                next_page = Some(page);
-            } else {
-                break;
-            }
-        }
-
-        Ok(all_versions)
+        self.list_all_versions_with_limits(
+            skill_id,
+            SkillVersionListParams::new().with_limit(100),
+            PaginationLimits::default(),
+            options,
+        )
+        .await
     }
 
     /// Get a specific skill version.
@@ -603,6 +464,495 @@ impl SkillsApi {
                 e
             ))
         })
+    }
+    /// Lazily traverse legacy Skills pages while preserving filters and options.
+    pub fn pages(
+        &self,
+        mut params: SkillListParams,
+        limits: PaginationLimits,
+        options: Option<RequestOptions>,
+    ) -> Result<PageStream<Skill>> {
+        validate_skill_pagination(params.limit, params.page.as_deref())?;
+        params.limit = params.limit.or(Some(100));
+        let initial = params.page.take();
+        let api = self.clone();
+        paginate(limits, initial, move |cursor| {
+            let api = api.clone();
+            let mut params = params.clone();
+            let options = options.clone();
+            params.page = cursor;
+            async move {
+                let response = api.list(Some(params), options).await?;
+                let next_cursor = legacy_skill_cursor(response.has_more, response.next_page)?;
+                let item_ids = response.data.iter().map(|skill| skill.id.clone()).collect();
+                Ok(TraversalPage {
+                    data: response.data,
+                    next_cursor,
+                    item_ids,
+                })
+            }
+        })
+    }
+
+    /// Collect Skills with explicit finite traversal ceilings.
+    pub async fn list_all_with_limits(
+        &self,
+        params: SkillListParams,
+        limits: PaginationLimits,
+        options: Option<RequestOptions>,
+    ) -> Result<Vec<Skill>> {
+        self.pages(params, limits, options)?.collect_items().await
+    }
+
+    /// Lazily traverse versions on the historical beta path.
+    pub fn version_pages(
+        &self,
+        skill_id: &str,
+        mut params: SkillVersionListParams,
+        limits: PaginationLimits,
+        options: Option<RequestOptions>,
+    ) -> Result<PageStream<SkillVersion>> {
+        validate_skill_pagination(params.limit, params.page.as_deref())?;
+        params.limit = params.limit.or(Some(100));
+        let initial = params.page.take();
+        let api = self.clone();
+        let skill_id = skill_id.to_string();
+        paginate(limits, initial, move |cursor| {
+            let api = api.clone();
+            let skill_id = skill_id.clone();
+            let mut params = params.clone();
+            let options = options.clone();
+            params.page = cursor;
+            async move {
+                let response = api.list_versions(&skill_id, Some(params), options).await?;
+                let next_cursor = legacy_skill_cursor(response.has_more, response.next_page)?;
+                let item_ids = response
+                    .data
+                    .iter()
+                    .map(|version| version.id.clone())
+                    .collect();
+                Ok(TraversalPage {
+                    data: response.data,
+                    next_cursor,
+                    item_ids,
+                })
+            }
+        })
+    }
+
+    /// Collect every legacy version, failing instead of truncating at a limit.
+    pub async fn list_all_versions_with_limits(
+        &self,
+        skill_id: &str,
+        params: SkillVersionListParams,
+        limits: PaginationLimits,
+        options: Option<RequestOptions>,
+    ) -> Result<Vec<SkillVersion>> {
+        self.version_pages(skill_id, params, limits, options)?
+            .collect_items()
+            .await
+    }
+}
+
+fn validate_skill_pagination(limit: Option<u32>, page: Option<&str>) -> Result<()> {
+    if limit.is_some_and(|value| !(1..=1000).contains(&value)) {
+        return Err(AnthropicError::invalid_input(
+            "Skill page size must be between 1 and 1000",
+        ));
+    }
+    if page == Some("") {
+        return Err(AnthropicError::invalid_input(
+            "Skill page token must not be empty",
+        ));
+    }
+    Ok(())
+}
+
+fn legacy_skill_cursor(has_more: bool, next_page: Option<String>) -> Result<Option<String>> {
+    if has_more && next_page.is_none() {
+        return Err(AnthropicError::invalid_input(
+            "Legacy Skills response has_more without next_page",
+        ));
+    }
+    // Token cursors themselves determine continuation, even if has_more was omitted.
+    Ok(next_page)
+}
+
+fn current_skill_options(options: Option<RequestOptions>) -> Result<Option<RequestOptions>> {
+    if let Some(options) = &options {
+        let conflicting_header = options.headers.iter().any(|(name, value)| {
+            name.eq_ignore_ascii_case("anthropic-beta")
+                && value
+                    .split(',')
+                    .any(|beta| beta.trim() == beta_headers::SKILLS_API)
+        });
+        if options.enable_skills_api
+            || options.beta_features.iter().any(|entry| {
+                entry
+                    .split(',')
+                    .any(|beta| beta.trim() == beta_headers::SKILLS_API)
+            })
+            || conflicting_header
+        {
+            return Err(AnthropicError::invalid_input(
+                "Current Skills cannot use skills-2025-10-02; use skills_legacy() for that schema",
+            ));
+        }
+    }
+    Ok(options)
+}
+
+fn skill_path_segment(id: &str) -> Result<String> {
+    if id.is_empty() || matches!(id, "." | "..") {
+        return Err(AnthropicError::invalid_input(
+            "Skill and version IDs must not be empty or dot path segments",
+        ));
+    }
+    Ok(id
+        .bytes()
+        .map(|byte| {
+            if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~') {
+                char::from(byte).to_string()
+            } else {
+                format!("%{byte:02X}")
+            }
+        })
+        .collect())
+}
+
+/// Current Skills client, using object sources and version IDs without the dated beta header.
+///
+/// Existing [`SkillsApi`] calls retain their legacy schema. Explicit unrelated beta and
+/// workspace headers are preserved; choosing the legacy Skills header here is an error.
+#[derive(Clone)]
+pub struct CurrentSkillsApi {
+    client: Client,
+}
+
+impl CurrentSkillsApi {
+    /// Construct the current-schema Skills client.
+    pub fn new(client: Client) -> Self {
+        Self { client }
+    }
+
+    /// List one current page; continuation is represented by `next_page`.
+    pub async fn list(
+        &self,
+        params: Option<SkillListParams>,
+        options: Option<RequestOptions>,
+    ) -> Result<CurrentSkillListResponse> {
+        let params = params.unwrap_or_default();
+        validate_skill_pagination(params.limit, params.page.as_deref())?;
+        let mut query = Vec::new();
+        if let Some(limit) = params.limit {
+            query.push(format!("limit={limit}"));
+        }
+        if let Some(page) = params.page {
+            query.push(format!("page={}", encode_query_value(&page)));
+        }
+        if let Some(source) = params.source {
+            query.push(format!("source={}", encode_query_value(&source)));
+        }
+        self.client
+            .request(
+                HttpMethod::Get,
+                &build_path_with_query("/skills", query),
+                None,
+                current_skill_options(options)?,
+            )
+            .await
+    }
+
+    /// Retrieve a current skill and its latest-version ID.
+    pub async fn get(
+        &self,
+        skill_id: &str,
+        options: Option<RequestOptions>,
+    ) -> Result<CurrentSkill> {
+        self.client
+            .request(
+                HttpMethod::Get,
+                &format!("/skills/{}", skill_path_segment(skill_id)?),
+                None,
+                current_skill_options(options)?,
+            )
+            .await
+    }
+
+    /// Create a skill with `display_name` and validated upload layout.
+    pub async fn create(
+        &self,
+        request: CurrentSkillCreateRequest,
+        options: Option<RequestOptions>,
+    ) -> Result<CurrentSkill> {
+        request.validate()?;
+        let mut form = SkillsApi::build_skill_upload_form(None, request.files)?;
+        if let Some(name) = request.display_name {
+            form = form.text("display_name", name);
+        }
+        self.client
+            .request_multipart(
+                HttpMethod::Post,
+                "/skills",
+                form,
+                current_skill_options(options)?,
+            )
+            .await
+    }
+
+    /// Create a current skill from a local directory, refusing symlinks.
+    pub async fn create_from_dir(
+        &self,
+        dir: impl AsRef<Path>,
+        display_name: Option<&str>,
+        options: Option<RequestOptions>,
+    ) -> Result<CurrentSkill> {
+        let files = SkillsApi::build_upload_files_from_dir(dir.as_ref()).await?;
+        let mut request = CurrentSkillCreateRequest::new();
+        request.files = files;
+        if let Some(name) = display_name {
+            request = request.display_name(name);
+        }
+        self.create(request, options).await
+    }
+
+    /// Delete a current skill.
+    pub async fn delete(
+        &self,
+        skill_id: &str,
+        options: Option<RequestOptions>,
+    ) -> Result<SkillDeleteResponse> {
+        self.client
+            .request(
+                HttpMethod::Delete,
+                &format!("/skills/{}", skill_path_segment(skill_id)?),
+                None,
+                current_skill_options(options)?,
+            )
+            .await
+    }
+
+    /// List current version IDs and metadata.
+    pub async fn list_versions(
+        &self,
+        skill_id: &str,
+        params: Option<SkillVersionListParams>,
+        options: Option<RequestOptions>,
+    ) -> Result<CurrentSkillVersionListResponse> {
+        let params = params.unwrap_or_default();
+        validate_skill_pagination(params.limit, params.page.as_deref())?;
+        let mut query = Vec::new();
+        if let Some(limit) = params.limit {
+            query.push(format!("limit={limit}"));
+        }
+        if let Some(page) = params.page {
+            query.push(format!("page={}", encode_query_value(&page)));
+        }
+        self.client
+            .request(
+                HttpMethod::Get,
+                &build_path_with_query(
+                    &format!("/skills/{}/versions", skill_path_segment(skill_id)?),
+                    query,
+                ),
+                None,
+                current_skill_options(options)?,
+            )
+            .await
+    }
+
+    /// Retrieve a version by ID, or the literal `latest`.
+    pub async fn get_version(
+        &self,
+        skill_id: &str,
+        version_id: &str,
+        options: Option<RequestOptions>,
+    ) -> Result<CurrentSkillVersion> {
+        self.client
+            .request(
+                HttpMethod::Get,
+                &format!(
+                    "/skills/{}/versions/{}",
+                    skill_path_segment(skill_id)?,
+                    skill_path_segment(version_id)?
+                ),
+                None,
+                current_skill_options(options)?,
+            )
+            .await
+    }
+
+    /// Upload a new version; paths use version IDs rather than epoch timestamps.
+    pub async fn create_version(
+        &self,
+        skill_id: &str,
+        request: CurrentSkillVersionCreateRequest,
+        options: Option<RequestOptions>,
+    ) -> Result<CurrentSkillVersion> {
+        request.validate()?;
+        let form = SkillsApi::build_skill_upload_form(None, request.files)?;
+        self.client
+            .request_multipart(
+                HttpMethod::Post,
+                &format!("/skills/{}/versions", skill_path_segment(skill_id)?),
+                form,
+                current_skill_options(options)?,
+            )
+            .await
+    }
+
+    /// Convenience alias: updates create a new immutable version.
+    pub async fn update(
+        &self,
+        skill_id: &str,
+        request: CurrentSkillVersionCreateRequest,
+        options: Option<RequestOptions>,
+    ) -> Result<CurrentSkillVersion> {
+        self.create_version(skill_id, request, options).await
+    }
+
+    /// Upload a version from a symlink-free directory.
+    pub async fn create_version_from_dir(
+        &self,
+        skill_id: &str,
+        dir: impl AsRef<Path>,
+        options: Option<RequestOptions>,
+    ) -> Result<CurrentSkillVersion> {
+        let files = SkillsApi::build_upload_files_from_dir(dir.as_ref()).await?;
+        let mut request = CurrentSkillVersionCreateRequest::new();
+        request.files = files;
+        self.create_version(skill_id, request, options).await
+    }
+
+    /// Delete a current version by its ID.
+    pub async fn delete_version(
+        &self,
+        skill_id: &str,
+        version_id: &str,
+        options: Option<RequestOptions>,
+    ) -> Result<SkillVersionDeleteResponse> {
+        self.client
+            .request(
+                HttpMethod::Delete,
+                &format!(
+                    "/skills/{}/versions/{}",
+                    skill_path_segment(skill_id)?,
+                    skill_path_segment(version_id)?
+                ),
+                None,
+                current_skill_options(options)?,
+            )
+            .await
+    }
+
+    /// Traverse current skill pages lazily, preserving source and request options.
+    pub fn pages(
+        &self,
+        mut params: SkillListParams,
+        limits: PaginationLimits,
+        options: Option<RequestOptions>,
+    ) -> Result<PageStream<CurrentSkill>> {
+        validate_skill_pagination(params.limit, params.page.as_deref())?;
+        current_skill_options(options.clone())?;
+        params.limit = params.limit.or(Some(100));
+        let initial = params.page.take();
+        let api = self.clone();
+        paginate(limits, initial, move |cursor| {
+            let api = api.clone();
+            let mut params = params.clone();
+            let options = options.clone();
+            params.page = cursor;
+            async move {
+                let response = api.list(Some(params), options).await?;
+                let item_ids = response.data.iter().map(|skill| skill.id.clone()).collect();
+                Ok(TraversalPage {
+                    data: response.data,
+                    next_cursor: response.next_page,
+                    item_ids,
+                })
+            }
+        })
+    }
+
+    /// Collect current skill pages with finite default ceilings.
+    pub async fn list_all(&self, options: Option<RequestOptions>) -> Result<Vec<CurrentSkill>> {
+        self.list_all_with_limits(SkillListParams::new(), PaginationLimits::default(), options)
+            .await
+    }
+
+    /// Collect current skill pages, failing at an explicit ceiling.
+    pub async fn list_all_with_limits(
+        &self,
+        params: SkillListParams,
+        limits: PaginationLimits,
+        options: Option<RequestOptions>,
+    ) -> Result<Vec<CurrentSkill>> {
+        self.pages(params, limits, options)?.collect_items().await
+    }
+
+    /// Traverse current versions lazily and independently of `has_more`.
+    pub fn version_pages(
+        &self,
+        skill_id: &str,
+        mut params: SkillVersionListParams,
+        limits: PaginationLimits,
+        options: Option<RequestOptions>,
+    ) -> Result<PageStream<CurrentSkillVersion>> {
+        validate_skill_pagination(params.limit, params.page.as_deref())?;
+        skill_path_segment(skill_id)?;
+        current_skill_options(options.clone())?;
+        params.limit = params.limit.or(Some(100));
+        let initial = params.page.take();
+        let api = self.clone();
+        let skill_id = skill_id.to_string();
+        paginate(limits, initial, move |cursor| {
+            let api = api.clone();
+            let skill_id = skill_id.clone();
+            let mut params = params.clone();
+            let options = options.clone();
+            params.page = cursor;
+            async move {
+                let response = api.list_versions(&skill_id, Some(params), options).await?;
+                let item_ids = response
+                    .data
+                    .iter()
+                    .map(|version| version.id.clone())
+                    .collect();
+                Ok(TraversalPage {
+                    data: response.data,
+                    next_cursor: response.next_page,
+                    item_ids,
+                })
+            }
+        })
+    }
+
+    /// Collect every current version subject to finite defaults.
+    pub async fn list_all_versions(
+        &self,
+        skill_id: &str,
+        options: Option<RequestOptions>,
+    ) -> Result<Vec<CurrentSkillVersion>> {
+        self.list_all_versions_with_limits(
+            skill_id,
+            SkillVersionListParams::new(),
+            PaginationLimits::default(),
+            options,
+        )
+        .await
+    }
+
+    /// Collect current versions subject to explicit finite limits.
+    pub async fn list_all_versions_with_limits(
+        &self,
+        skill_id: &str,
+        params: SkillVersionListParams,
+        limits: PaginationLimits,
+        options: Option<RequestOptions>,
+    ) -> Result<Vec<CurrentSkillVersion>> {
+        self.version_pages(skill_id, params, limits, options)?
+            .collect_items()
+            .await
     }
 }
 

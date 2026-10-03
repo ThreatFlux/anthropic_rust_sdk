@@ -5,10 +5,8 @@ concurrency:
   cancel-in-progress: true
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
-    branches: [main]
+  # Release Please owns automatic releases. This optional manual helper stages
+  # a reviewable release PR instead of independently tagging an API migration.
   workflow_dispatch:
     inputs:
       version_bump:
@@ -36,4 +34,5 @@ jobs:
     uses: ThreatFlux/github_actions/.github/workflows/reusable-auto-release.yml@7a5f08885a77520db023882c8de17d9e6580b7ae # v0.7.5
     with:
       bump: ${{ github.event.inputs.version_bump || 'auto' }}
+      create-pr: true
       required-workflows: ci.yml

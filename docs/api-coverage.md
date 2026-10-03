@@ -1,6 +1,6 @@
 # API coverage and maturity
 
-> Source snapshot: 2026-08-02, based on the repository's `main` branch.
+> Source snapshot: 2026-10-03, including the unreleased 0.4 migration.
 
 This page records the high-level clients and operations visible in this source
 tree. It does not certify live-service parity, account eligibility, or support
@@ -26,16 +26,17 @@ service authority.
 
 | Surface | Status | Implemented in this SDK | Important limits | Source |
 | --- | --- | --- | --- | --- |
-| Messages | **Supported** | Create messages, consume typed SSE streams, count tokens, and use typed content/tool models | Streaming has no automatic reconnect, resume, or retry; new event variants and optional fields can require a crate update | [client](../src/api/messages.rs) · [models](../src/models/message.rs) · [streaming](../src/streaming/message_stream.rs) |
-| Models | **Supported** | List and retrieve models, paginate all results, filter by locally modeled capability, and check existence | Local capability helpers are SDK metadata and can lag the service catalog | [client](../src/api/models.rs) · [models](../src/models/model.rs) |
-| Message batches | **Supported** | Create, retrieve, list, cancel, delete, fetch raw or parsed results, filter locally, and poll for completion | Polling is client-side and the caller chooses both interval and total timeout | [client](../src/api/message_batches.rs) · [models](../src/models/batch.rs) |
-| Files | **Supported** | Upload bytes or paths, list, retrieve metadata, download bytes or paths, delete, and filter by purpose | Large-file memory and disk behavior depends on the helper selected; preview headers can still be required by the service | [client](../src/api/files.rs) · [models](../src/models/file.rs) |
-| Skills and versions | **Preview** | List, retrieve, create, update, and delete skills; list, retrieve, create, and delete versions; build uploads from a directory | This surface uses beta headers and service availability can be account-specific | [client](../src/api/skills.rs) · [models](../src/models/skill.rs) |
+| Messages | **Supported** | Create messages, consume typed SSE streams, count tokens, and use typed content/tool models | Strict terminal collection, lossless unknown payloads and presence-aware usage; streaming has no automatic reconnect or retry | [client](../src/api/messages.rs) · [models](../src/models/message.rs) · [streaming](../src/streaming/message_stream.rs) |
+| Models | **Supported** | List/retrieve models, bounded lazy pagination, full capability metadata, conservative capability queries, and existence checks | Local capability helpers are SDK metadata and can lag the service catalog | [client](../src/api/models.rs) · [models](../src/models/model.rs) |
+| Message batches | **Supported** | Create/retrieve/list/cancel/delete, bounded incremental JSONL results, buffered raw/text results, and completion polling | Polling is client-side and the caller chooses both interval and total timeout | [client](../src/api/message_batches.rs) · [models](../src/models/batch.rs) |
+| Files | **Supported** | Upload bytes/paths with expiration, token-paged lists and ID lookup, metadata, content download, and deletion | Large-file memory and disk behavior depends on the helper selected; preview headers can still be required by the service | [client](../src/api/files.rs) · [models](../src/models/file.rs) |
+| Skills and versions | **Supported** | Separate current and legacy schema clients, skill/version lifecycle, bounded pagination, directory uploads | Legacy client keeps the dated beta header; current client rejects conflicting legacy header selection | [client](../src/api/skills.rs) · [models](../src/models/skill.rs) |
+| Optional tool runner | **Supported** | Explicit callbacks/decoders, finite budgets, bounded concurrency, cancellation, complete-turn streaming adapter and partial transcripts | Callback side effects are caller-controlled; unknown replay and compaction need explicit policies | [runner](../src/tool_runner.rs) |
 | Text completions | **Legacy** | Submit a text-completion request and deserialize the response | No streaming or broader lifecycle operations; new integrations should normally begin with Messages | [client](../src/api/completions.rs) · [models](../src/models/completion.rs) |
 
 ## Administration
 
-Administration requires a separate `ANTHROPIC_ADMIN_KEY`.
+Existing key-based administration requires `ANTHROPIC_ADMIN_KEY`.
 
 | Surface | Status | Implemented in this SDK | Important limits | Source |
 | --- | --- | --- | --- | --- |
@@ -43,6 +44,15 @@ Administration requires a separate `ANTHROPIC_ADMIN_KEY`.
 | Workspaces | **Supported** | List, retrieve, create, update, delete, archive, and restore workspaces; manage workspace members | New administration fields can require a crate update | [client](../src/api/admin/workspace.rs) |
 | API keys | **Partial** | List, retrieve, update, paginate all, and filter keys | Create, rotate, and delete helpers deliberately return `InvalidInput` because those operations are not implemented against a public endpoint | [client](../src/api/admin/api_keys.rs) |
 | Usage | **Partial** | Message usage/cost reports, Claude Code usage reports, scoped usage queries, summaries, history, and top-key helpers | Convenience aggregations are SDK behavior; compare billing-sensitive results with the Anthropic Console | [client](../src/api/admin/usage.rs) |
+
+The separate `OAuthAdminClient` uses bearer credentials for the following
+OAuth-only resources; these endpoints reject Admin API keys.
+
+| Surface | Status | Implemented in this SDK | Important limits | Source |
+| --- | --- | --- | --- | --- |
+| OAuth service accounts | **Supported** | Create/get/list/update/archive, account and workspace membership operations, bounded token pagination | Admin-role creation/promotion requires an interactive user credential | [client and DTOs](../src/oauth/resources.rs) |
+| OAuth federation issuers and rules | **Supported** | Create/get/list/update/archive, rule workspace bindings, typed JWKS configurations | API callers can modify only workspace developer/inference rules; broader-scope bootstrap uses the Console | [client and DTOs](../src/oauth/resources.rs) |
+| Federation token provider | **Supported** | Explicit JWT-bearer exchange, rotating token-file reread, expiry-aware shared OAuth client refresh | Requires an existing trusted rule and eligible service account/workspace; no interactive login or implicit metadata discovery | [provider](../src/oauth/wif.rs) · [transport](../src/oauth/mod.rs) |
 
 ## Beta and research-preview resources
 
@@ -63,14 +73,18 @@ request method for required `RequestOptions`.
 - The generic `Client::request` and `Client::request_admin` methods are public
   escape hatches, but their existence does not make an unmodeled endpoint
   supported.
-- Unknown optional response fields are generally ignored by Serde. A new enum
-  variant or changed field type can still cause deserialization to fail.
+- Core message/content/usage and current resource DTOs retain unknown payloads
+  and metadata. Unsupported delta accumulation fails explicitly while raw events
+  remain available. Other older resource types can still ignore optional fields.
 - Non-streaming retry behavior applies below each resource client. Read
   [configuration and operations](configuration.md#retries-and-idempotency)
   before relying on it for create or mutation calls.
 - A module's presence does not prove that every operation is exercised against
   the live service. The default test suite uses unit and mock-server coverage;
   live tests are opt-in.
+
+See [the 0.4 migration guide](migration-0.4.md) for source compatibility,
+release staging, and the offline/live validation boundary.
 
 ## Reporting a mismatch
 

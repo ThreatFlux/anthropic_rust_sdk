@@ -1,11 +1,11 @@
 //! Models API implementation
 
 use crate::{
-    api::utils::{build_paginated_path, create_default_pagination},
+    api::utils::{build_paginated_path, id_cursor, paginate, TraversalPage},
     client::Client,
     error::Result,
     models::model::{Model, ModelListResponse},
-    types::{HttpMethod, Pagination, RequestOptions},
+    types::{HttpMethod, PageStream, Pagination, PaginationLimits, RequestOptions},
 };
 
 /// API client for Models endpoints
@@ -42,6 +42,9 @@ impl ModelsApi {
         pagination: Option<Pagination>,
         options: Option<RequestOptions>,
     ) -> Result<ModelListResponse> {
+        if let Some(pagination) = &pagination {
+            pagination.validate()?;
+        }
         let path = build_paginated_path("/models", pagination.as_ref());
 
         self.client
@@ -73,23 +76,66 @@ impl ModelsApi {
 
     /// List all models (convenience method that handles pagination)
     pub async fn list_all(&self, options: Option<RequestOptions>) -> Result<Vec<Model>> {
-        let mut all_models = Vec::new();
-        let mut after = None;
+        self.list_all_with_limits(
+            Pagination::new().with_limit(100),
+            PaginationLimits::default(),
+            options,
+        )
+        .await
+    }
 
-        loop {
-            let pagination = create_default_pagination(after);
-            let response = self.list(Some(pagination), options.clone()).await?;
-
-            all_models.extend(response.data);
-
-            if !response.has_more {
-                break;
+    /// Lazily traverse ID-cursor pages; reverse traversal uses `first_id`/`before`.
+    pub fn pages(
+        &self,
+        mut pagination: Pagination,
+        limits: PaginationLimits,
+        options: Option<RequestOptions>,
+    ) -> Result<PageStream<Model>> {
+        pagination.validate()?;
+        let reverse = pagination.before.is_some();
+        let initial = if reverse {
+            pagination.before.take()
+        } else {
+            pagination.after.take()
+        };
+        let api = self.clone();
+        paginate(limits, initial, move |cursor| {
+            let api = api.clone();
+            let mut pagination = pagination.clone();
+            let options = options.clone();
+            if reverse {
+                pagination.before = cursor;
+            } else {
+                pagination.after = cursor;
             }
+            async move {
+                let response = api.list(Some(pagination), options).await?;
+                let cursor = if reverse {
+                    response.first_id
+                } else {
+                    response.last_id
+                };
+                let next_cursor = id_cursor(response.has_more, cursor)?;
+                let item_ids = response.data.iter().map(|model| model.id.clone()).collect();
+                Ok(TraversalPage {
+                    data: response.data,
+                    next_cursor,
+                    item_ids,
+                })
+            }
+        })
+    }
 
-            after = response.last_id;
-        }
-
-        Ok(all_models)
+    /// Collect all models subject to explicit finite traversal ceilings.
+    pub async fn list_all_with_limits(
+        &self,
+        pagination: Pagination,
+        limits: PaginationLimits,
+        options: Option<RequestOptions>,
+    ) -> Result<Vec<Model>> {
+        self.pages(pagination, limits, options)?
+            .collect_items()
+            .await
     }
 
     /// Get models by capability (e.g., vision, tool use)
@@ -106,7 +152,7 @@ impl ModelsApi {
                 model
                     .capabilities
                     .as_ref()
-                    .map(|caps| caps.contains(&capability.to_string()))
+                    .map(|caps| caps.contains(capability))
                     .unwrap_or(false)
             })
             .collect())

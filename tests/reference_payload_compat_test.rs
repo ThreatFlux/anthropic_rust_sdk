@@ -77,9 +77,14 @@ fn test_streaming_reference_payloads_deserialize() {
     .unwrap();
 
     match message_delta {
-        StreamEvent::MessageDelta { delta, usage } => {
-            assert_eq!(delta.stop_reason, Some(StopReason::PauseTurn));
-            assert_eq!(usage.output_tokens, 22);
+        StreamEvent::MessageDelta { delta, usage, .. } => {
+            assert_eq!(
+                delta.stop_reason,
+                threatflux_anthropic_sdk::models::message::FieldUpdate::Value(
+                    StopReason::PauseTurn
+                )
+            );
+            assert_eq!(usage.output_tokens, Some(22));
             assert_eq!(usage.inference_geo.as_deref(), Some("us"));
             assert_eq!(usage.service_tier.as_deref(), Some("standard"));
         }

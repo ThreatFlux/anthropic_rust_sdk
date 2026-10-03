@@ -59,7 +59,10 @@ mod common_models_tests {
         assert!(tool_use.as_text().is_none());
         assert!(tool_use.as_image().is_none());
 
-        if let ContentBlock::ToolUse { id, name, input } = &tool_use {
+        if let ContentBlock::ToolUse {
+            id, name, input, ..
+        } = &tool_use
+        {
             assert_eq!(id, "tool_123");
             assert_eq!(name, "calculator");
             assert_eq!(input, &json!({"x": 5, "y": 3}));
@@ -83,6 +86,7 @@ mod common_models_tests {
             tool_use_id,
             content,
             is_error,
+            ..
         } = &tool_result
         {
             assert_eq!(tool_use_id, "tool_123");
@@ -162,7 +166,10 @@ mod common_models_tests {
         let json = to_string(&image).unwrap();
         let deserialized: ImageSource = from_str(&json).unwrap();
         assert_eq!(deserialized, image);
-        let ImageSource::Base64 { media_type, data } = deserialized else {
+        let ImageSource::Base64 {
+            media_type, data, ..
+        } = deserialized
+        else {
             panic!("Expected base64 image source");
         };
         assert_eq!(media_type, "image/png");
@@ -241,6 +248,10 @@ mod message_models_tests {
             stop_details: None,
             usage: Usage::new(10, 5),
             container: None,
+            diagnostics: None,
+            context_management: None,
+            input_transformations: None,
+            extra: Default::default(),
         };
 
         assert_eq!(response.text(), "Hello!");
@@ -268,6 +279,10 @@ mod message_models_tests {
                     stop_details: None,
                     usage: Usage::new(10, 0),
                     container: None,
+                    diagnostics: None,
+                    context_management: None,
+                    input_transformations: None,
+                    extra: Default::default(),
                 },
             },
             StreamEvent::ContentBlockStart {
@@ -374,7 +389,7 @@ mod model_info_tests {
             max_output_tokens: Some(8192),
             input_cost_per_token: Some(0.00025),
             output_cost_per_token: Some(0.00125),
-            capabilities: Some(vec!["vision".to_string(), "tool_use".to_string()]),
+            capabilities: Some(vec!["vision".to_string(), "tool_use".to_string()].into()),
             created_at: Utc::now(),
             updated_at: Utc::now(),
             deprecated: Some(false),
@@ -406,7 +421,7 @@ mod model_info_tests {
                 max_output_tokens: Some(8192),
                 input_cost_per_token: Some(0.00025),
                 output_cost_per_token: Some(0.00125),
-                capabilities: Some(vec!["vision".to_string()]),
+                capabilities: Some(vec!["vision".to_string()].into()),
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
                 deprecated: Some(false),
@@ -558,7 +573,10 @@ mod file_models_tests {
             filename: "test.txt".to_string(),
             size_bytes: 1024,
             mime_type: "text/plain".to_string(),
-            purpose: "user_data".to_string(),
+            purpose: Some("user_data".to_string()),
+            downloadable: None,
+            expires_at: None,
+            extra: Default::default(),
             status: Some(FileStatus::Ready),
             created_at: Utc::now(),
             updated_at: None,
@@ -575,13 +593,12 @@ mod file_models_tests {
     #[test]
     fn test_file_upload_request() {
         let upload_request =
-            FileUploadRequest::new(b"Hello, world!".to_vec(), "greeting.txt", "text/plain")
-                .purpose("user_data");
+            FileUploadRequest::new(b"Hello, world!".to_vec(), "greeting.txt", "text/plain");
 
         assert_eq!(upload_request.filename, "greeting.txt");
         assert_eq!(upload_request.mime_type, "text/plain");
         assert_eq!(upload_request.content, b"Hello, world!");
-        assert_eq!(upload_request.purpose, "user_data");
+        assert_eq!(upload_request.expires_in_seconds, None);
     }
 
     #[test]

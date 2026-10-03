@@ -229,8 +229,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
                             print!("{}", text);
                         }
                     }
-                    StreamEvent::MessageDelta { delta: _, usage } => {
-                        stream_output_tokens = usage.output_tokens;
+                    StreamEvent::MessageDelta {
+                        delta: _, usage, ..
+                    } => {
+                        if let Some(input) = usage.input_tokens {
+                            stream_input_tokens = input;
+                        }
+                        if let Some(output) = usage.output_tokens {
+                            stream_output_tokens = output;
+                        }
                     }
                     StreamEvent::MessageStop => break,
                     _ => {}

@@ -9,6 +9,19 @@ use crate::{
 };
 use serde_json::Value;
 
+/// Validate known request content while preserving explicitly supplied future blocks.
+pub(crate) fn validate_content(messages: &[crate::models::Message]) -> Result<()> {
+    for message in messages {
+        for block in &message.content {
+            block.checked_replay(
+                &message.role,
+                crate::models::common::ReplayUnknownPolicy::Preserve,
+            )?;
+        }
+    }
+    Ok(())
+}
+
 /// API client for Messages endpoints
 #[derive(Clone)]
 pub struct MessagesApi {
@@ -27,6 +40,7 @@ impl MessagesApi {
         mut request: MessageRequest,
         options: Option<RequestOptions>,
     ) -> Result<(Value, Option<RequestOptions>)> {
+        validate_content(&request.messages)?;
         let user_profile_id = request.user_profile_id.take();
         let mut options = options.unwrap_or_default();
         if let Some(user_profile_id) = user_profile_id {
@@ -41,6 +55,7 @@ impl MessagesApi {
         mut request: TokenCountRequest,
         options: Option<RequestOptions>,
     ) -> Result<(Value, Option<RequestOptions>)> {
+        validate_content(&request.messages)?;
         let user_profile_id = request.user_profile_id.take();
         let mut options = options.unwrap_or_default();
         if let Some(user_profile_id) = user_profile_id {
@@ -107,9 +122,22 @@ impl MessagesApi {
     /// ```
     pub async fn create_stream(
         &self,
-        mut request: MessageRequest,
+        request: MessageRequest,
         options: Option<RequestOptions>,
     ) -> Result<MessageStream> {
+        self.create_stream_with_limits(request, crate::streaming::StreamLimits::default(), options)
+            .await
+    }
+
+    /// Create a message stream with explicit frame, tool-input, block and queue limits.
+    /// Dropping the returned stream cancels its HTTP producer.
+    pub async fn create_stream_with_limits(
+        &self,
+        mut request: MessageRequest,
+        limits: crate::streaming::StreamLimits,
+        options: Option<RequestOptions>,
+    ) -> Result<MessageStream> {
+        limits.validate()?;
         // Ensure streaming is enabled
         request.stream = Some(true);
 
@@ -119,7 +147,7 @@ impl MessagesApi {
             .request_stream(HttpMethod::Post, "/messages", Some(body), options)
             .await?;
 
-        MessageStream::new(response).await
+        MessageStream::new_with_limits(response, limits).await
     }
 
     /// Count tokens in a message

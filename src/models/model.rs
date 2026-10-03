@@ -38,10 +38,9 @@ pub struct Model {
     /// Output cost per token (in cents), when provided
     #[serde(default)]
     pub output_cost_per_token: Option<f64>,
-    /// Model capabilities. Accepts either a list of capability names or the
-    /// Models API capability object (supported capabilities are collected).
-    #[serde(default, deserialize_with = "deserialize_capabilities")]
-    pub capabilities: Option<Vec<String>>,
+    /// Full capability metadata, including unknown and conditional feature data.
+    #[serde(default)]
+    pub capabilities: Option<ModelCapabilities>,
     /// When the model was created (synthesized if absent)
     #[serde(default = "Utc::now")]
     pub created_at: DateTime<Utc>,
@@ -56,30 +55,72 @@ pub struct Model {
     pub deprecation_date: Option<DateTime<Utc>>,
 }
 
-/// Deserialize `capabilities` from either an array of strings or the Models API
-/// capability object (`{"image_input": {"supported": true}, ...}`).
-fn deserialize_capabilities<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
-    Ok(value.map(|v| match v {
-        serde_json::Value::Array(arr) => arr
-            .into_iter()
-            .filter_map(|x| x.as_str().map(str::to_string))
-            .collect(),
-        serde_json::Value::Object(map) => map
-            .into_iter()
-            .filter_map(|(key, cap)| {
-                let supported = cap
-                    .get("supported")
-                    .and_then(serde_json::Value::as_bool)
-                    .unwrap_or(true);
-                supported.then_some(key)
-            })
-            .collect(),
-        _ => Vec::new(),
-    }))
+/// A single authoritative capability payload, retaining nested metadata.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(transparent)]
+pub struct ModelCapabilities(serde_json::Value);
+
+impl ModelCapabilities {
+    /// Read the complete Models API payload without guessing unsupported fields.
+    pub fn as_json(&self) -> &serde_json::Value {
+        &self.0
+    }
+
+    /// Distinguish explicit support, explicit rejection, and unknown metadata.
+    pub fn support(&self, capability: &str) -> crate::config::models::Support {
+        use crate::config::models::Support;
+        match &self.0 {
+            serde_json::Value::Array(values) => {
+                if values
+                    .iter()
+                    .any(|value| value.as_str() == Some(capability))
+                {
+                    Support::Supported
+                } else {
+                    Support::Unknown
+                }
+            }
+            serde_json::Value::Object(values) => match values
+                .get(capability)
+                .and_then(|value| value.get("supported"))
+                .and_then(serde_json::Value::as_bool)
+            {
+                Some(true) => Support::Supported,
+                Some(false) => Support::Unsupported,
+                None => Support::Unknown,
+            },
+            _ => Support::Unknown,
+        }
+    }
+
+    /// Return true only for explicitly supported capabilities.
+    pub fn contains(&self, capability: &str) -> bool {
+        self.support(capability) == crate::config::models::Support::Supported
+    }
+}
+
+impl From<Vec<String>> for ModelCapabilities {
+    fn from(names: Vec<String>) -> Self {
+        Self(serde_json::Value::Array(
+            names.into_iter().map(serde_json::Value::String).collect(),
+        ))
+    }
+}
+
+impl<'de> Deserialize<'de> for ModelCapabilities {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = serde_json::Value::deserialize(deserializer)?;
+        if !(value.is_object()
+            || value
+                .as_array()
+                .is_some_and(|array| array.iter().all(serde_json::Value::is_string)))
+        {
+            return Err(serde::de::Error::custom(
+                "Model capabilities require an object or string array",
+            ));
+        }
+        Ok(Self(value))
+    }
 }
 
 impl Model {
@@ -87,7 +128,7 @@ impl Model {
     pub fn has_capability(&self, capability: &str) -> bool {
         self.capabilities
             .as_ref()
-            .map(|caps| caps.contains(&capability.to_string()))
+            .map(|caps| caps.contains(capability))
             .unwrap_or(false)
     }
 

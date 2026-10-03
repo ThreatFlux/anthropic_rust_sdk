@@ -381,8 +381,7 @@ mod e2e_tests {
             file_content.to_vec(),
             "document.txt",
             "text/plain",
-        )
-        .purpose("user_data");
+        );
 
         let upload_result = client.files().upload(upload_request, None).await.unwrap();
         let file_id = upload_result.file.id;
@@ -594,7 +593,7 @@ mod e2e_tests {
 
         assert!(tool_use.is_some());
 
-        if let Some(ContentBlock::ToolUse { id, name, input: _ }) = tool_use {
+        if let Some(ContentBlock::ToolUse { id, name, .. }) = tool_use {
             assert_eq!(name, "calculator");
 
             // Simulate tool execution
@@ -604,12 +603,10 @@ mod e2e_tests {
             let follow_up = MessageBuilder::new()
                 .model("claude-3-5-haiku-20241022")
                 .max_tokens(100)
+                .message(Message::new(Role::Assistant, response.content.clone()))
                 .message(Message::new(
-                    Role::Assistant,
-                    vec![
-                        response.content[0].clone(), // Original tool use
-                        ContentBlock::tool_result(id, Some(result.to_string())),
-                    ],
+                    Role::User,
+                    vec![ContentBlock::tool_result(id, Some(result.to_string()))],
                 ))
                 .build();
 

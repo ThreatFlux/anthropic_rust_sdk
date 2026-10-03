@@ -271,7 +271,7 @@ mod model_tests {
         assert!(models::supports_thinking(models::OPUS_4_1));
         assert!(models::supports_thinking(models::OPUS_4_8));
         assert!(models::supports_thinking(models::SONNET_4_6));
-        assert!(!models::supports_thinking(models::HAIKU_4_5));
+        assert!(models::supports_thinking(models::HAIKU_4_5));
         assert!(!models::supports_thinking("claude-3-5-sonnet-20241022"));
         assert!(!models::supports_thinking("unknown-model"));
         assert!(!models::supports_thinking(""));
@@ -301,6 +301,10 @@ mod model_tests {
     #[test]
     fn test_all_models() {
         let all_models = models::all_models();
+        assert!(all_models.contains(&models::OPUS_5_5));
+        assert!(all_models.contains(&models::SONNET_5_5));
+        assert!(all_models.contains(&models::FABLE_5_1));
+        assert!(all_models.contains(&models::MYTHOS_5_1));
         assert!(all_models.contains(&models::FABLE_5));
         assert!(all_models.contains(&models::MYTHOS_5));
         assert!(all_models.contains(&models::OPUS_5));
@@ -313,7 +317,7 @@ mod model_tests {
         assert!(all_models.contains(&models::OPUS_4_5));
         assert!(all_models.contains(&models::SONNET_4_5));
         assert!(all_models.contains(&models::OPUS_4_1));
-        assert_eq!(all_models.len(), 12);
+        assert_eq!(all_models.len(), 16);
     }
 
     #[test]

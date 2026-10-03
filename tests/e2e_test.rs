@@ -253,13 +253,7 @@ async fn test_token_counting() -> Result<(), Box<dyn Error>> {
         .user("Calculate 5 + 3")
         .build();
 
-    let request_for_counting = threatflux_anthropic_sdk::models::message::TokenCountRequest {
-        model: request.model.clone(),
-        messages: request.messages.clone(),
-        system: request.system.clone(),
-        tools: request.tools.clone(),
-        user_profile_id: None,
-    };
+    let request_for_counting = threatflux_anthropic_sdk::TokenCountRequest::from_message(&request)?;
 
     let count = client
         .messages()
