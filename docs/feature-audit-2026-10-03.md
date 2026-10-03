@@ -62,19 +62,23 @@ This affects ordinary responses, streamed message deltas, and parsed batch
 results containing such a message, instead of preserving the partial output.
 Authority: [official StopReason definition](https://github.com/anthropics/anthropic-sdk-python/blob/main/src/anthropic/types/stop_reason.py).
 
-### 5. P2: Skills targets the older beta schema rather than current stable schemas
+### 5. P2: Skills lacks a current-schema path alongside its legacy beta support
 
 [Skill](../src/models/skill.rs), lines 29–55, expects a string `source`,
-`display_title`, and `latest_version`. The current stable response uses an
+`display_title`, and `latest_version`. The current stable and beta responses use an
 object `source`, `display_name`, and `latest_version_id`; the documented
 fixture fails with `invalid type: map, expected a string`. The
 [upload form](../src/api/skills.rs), lines 102–123, likewise sends
-`display_title`. Older Python beta response types retain the legacy fields,
-so this finding is a missing current stable-schema path, not proof that all
-legacy beta calls fail. The SDK always adds its Skills beta header.
+`display_title`. Historical Python beta response types used the legacy fields.
+The SDK always adds a dated Skills beta header. Anthropic's migration note
+confirms that raw requests retaining that header still receive legacy beta
+shapes. This finding is a missing current-schema path, rather than a
+demonstrated failure of existing beta calls. Legacy header compatibility was
+not live-tested.
 Authority: [current Create Skill](https://platform.claude.com/docs/en/api/skills/create),
 [current beta Create Skill](https://platform.claude.com/docs/en/api/beta/skills/create),
-and [legacy beta response type](https://github.com/anthropics/anthropic-sdk-python/blob/main/src/anthropic/types/beta/skill_create_response.py).
+the [historical beta response type](https://github.com/anthropics/anthropic-sdk-python/blob/0c1a85aba2d480487e9e6d10ac9711b4ac7b4f4a/src/anthropic/types/beta/skill_create_response.py),
+and [Anthropic's migration note](https://github.com/anthropics/anthropic-sdk-python/commit/e541b4d61a640cb39af78539def933de9b23cc61).
 
 ### 6. P2: Streaming collection drops metadata and accepts an unfinished stream
 
