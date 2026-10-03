@@ -1,15 +1,60 @@
 //! Message Batches API implementation
 
 use crate::{
-    api::utils::{build_paginated_path, create_default_pagination},
+    api::utils::{build_paginated_path, id_cursor, paginate, TraversalPage},
     client::Client,
     error::Result,
     models::batch::{
         MessageBatch, MessageBatchCreateRequest, MessageBatchListResponse, MessageBatchResultEntry,
         MessageBatchStatus,
     },
-    types::{HttpMethod, Pagination, RequestOptions},
+    types::{HttpMethod, PageStream, Pagination, PaginationLimits, RequestOptions},
 };
+use futures::{Stream, StreamExt};
+use std::{
+    pin::Pin,
+    task::{Context, Poll},
+};
+
+/// Memory ceiling for one JSONL result row, excluding its newline.
+#[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
+pub struct BatchResultsStreamOptions {
+    /// Maximum row size in bytes. Defaults to 8 MiB.
+    pub max_row_bytes: usize,
+}
+
+impl BatchResultsStreamOptions {
+    /// Construct a positive maximum row-byte ceiling.
+    pub fn new(max_row_bytes: usize) -> Result<Self> {
+        if max_row_bytes == 0 {
+            return Err(crate::error::AnthropicError::invalid_input(
+                "Batch result row limit must be positive",
+            ));
+        }
+        Ok(Self { max_row_bytes })
+    }
+}
+
+impl Default for BatchResultsStreamOptions {
+    fn default() -> Self {
+        Self {
+            max_row_bytes: 8 * 1024 * 1024,
+        }
+    }
+}
+
+/// Incremental batch results. Dropping releases the response and cancels further reads.
+pub struct BatchResultsStream {
+    inner: Pin<Box<dyn Stream<Item = Result<MessageBatchResultEntry>> + Send>>,
+}
+
+impl Stream for BatchResultsStream {
+    type Item = Result<MessageBatchResultEntry>;
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.inner.as_mut().poll_next(cx)
+    }
+}
 
 /// API client for Message Batches endpoints
 #[derive(Clone)]
@@ -44,6 +89,9 @@ impl MessageBatchesApi {
         request: MessageBatchCreateRequest,
         options: Option<RequestOptions>,
     ) -> Result<MessageBatch> {
+        for item in &request.requests {
+            crate::api::messages::validate_content(&item.params.messages)?;
+        }
         let body = serde_json::to_value(request)?;
         self.client
             .request(HttpMethod::Post, "/messages/batches", Some(body), options)
@@ -97,6 +145,9 @@ impl MessageBatchesApi {
         pagination: Option<Pagination>,
         options: Option<RequestOptions>,
     ) -> Result<MessageBatchListResponse> {
+        if let Some(pagination) = &pagination {
+            pagination.validate()?;
+        }
         let path = build_paginated_path("/messages/batches", pagination.as_ref());
 
         self.client
@@ -203,26 +254,190 @@ impl MessageBatchesApi {
         batch_id: &str,
         options: Option<RequestOptions>,
     ) -> Result<Vec<MessageBatchResultEntry>> {
-        let text = self.results_text(batch_id, options).await?;
+        let mut stream = self.results_stream(batch_id, options).await?;
         let mut parsed = Vec::new();
-
-        for (idx, line) in text.lines().enumerate() {
-            let trimmed = line.trim();
-            if trimmed.is_empty() {
-                continue;
-            }
-
-            let item: MessageBatchResultEntry = serde_json::from_str(trimmed).map_err(|e| {
-                crate::error::AnthropicError::json(format!(
-                    "Failed to parse batch result line {}: {}",
-                    idx + 1,
-                    e
-                ))
-            })?;
-            parsed.push(item);
+        while let Some(entry) = stream.next().await {
+            parsed.push(entry?);
         }
-
         Ok(parsed)
+    }
+
+    /// Stream parsed JSONL rows without buffering the complete HTTP response.
+    pub async fn results_stream(
+        &self,
+        batch_id: &str,
+        options: Option<RequestOptions>,
+    ) -> Result<BatchResultsStream> {
+        self.results_stream_with_options(batch_id, BatchResultsStreamOptions::default(), options)
+            .await
+    }
+
+    /// Stream rows with an explicit, positive memory ceiling.
+    pub async fn results_stream_with_options(
+        &self,
+        batch_id: &str,
+        limits: BatchResultsStreamOptions,
+        options: Option<RequestOptions>,
+    ) -> Result<BatchResultsStream> {
+        if limits.max_row_bytes == 0 {
+            return Err(crate::error::AnthropicError::invalid_input(
+                "Batch result row limit must be positive",
+            ));
+        }
+        let response = self
+            .client
+            .request_stream(
+                HttpMethod::Get,
+                &format!("/messages/batches/{batch_id}/results"),
+                None,
+                options,
+            )
+            .await?;
+        if !response.status().is_success() {
+            return Err(crate::error::AnthropicError::api_error(
+                response.status().as_u16(),
+                "Batch results request failed".to_string(),
+                None,
+            ));
+        }
+        // Retain one transport chunk and one row; parse UTF-8 only after a whole row.
+        let source = Box::pin(response.bytes_stream());
+        let state = (
+            source,
+            Vec::<u8>::new(),
+            Vec::<u8>::new(),
+            0_usize,
+            1_usize,
+            false,
+        );
+        let stream = futures::stream::try_unfold(state, move |state| async move {
+            let (mut source, mut chunk, mut row, mut offset, mut line, mut eof) = state;
+            loop {
+                while offset < chunk.len() {
+                    let remaining = &chunk[offset..];
+                    let end = remaining.iter().position(|byte| *byte == b'\n');
+                    let bytes = end.unwrap_or(remaining.len());
+                    if row.len().saturating_add(bytes) > limits.max_row_bytes {
+                        return Err(crate::error::AnthropicError::json(format!(
+                            "Batch result row {line} exceeds the byte limit"
+                        )));
+                    }
+                    row.extend_from_slice(&remaining[..bytes]);
+                    offset += bytes;
+                    if end.is_some() {
+                        offset += 1;
+                        let row_number = line;
+                        line += 1;
+                        if row.iter().all(u8::is_ascii_whitespace) {
+                            row.clear();
+                            continue;
+                        }
+                        let value = serde_json::from_slice(&row).map_err(|_| {
+                            crate::error::AnthropicError::json(format!(
+                                "Invalid JSON or UTF-8 in batch result row {row_number}"
+                            ))
+                        })?;
+                        row.clear();
+                        return Ok(Some((value, (source, chunk, row, offset, line, eof))));
+                    }
+                }
+                if eof {
+                    if row.is_empty() || row.iter().all(u8::is_ascii_whitespace) {
+                        return Ok(None);
+                    }
+                    let value = serde_json::from_slice(&row).map_err(|_| {
+                        crate::error::AnthropicError::json(format!(
+                            "Invalid JSON or UTF-8 in batch result row {line}"
+                        ))
+                    })?;
+                    row.clear();
+                    return Ok(Some((value, (source, chunk, row, offset, line + 1, eof))));
+                }
+                match source.next().await {
+                    Some(Ok(bytes)) => {
+                        chunk = bytes.to_vec();
+                        offset = 0;
+                    }
+                    Some(Err(_)) => {
+                        return Err(crate::error::AnthropicError::stream(format!(
+                            "Transport failure reading batch result row {line}"
+                        )))
+                    }
+                    None => {
+                        eof = true;
+                        chunk.clear();
+                        offset = 0;
+                    }
+                }
+            }
+        });
+        Ok(BatchResultsStream {
+            inner: Box::pin(stream),
+        })
+    }
+
+    /// Lazily traverse batch pages with finite limits.
+    pub fn pages(
+        &self,
+        mut pagination: Pagination,
+        limits: PaginationLimits,
+        options: Option<RequestOptions>,
+    ) -> Result<PageStream<MessageBatch>> {
+        pagination.validate()?;
+        let reverse = pagination.before.is_some();
+        let initial = if reverse {
+            pagination.before.take()
+        } else {
+            pagination.after.take()
+        };
+        let api = self.clone();
+        paginate(limits, initial, move |cursor| {
+            let api = api.clone();
+            let mut pagination = pagination.clone();
+            let options = options.clone();
+            if reverse {
+                pagination.before = cursor;
+            } else {
+                pagination.after = cursor;
+            }
+            async move {
+                let response = api.list(Some(pagination), options).await?;
+                let cursor = if reverse {
+                    response.first_id
+                } else {
+                    response.last_id
+                };
+                let next_cursor = id_cursor(response.has_more, cursor)?;
+                let item_ids = response.data.iter().map(|batch| batch.id.clone()).collect();
+                Ok(TraversalPage {
+                    data: response.data,
+                    next_cursor,
+                    item_ids,
+                })
+            }
+        })
+    }
+
+    /// Collect all batches with the finite default traversal ceilings.
+    pub async fn list_all(&self, options: Option<RequestOptions>) -> Result<Vec<MessageBatch>> {
+        self.list_all_with_limits(
+            Pagination::new().with_limit(100),
+            PaginationLimits::default(),
+            options,
+        )
+        .await
+    }
+
+    /// Collect all batches, failing rather than truncating at an explicit limit.
+    pub async fn list_all_with_limits(
+        &self,
+        pagination: Pagination,
+        limits: PaginationLimits,
+        options: Option<RequestOptions>,
+    ) -> Result<Vec<MessageBatch>> {
+        self.pages(pagination, limits, options)?
+            .collect_items()
+            .await
     }
 
     /// Wait for a batch to complete processing
@@ -264,11 +479,9 @@ impl MessageBatchesApi {
         options: Option<RequestOptions>,
     ) -> Result<Vec<MessageBatch>> {
         // This would typically involve API filtering, but for now we'll filter client-side
-        let pagination = create_default_pagination(None);
-        let response = self.list(Some(pagination), options).await?;
+        let batches = self.list_all(options).await?;
 
-        Ok(response
-            .data
+        Ok(batches
             .into_iter()
             .filter(|batch| batch.processing_status == status)
             .collect())

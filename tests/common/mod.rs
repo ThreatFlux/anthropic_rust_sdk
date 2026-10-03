@@ -65,6 +65,10 @@ pub mod fixtures {
             stop_details: None,
             usage: test_usage(),
             container: None,
+            diagnostics: None,
+            context_management: None,
+            input_transformations: None,
+            extra: Default::default(),
         }
     }
 
@@ -80,7 +84,7 @@ pub mod fixtures {
             max_output_tokens: Some(8192),
             input_cost_per_token: Some(0.00025),
             output_cost_per_token: Some(0.00125),
-            capabilities: Some(vec!["vision".to_string(), "tool_use".to_string()]),
+            capabilities: Some(vec!["vision".to_string(), "tool_use".to_string()].into()),
             created_at: Utc::now(),
             updated_at: Utc::now(),
             deprecated: Some(false),
@@ -142,7 +146,10 @@ pub mod fixtures {
             filename: "test.txt".to_string(),
             size_bytes: 1024,
             mime_type: "text/plain".to_string(),
-            purpose: "user_data".to_string(),
+            purpose: Some("user_data".to_string()),
+            downloadable: None,
+            expires_at: None,
+            extra: Default::default(),
             status: Some(FileStatus::Ready),
             created_at: Utc::now(),
             updated_at: None,
@@ -155,6 +162,8 @@ pub mod fixtures {
         FileListResponse {
             data: vec![test_file()],
             has_more: false,
+            next_page: None,
+            extra: Default::default(),
             first_id: Some("file_test123".to_string()),
             last_id: Some("file_test123".to_string()),
         }

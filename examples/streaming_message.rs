@@ -41,6 +41,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Create the stream
     let mut stream = client.messages().create_stream(request, None).await?;
     let mut full_response = String::new();
+    let mut usage_snapshot = threatflux_anthropic_sdk::models::Usage::default();
 
     // Process events as they arrive
     while let Some(event_result) = stream.next().await {
@@ -48,6 +49,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         match event {
             StreamEvent::MessageStart { message } => {
+                usage_snapshot = message.usage;
                 println!("\n📝 Message started (ID: {})", message.id);
                 print!("📖 ");
                 io::stdout().flush()?;
@@ -59,13 +61,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     full_response.push_str(text);
                 }
             }
-            StreamEvent::MessageDelta { usage, delta } if delta.stop_reason.is_some() => {
-                println!(
-                    "\n\n📊 Final usage: {} input + {} output = {} total tokens",
-                    usage.input_tokens,
-                    usage.output_tokens,
-                    usage.total_tokens()
-                );
+            StreamEvent::MessageDelta { usage, delta, .. } => {
+                usage.apply(&mut usage_snapshot);
+                if delta.stop_reason.is_some() {
+                    println!(
+                        "\n\n📊 Final usage: {} input + {} output = {} total tokens",
+                        usage_snapshot.input_tokens,
+                        usage_snapshot.output_tokens,
+                        usage_snapshot.total_tokens()
+                    );
+                }
             }
             StreamEvent::MessageStop => {
                 println!("\n\n✅ Stream completed!");

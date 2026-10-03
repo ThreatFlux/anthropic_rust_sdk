@@ -37,6 +37,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (0.4 compatibility migration)
+- Correct tagged tool-choice serialization; add explicit none and parallel controls.
+- Preserve future stop reasons, complete unknown content, nested extension fields,
+  signed assistant replay, and evolving response/usage metadata.
+- Require complete SSE lifecycles; accumulate cumulative counts with presence-aware
+  zero/null handling, preserve unknown events, and bound parsing/producer queues.
+- Align Files metadata, purpose-free expiring uploads, token pagination and content
+  download paths with the current schema.
+- Project supported Messages options into token counting; update the exact model
+  catalog and retain detailed Models API capability metadata without guessing support.
+- Document breaking enum, struct-literal, Files, ModelCapabilities and delta changes
+  in `docs/migration-0.4.md`; stage the migration as an explicit 0.4 release.
+- Keep Release Please as the automatic release owner; the manual auto-release
+  helper creates a PR instead of independently publishing after CI.
+
+### Added (bounded workflows and OAuth)
+- Separate current Skills client and DTOs alongside unchanged dated legacy calls.
+- Shared finite lazy page traversal and bounded incremental batch JSONL results.
+- Optional registered callback tool runner with finite execution budgets,
+  ordered concurrency, cancellation and retained partial transcripts.
+- Bearer-only OAuth organization resource/workspace clients and a noninteractive
+  JWT-bearer federation provider with explicit identities and rotating token files.
+- Mock HTTP and adversarial chunk/cursor/callback/authentication regression coverage,
+  plus compile-checked migration, current-resource, OAuth and runner examples.
+
 ### Changed (toolchain and dependencies)
 - Raise the minimum supported Rust version to 1.99.0 and pin the development,
   CI MSRV, and Docker toolchains to the same stable release.

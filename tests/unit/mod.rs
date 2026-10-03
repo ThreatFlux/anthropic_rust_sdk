@@ -322,7 +322,7 @@ mod legacy_model_tests {
             max_output_tokens: Some(8192),
             input_cost_per_token: Some(0.00025),
             output_cost_per_token: Some(0.00125),
-            capabilities: Some(vec!["vision".to_string(), "tool_use".to_string()]),
+            capabilities: Some(vec!["vision".to_string(), "tool_use".to_string()].into()),
             created_at: Utc::now(),
             updated_at: Utc::now(),
             deprecated: Some(false),

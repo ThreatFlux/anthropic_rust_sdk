@@ -43,12 +43,17 @@ impl SessionEventsApi {
     }
 
     /// Send a client-originated event to the session.
+    ///
+    /// Known user-message blocks are validated against the Managed Agents
+    /// surface, which accepts text, images, documents, and redacted placeholders.
+    /// Explicit raw future types remain unchanged, with service support unknown.
     pub async fn send(
         &self,
         event: SendEvent,
         options: Option<RequestOptions>,
     ) -> Result<SessionEvent> {
         let path = format!("/sessions/{}/events", self.session_id);
+        validate_send_event(&event)?;
         let body = serde_json::to_value(event)?;
         self.client
             .request(
@@ -164,4 +169,48 @@ impl SessionEventsApi {
     ) -> Result<SessionEvent> {
         self.send(SendEvent::system(text), options).await
     }
+}
+
+/// Schema verified 2026-10-03 against Anthropic SDK revision
+/// 18f25547f20cf5f01da69ac611e700e3bc9ebf21, sessions/user-message params.
+fn validate_send_event(event: &SendEvent) -> Result<()> {
+    use crate::models::common::{ContentBlock, DocumentSource};
+    if let SendEvent::UserMessage { content } = event {
+        for block in content {
+            // Check typed field collisions and malformed known constructors
+            // without applying the broader Messages role union to sessions.
+            let wire = serde_json::to_value(block)?;
+            let checked = ContentBlock::raw(wire)?;
+            match checked {
+                ContentBlock::Text { .. }
+                | ContentBlock::Image { .. }
+                | ContentBlock::Unknown(_) => {}
+                ContentBlock::Document {
+                    source: DocumentSource::Content { .. },
+                    ..
+                } => {
+                    return Err(crate::AnthropicError::invalid_input("Managed Agents user messages do not accept inline document content sources"));
+                }
+                ContentBlock::Document { .. } => {}
+                _ => {
+                    return Err(crate::AnthropicError::invalid_input(
+                        "unsupported known block in Managed Agents user message",
+                    ))
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Validate a raw initial event without rewriting its optional/unknown fields.
+pub(super) fn validate_initial_event(event: &serde_json::Value) -> Result<()> {
+    crate::models::common::RawContentBlock::new(event.clone())?;
+    if event.get("type").and_then(serde_json::Value::as_str) == Some("user.message") {
+        let typed: SendEvent = serde_json::from_value(event.clone()).map_err(|_| {
+            crate::AnthropicError::invalid_input("malformed Managed Agents initial user message")
+        })?;
+        validate_send_event(&typed)?;
+    }
+    Ok(())
 }

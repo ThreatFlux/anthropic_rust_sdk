@@ -66,7 +66,7 @@ use crate::{
         message_batches::MessageBatchesApi,
         messages::MessagesApi,
         models::ModelsApi,
-        skills::SkillsApi,
+        skills::{CurrentSkillsApi, SkillsApi},
         tunnels::TunnelsApi,
         user_profiles::UserProfilesApi,
     },
@@ -153,6 +153,16 @@ impl Client {
     /// Access the Skills API
     pub fn skills(&self) -> SkillsApi {
         SkillsApi::new(self.clone())
+    }
+
+    /// Access the current Skills schema without the dated legacy beta header.
+    pub fn skills_current(&self) -> CurrentSkillsApi {
+        CurrentSkillsApi::new(self.clone())
+    }
+
+    /// Access the legacy Skills schema using its dated beta header.
+    pub fn skills_legacy(&self) -> SkillsApi {
+        self.skills()
     }
 
     /// Access the Dreams research-preview API.
@@ -268,6 +278,28 @@ impl Client {
         }
     }
 
+    /// Send a multipart request with the configured transport, headers and timeout.
+    ///
+    /// Multipart bodies are sent once because a consumed form cannot be replayed.
+    pub async fn request_multipart<T: DeserializeOwned>(
+        &self,
+        method: HttpMethod,
+        path: &str,
+        form: reqwest::multipart::Form,
+        options: Option<RequestOptions>,
+    ) -> Result<T> {
+        let url = self.build_url(path)?;
+        let mut headers = self.build_headers(&options)?;
+        headers.remove(reqwest::header::CONTENT_TYPE);
+        let timeout = options
+            .as_ref()
+            .and_then(|o| o.timeout)
+            .unwrap_or(self.config.timeout);
+        self.http_client
+            .request_multipart(method, &url, form, headers, timeout)
+            .await
+    }
+
     /// Make a streaming request
     pub async fn request_stream(
         &self,
@@ -307,7 +339,9 @@ impl Client {
 
         // Add authentication header. Anthropic API keys (sk-ant-...) require the
         // `x-api-key` header; OAuth bearer tokens use `Authorization: Bearer ...`.
-        if self.config.api_key.starts_with("sk-ant-") {
+        if self.config.api_key.starts_with("sk-ant-")
+            && !self.config.api_key.starts_with("sk-ant-oat01-")
+        {
             headers.insert(
                 "x-api-key",
                 HeaderValue::from_str(&self.config.api_key)

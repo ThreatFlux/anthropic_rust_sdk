@@ -11,7 +11,7 @@ fn test_claude_4_models() {
     assert!(models::supports_thinking(models::OPUS_4_1));
     assert!(models::supports_thinking(models::OPUS_4_8));
     assert!(models::supports_thinking(models::SONNET_4_6));
-    assert!(!models::supports_thinking(models::HAIKU_4_5));
+    assert!(models::supports_thinking(models::HAIKU_4_5));
 
     // Test 1M context support
     assert!(models::supports_1m_context(models::SONNET_4_6));

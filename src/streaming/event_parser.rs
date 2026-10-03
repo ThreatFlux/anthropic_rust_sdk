@@ -1,225 +1,140 @@
-//! Server-Sent Events (SSE) parser for streaming responses
+//! Bounded Server-Sent Events parsing with one consistent typed event path.
 
 use crate::error::{AnthropicError, Result};
 use std::collections::HashMap;
 
-/// Parser for Server-Sent Events (SSE) streams
+/// Default maximum bytes in a single SSE event (one MiB).
+pub const DEFAULT_MAX_EVENT_BYTES: usize = 1024 * 1024;
+
+/// Parser for Server-Sent Events. Unknown event names preserve their data.
 #[derive(Debug)]
 pub struct EventParser {
-    current_event: Option<ParsedEvent>,
+    current_event: ParsedEvent,
+    max_event_bytes: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct ParsedEvent {
     event_type: Option<String>,
     data: Vec<String>,
-    id: Option<String>,
-    retry: Option<u32>,
+    bytes: usize,
 }
 
 impl EventParser {
-    /// Create a new event parser
+    /// Construct a parser with a one MiB event bound.
     pub fn new() -> Self {
         Self {
-            current_event: None,
+            current_event: ParsedEvent::default(),
+            max_event_bytes: DEFAULT_MAX_EVENT_BYTES,
         }
     }
 
-    /// Parse a line from the SSE stream
-    pub fn parse_line(
-        &mut self,
-        line: &str,
-    ) -> Result<Option<crate::models::message::StreamEvent>> {
-        let line = line.trim();
-
-        // Empty line indicates end of event
-        if line.is_empty() {
-            return self.finish_event();
+    /// Construct a parser with an explicit nonzero event bound.
+    pub fn with_max_event_bytes(max_event_bytes: usize) -> Result<Self> {
+        if max_event_bytes == 0 {
+            return Err(AnthropicError::invalid_input(
+                "SSE event byte limit must be nonzero",
+            ));
         }
-
-        // Comments start with ':'
-        if line.starts_with(':') {
-            return Ok(None); // Ignore comments
-        }
-
-        // Ensure we have a current event
-        if self.current_event.is_none() {
-            self.current_event = Some(ParsedEvent {
-                event_type: None,
-                data: Vec::new(),
-                id: None,
-                retry: None,
-            });
-        }
-
-        let event = self.current_event.as_mut().unwrap();
-
-        // Parse field
-        if let Some((field, value)) = line.split_once(':') {
-            let field = field.trim();
-            let value = value.trim();
-
-            match field {
-                "event" => {
-                    event.event_type = Some(value.to_string());
-                }
-                "data" => {
-                    event.data.push(value.to_string());
-                }
-                "id" => {
-                    event.id = Some(value.to_string());
-                }
-                "retry" => {
-                    if let Ok(retry_ms) = value.parse() {
-                        event.retry = Some(retry_ms);
-                    }
-                }
-                _ => {
-                    // Unknown field, ignore
-                }
-            }
-        } else {
-            // Line without colon is treated as data
-            event.data.push(line.to_string());
-        }
-
-        Ok(None)
-    }
-
-    /// Parse JSON data with error handling
-    fn parse_json_data<T>(&self, data: &str, event_type: &str) -> Result<T>
-    where
-        T: serde::de::DeserializeOwned,
-    {
-        serde_json::from_str(data).map_err(|e| {
-            AnthropicError::stream(format!("Failed to parse {} event: {}", event_type, e))
+        Ok(Self {
+            current_event: ParsedEvent::default(),
+            max_event_bytes,
         })
     }
 
-    /// Parse a single event (for testing purposes)
-    pub fn parse_event(
-        &self,
-        event_type: &str,
-        data: &str,
-    ) -> Result<crate::models::message::StreamEvent> {
-        match event_type {
-            "ping" => Ok(crate::models::message::StreamEvent::Ping),
-            "error" => {
-                let error_data: HashMap<String, serde_json::Value> =
-                    self.parse_json_data(data, event_type)?;
-                Ok(crate::models::message::StreamEvent::Error { error: error_data })
-            }
-            "message_start" => {
-                let parsed: MessageStartData = self.parse_json_data(data, event_type)?;
-                Ok(crate::models::message::StreamEvent::MessageStart {
-                    message: parsed.message,
-                })
-            }
-            "message_delta" => {
-                let parsed: MessageDeltaData = self.parse_json_data(data, event_type)?;
-                Ok(crate::models::message::StreamEvent::MessageDelta {
-                    delta: parsed.delta,
-                    usage: parsed.usage,
-                })
-            }
-            "message_stop" => Ok(crate::models::message::StreamEvent::MessageStop),
-            "content_block_start" => {
-                let parsed: ContentBlockStartData = self.parse_json_data(data, event_type)?;
-                Ok(crate::models::message::StreamEvent::ContentBlockStart {
-                    index: parsed.index,
-                    content_block: parsed.content_block,
-                })
-            }
-            "content_block_delta" => {
-                let parsed: ContentBlockDeltaData = self.parse_json_data(data, event_type)?;
-                Ok(crate::models::message::StreamEvent::ContentBlockDelta {
-                    index: parsed.index,
-                    delta: parsed.delta,
-                })
-            }
-            "content_block_stop" => {
-                let parsed: ContentBlockStopData = self.parse_json_data(data, event_type)?;
-                Ok(crate::models::message::StreamEvent::ContentBlockStop {
-                    index: parsed.index,
-                })
-            }
-            _ => Err(AnthropicError::stream(format!(
-                "Unknown event type: {}",
-                event_type
-            ))),
+    /// Parse one complete SSE line, excluding its line ending.
+    ///
+    /// SSE removes at most one space after the colon; payload whitespace is not
+    /// trimmed. Blank lines dispatch, comments and unsupported fields are ignored.
+    pub fn parse_line(&mut self, line: &str) -> Result<Option<StreamEvent>> {
+        let line = line.strip_suffix('\r').unwrap_or(line);
+        if line.is_empty() {
+            return self.finish();
         }
-    }
-
-    /// Finish parsing the current event
-    fn finish_event(&mut self) -> Result<Option<crate::models::message::StreamEvent>> {
-        let event = match self.current_event.take() {
-            Some(event) => event,
-            None => return Ok(None), // No event to finish
-        };
-
-        // Join data lines with newlines
-        let data = event.data.join("\n");
-        if data.is_empty() {
+        self.current_event.bytes = self
+            .current_event
+            .bytes
+            .checked_add(line.len() + 1)
+            .ok_or_else(|| AnthropicError::stream("SSE event exceeds byte limit"))?;
+        if self.current_event.bytes > self.max_event_bytes {
+            return Err(AnthropicError::stream("SSE event exceeds byte limit"));
+        }
+        if line.starts_with(':') {
             return Ok(None);
         }
-
-        let event_type = event.event_type.as_deref().unwrap_or("message");
-
-        match event_type {
-            "ping" => Ok(Some(crate::models::message::StreamEvent::Ping)),
-            "error" => {
-                let error_data: HashMap<String, serde_json::Value> =
-                    self.parse_json_data(&data, event_type)?;
-                Ok(Some(crate::models::message::StreamEvent::Error {
-                    error: error_data,
-                }))
-            }
-            "message_start" => {
-                let parsed: MessageStartData = self.parse_json_data(&data, event_type)?;
-                Ok(Some(crate::models::message::StreamEvent::MessageStart {
-                    message: parsed.message,
-                }))
-            }
-            "message_delta" => {
-                let parsed: MessageDeltaData = self.parse_json_data(&data, event_type)?;
-                Ok(Some(crate::models::message::StreamEvent::MessageDelta {
-                    delta: parsed.delta,
-                    usage: parsed.usage,
-                }))
-            }
-            "message_stop" => Ok(Some(crate::models::message::StreamEvent::MessageStop)),
-            "content_block_start" => {
-                let parsed: ContentBlockStartData = self.parse_json_data(&data, event_type)?;
-                Ok(Some(
-                    crate::models::message::StreamEvent::ContentBlockStart {
-                        index: parsed.index,
-                        content_block: parsed.content_block,
-                    },
-                ))
-            }
-            "content_block_delta" => {
-                let parsed: ContentBlockDeltaData = self.parse_json_data(&data, event_type)?;
-                Ok(Some(
-                    crate::models::message::StreamEvent::ContentBlockDelta {
-                        index: parsed.index,
-                        delta: parsed.delta,
-                    },
-                ))
-            }
-            "content_block_stop" => {
-                let parsed: ContentBlockStopData = self.parse_json_data(&data, event_type)?;
-                Ok(Some(
-                    crate::models::message::StreamEvent::ContentBlockStop {
-                        index: parsed.index,
-                    },
-                ))
-            }
-            _ => {
-                // Unknown event type, ignore or log
-                tracing::warn!("Unknown event type: {}", event_type);
-                Ok(None)
-            }
+        let (field, value) = line.split_once(':').unwrap_or((line, ""));
+        let value = value.strip_prefix(' ').unwrap_or(value);
+        match field {
+            "event" => self.current_event.event_type = Some(value.to_owned()),
+            "data" => self.current_event.data.push(value.to_owned()),
+            _ => {}
         }
+        Ok(None)
+    }
+
+    /// Dispatch a final event whose data line did not end in a blank line.
+    /// Incomplete JSON in a known event is an error, never silently discarded.
+    pub fn finish(&mut self) -> Result<Option<StreamEvent>> {
+        let event = std::mem::take(&mut self.current_event);
+        if event.data.is_empty() {
+            return Ok(None);
+        }
+        let data = event.data.join("\n");
+        self.parse_event(event.event_type.as_deref().unwrap_or("message"), &data)
+            .map(Some)
+    }
+
+    /// Parse a complete event through the same path used by line framing.
+    pub fn parse_event(&self, event_type: &str, data: &str) -> Result<StreamEvent> {
+        if data.len() > self.max_event_bytes {
+            return Err(AnthropicError::stream("SSE event exceeds byte limit"));
+        }
+        let known = matches!(
+            event_type,
+            "message_start"
+                | "message_delta"
+                | "message_stop"
+                | "content_block_start"
+                | "content_block_delta"
+                | "content_block_stop"
+                | "ping"
+                | "error"
+        );
+        if !known {
+            return Ok(StreamEvent::Unknown {
+                event_type: event_type.into(),
+                data: data.into(),
+            });
+        }
+        let value: serde_json::Value = serde_json::from_str(data)
+            .map_err(|_| AnthropicError::stream(format!("Invalid JSON in {event_type} event")))?;
+        if value.get("type").and_then(serde_json::Value::as_str) != Some(event_type) {
+            return Err(AnthropicError::stream(format!(
+                "SSE event name and payload type differ for {event_type}"
+            )));
+        }
+        // Keep the complete error envelope, as in the previous public contract.
+        if event_type == "error" {
+            let valid_error = value.get("error").is_some_and(|error| {
+                error.is_object()
+                    && error.get("type").is_some_and(serde_json::Value::is_string)
+                    && error
+                        .get("message")
+                        .is_some_and(serde_json::Value::is_string)
+            });
+            if !valid_error {
+                return Err(AnthropicError::stream("Invalid error event schema"));
+            }
+            let error: HashMap<String, serde_json::Value> = serde_json::from_value(value)
+                .map_err(|_| AnthropicError::stream("Invalid error event object"))?;
+            return Ok(StreamEvent::Error { error });
+        }
+        let event: StreamEvent = serde_json::from_value(value)
+            .map_err(|_| AnthropicError::stream(format!("Invalid {event_type} event schema")))?;
+        if let StreamEvent::ContentBlockDelta { delta, .. } = &event {
+            delta.validate()?;
+        }
+        Ok(event)
     }
 }
 
@@ -229,117 +144,99 @@ impl Default for EventParser {
     }
 }
 
-// Helper structs for parsing specific event data
-
-#[derive(serde::Deserialize)]
-struct MessageStartData {
-    #[serde(rename = "type")]
-    _type: String,
-    message: crate::models::message::MessageResponse,
-}
-
-#[derive(serde::Deserialize)]
-struct MessageDeltaData {
-    #[serde(rename = "type")]
-    _type: String,
-    delta: crate::models::message::MessageDelta,
-    #[serde(default)]
-    usage: crate::models::common::Usage,
-}
-
-#[derive(serde::Deserialize)]
-struct ContentBlockStartData {
-    #[serde(rename = "type")]
-    _type: String,
-    index: usize,
-    content_block: crate::models::common::ContentBlock,
-}
-
-#[derive(serde::Deserialize)]
-struct ContentBlockDeltaData {
-    #[serde(rename = "type")]
-    _type: String,
-    index: usize,
-    delta: crate::models::message::ContentBlockDelta,
-}
-
-#[derive(serde::Deserialize)]
-struct ContentBlockStopData {
-    #[serde(rename = "type")]
-    _type: String,
-    index: usize,
-}
-
-// Type alias for convenience
+/// Typed message stream event.
 pub use crate::models::message::StreamEvent;
 
 #[cfg(test)]
 mod tests {
-    use super::EventParser;
-    use crate::models::{StreamEvent, TextCitation};
+    use super::*;
+    use crate::models::message::FieldUpdate;
 
     #[test]
-    fn test_parse_content_block_delta_with_citation() {
-        let parser = EventParser::new();
-        let event = parser
-            .parse_event(
-                "content_block_delta",
-                r#"{
-                    "type":"content_block_delta",
-                    "index":0,
-                    "delta":{
-                        "type":"citations_delta",
-                        "citation":{
-                            "type":"search_result_location",
-                            "search_result_index":1,
-                            "source":"web_search",
-                            "title":"Result"
-                        }
-                    }
-                }"#,
-            )
-            .unwrap();
+    fn unknown_events_take_the_same_path_and_preserve_whitespace() {
+        let mut parser = EventParser::new();
+        parser.parse_line("event: future_event").unwrap();
+        parser.parse_line("data:  leading ").unwrap();
+        parser.parse_line("data: second ").unwrap();
+        let event = parser.parse_line("").unwrap().unwrap();
+        assert_eq!(
+            event,
+            parser
+                .parse_event("future_event", " leading \nsecond ")
+                .unwrap()
+        );
+    }
 
+    #[test]
+    fn delta_presence_and_beta_metadata_survive() {
+        let event = EventParser::new().parse_event("message_delta", r#"{"type":"message_delta","delta":{"stop_reason":null},"usage":{"output_tokens":0,"input_tokens":null},"input_transformations":[],"future":true}"#).unwrap();
         match event {
-            StreamEvent::ContentBlockDelta { delta, .. } => {
-                assert!(matches!(
-                    delta.citation,
-                    Some(TextCitation::SearchResultLocation { .. })
-                ));
+            StreamEvent::MessageDelta {
+                delta,
+                usage,
+                input_transformations,
+                extra,
+                ..
+            } => {
+                assert_eq!(delta.stop_reason, FieldUpdate::Null);
+                assert_eq!(delta.stop_sequence, FieldUpdate::Missing);
+                assert_eq!(usage.output_tokens, Some(0));
+                assert_eq!(usage.input_tokens, None);
+                assert_eq!(
+                    input_transformations,
+                    FieldUpdate::Value(serde_json::json!([]))
+                );
+                assert_eq!(extra["future"], true);
             }
-            _ => panic!("Expected ContentBlockDelta"),
+            _ => panic!("wrong event"),
         }
     }
 
     #[test]
-    fn test_parse_message_delta_with_extended_usage() {
+    fn unknown_delta_names_preserve_fields_with_future_types() {
         let parser = EventParser::new();
+        let payload = serde_json::json!({"type":"content_block_delta","index":0,"delta":{"type":"future_delta","text":{"nested":[1,2]},"partial_json":false,"thinking":null,"content":["opaque"]}});
         let event = parser
-            .parse_event(
-                "message_delta",
-                r#"{
-                    "type":"message_delta",
-                    "delta":{"stop_reason":"end_turn"},
-                    "usage":{
-                        "output_tokens":5,
-                        "cache_creation_input_tokens":3,
-                        "cache_read_input_tokens":7,
-                        "server_tool_use":{"web_search_requests":2},
-                        "service_tier":"standard"
-                    }
-                }"#,
-            )
+            .parse_event("content_block_delta", &payload.to_string())
             .unwrap();
-
-        match event {
-            StreamEvent::MessageDelta { usage, .. } => {
-                assert_eq!(usage.output_tokens, 5);
-                assert_eq!(usage.cache_creation_input_tokens, 3);
-                assert_eq!(usage.cache_read_input_tokens, 7);
-                assert_eq!(usage.server_tool_use.unwrap().web_search_requests, 2);
-                assert_eq!(usage.service_tier.as_deref(), Some("standard"));
-            }
-            _ => panic!("Expected MessageDelta"),
+        assert_eq!(serde_json::to_value(&event).unwrap(), payload);
+        if let StreamEvent::ContentBlockDelta { delta, .. } = event {
+            assert_eq!(delta.extra["partial_json"], false);
+        } else {
+            panic!("wrong event");
         }
+    }
+
+    #[test]
+    fn recognized_delta_retains_future_fields_with_other_known_names() {
+        let payload = serde_json::json!({"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"valid","signature":{"future":1},"content":["opaque"]}});
+        let event = EventParser::new()
+            .parse_event("content_block_delta", &payload.to_string())
+            .unwrap();
+        assert_eq!(serde_json::to_value(event).unwrap(), payload);
+    }
+
+    #[test]
+    fn malformed_known_events_and_oversized_frames_fail() {
+        let parser = EventParser::new();
+        assert!(parser.parse_event("message_stop", "{}").is_err());
+        assert!(parser
+            .parse_event("message_stop", r#"{"type":"ping"}"#)
+            .is_err());
+        assert!(parser.parse_event("error", r#"{"type":"error"}"#).is_err());
+        assert!(parser
+            .parse_event(
+                "error",
+                r#"{"type":"error","error":{"type":"future","message":42}}"#
+            )
+            .is_err());
+        assert!(parser
+            .parse_event(
+                "content_block_delta",
+                r#"{"type":"content_block_delta","index":0,"delta":{"type":"text_delta"}}"#
+            )
+            .is_err());
+        let mut bounded = EventParser::with_max_event_bytes(8).unwrap();
+        assert!(bounded.parse_line("data: abcdef").is_err());
     }
 }

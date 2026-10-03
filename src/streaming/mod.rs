@@ -6,5 +6,5 @@ pub mod session_event_stream;
 
 // Re-export main streaming types
 pub use event_parser::{EventParser, StreamEvent};
-pub use message_stream::MessageStream;
+pub use message_stream::{MessageStream, StreamLimits};
 pub use session_event_stream::SessionEventStream;

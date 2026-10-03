@@ -43,6 +43,9 @@ impl SessionsApi {
         request: SessionCreateRequest,
         options: Option<RequestOptions>,
     ) -> Result<Session> {
+        for event in &request.initial_events {
+            crate::api::managed_agents::session_events::validate_initial_event(event)?;
+        }
         let body = serde_json::to_value(request)?;
         self.client
             .request(

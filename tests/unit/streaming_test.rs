@@ -103,10 +103,13 @@ mod event_parser_tests {
         let parser = EventParser::new();
         let event = parser.parse_event("message_delta", event_data).unwrap();
 
-        if let StreamEvent::MessageDelta { delta, usage } = event {
-            assert_eq!(delta.stop_reason, Some(StopReason::EndTurn));
+        if let StreamEvent::MessageDelta { delta, usage, .. } = event {
+            assert_eq!(
+                delta.stop_reason,
+                threatflux_anthropic_sdk::models::message::FieldUpdate::Value(StopReason::EndTurn)
+            );
             assert!(delta.stop_sequence.is_none());
-            assert_eq!(usage.output_tokens, 5);
+            assert_eq!(usage.output_tokens, Some(5));
         } else {
             panic!("Expected MessageDelta event");
         }
@@ -160,7 +163,7 @@ mod event_parser_tests {
 
         // Unknown event type
         let result = parser.parse_event("unknown_event", r#"{"type":"unknown"}"#);
-        assert!(result.is_err());
+        assert!(matches!(result.unwrap(), StreamEvent::Unknown { .. }));
 
         // Missing required fields
         let result = parser.parse_event("message_start", r#"{"type":"message_start"}"#);
@@ -229,6 +232,8 @@ mod message_stream_tests {
             thinking: None,
             signature: None,
             citation: None,
+            content: Default::default(),
+            encrypted_content: Default::default(),
             extra: std::collections::HashMap::new(),
         }
     }
@@ -269,6 +274,10 @@ mod message_stream_tests {
                     stop_details: None,
                     usage: Usage::new(10, 0),
                     container: None,
+                    diagnostics: None,
+                    context_management: None,
+                    input_transformations: None,
+                    extra: Default::default(),
                 },
             }),
             Ok(StreamEvent::ContentBlockStart {
@@ -321,6 +330,10 @@ mod message_stream_tests {
                     stop_details: None,
                     usage: Usage::new(10, 0),
                     container: None,
+                    diagnostics: None,
+                    context_management: None,
+                    input_transformations: None,
+                    extra: Default::default(),
                 },
             }),
             Ok(StreamEvent::ContentBlockStart {
@@ -378,6 +391,10 @@ mod message_stream_tests {
                     stop_details: None,
                     usage: Usage::new(10, 0),
                     container: None,
+                    diagnostics: None,
+                    context_management: None,
+                    input_transformations: None,
+                    extra: Default::default(),
                 },
             }),
             Err(AnthropicError::network("Connection lost")),
@@ -417,6 +434,10 @@ mod message_stream_tests {
                     stop_details: None,
                     usage: Usage::new(10, 0),
                     container: None,
+                    diagnostics: None,
+                    context_management: None,
+                    input_transformations: None,
+                    extra: Default::default(),
                 },
             }),
             Ok(StreamEvent::ContentBlockStart {
@@ -461,6 +482,10 @@ mod message_stream_tests {
                     stop_details: None,
                     usage: Usage::new(10, 0),
                     container: None,
+                    diagnostics: None,
+                    context_management: None,
+                    input_transformations: None,
+                    extra: Default::default(),
                 },
             }),
             // First content block

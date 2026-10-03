@@ -1,8 +1,8 @@
 //! Message-related data models
 
 use super::common::{
-    CacheControl, ContentBlock, Metadata, Role, StopDetails, StopReason, TextCitation, Tool,
-    ToolChoice, Usage, VecPush,
+    CacheControl, CacheCreationUsage, ContentBlock, Metadata, OutputTokensDetails, Role,
+    ServerToolUsage, StopDetails, StopReason, TextCitation, Tool, ToolChoice, Usage, VecPush,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -87,6 +87,12 @@ pub struct ThinkingConfig {
     /// Allow tool use during thinking (beta; legacy field).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_tool_use: Option<bool>,
+    /// Thinking block binding controls (beta; caller selects the beta header).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub block_binding: Option<serde_json::Value>,
+    /// Future thinking controls retained during prompt projection.
+    #[serde(default, flatten)]
+    pub extra: HashMap<String, serde_json::Value>,
 }
 
 impl ThinkingConfig {
@@ -100,7 +106,41 @@ impl ThinkingConfig {
             budget_tokens: None,
             display: None,
             allow_tool_use: None,
+            block_binding: None,
+            extra: HashMap::new(),
         }
+    }
+
+    /// Think between tool calls (Sonnet 5.5; pair with low, medium, or high effort).
+    pub fn between_tools() -> Self {
+        Self {
+            thinking_type: "between_tools".into(),
+            budget_tokens: None,
+            display: None,
+            allow_tool_use: None,
+            block_binding: None,
+            extra: HashMap::new(),
+        }
+    }
+
+    /// Validate the exact `between_tools` schema before sending it.
+    pub fn validate_between_tools(&self) -> crate::error::Result<()> {
+        if self.thinking_type == "between_tools"
+            && (self.budget_tokens.is_some()
+                || self.display.is_some()
+                || self.allow_tool_use.is_some()
+                || self.block_binding.is_some()
+                || !self.extra.is_empty())
+        {
+            return Err(crate::error::AnthropicError::invalid_input("between_tools accepts only the type field; budget, display, binding and extra controls are unsupported"));
+        }
+        Ok(())
+    }
+
+    /// Set explicit beta thinking block binding controls.
+    pub fn with_block_binding(mut self, binding: serde_json::Value) -> Self {
+        self.block_binding = Some(binding);
+        self
     }
 
     /// Adaptive thinking that returns a readable summary of the reasoning.
@@ -110,6 +150,8 @@ impl ThinkingConfig {
             budget_tokens: None,
             display: Some("summarized".to_string()),
             allow_tool_use: None,
+            block_binding: None,
+            extra: HashMap::new(),
         }
     }
 
@@ -128,6 +170,8 @@ impl ThinkingConfig {
             budget_tokens: Some(budget_tokens),
             display: None,
             allow_tool_use: None,
+            block_binding: None,
+            extra: HashMap::new(),
         }
     }
 
@@ -138,6 +182,8 @@ impl ThinkingConfig {
             budget_tokens: Some(budget_tokens),
             display: None,
             allow_tool_use: Some(true),
+            block_binding: None,
+            extra: HashMap::new(),
         }
     }
 
@@ -148,6 +194,8 @@ impl ThinkingConfig {
             budget_tokens: None,
             display: None,
             allow_tool_use: None,
+            block_binding: None,
+            extra: HashMap::new(),
         }
     }
 }
@@ -802,12 +850,64 @@ pub struct MessageResponse {
     /// Reusable execution container info (code execution; beta)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub container: Option<serde_json::Value>,
+    /// Diagnostic response metadata, when requested.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub diagnostics: Option<serde_json::Value>,
+    /// Applied context-management edits (beta).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_management: Option<serde_json::Value>,
+    /// Input transformations applied to this response (beta).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input_transformations: Option<serde_json::Value>,
+    /// Additional response fields retained for forward compatibility.
+    #[serde(flatten, default)]
+    pub extra: HashMap<String, serde_json::Value>,
     /// When the message was created (synthesized if absent from the response)
     #[serde(default = "Utc::now")]
     pub created_at: DateTime<Utc>,
 }
 
 impl MessageResponse {
+    /// Construct an assistant response snapshot with empty content and metadata.
+    pub fn new(id: impl Into<String>, model: impl Into<String>, usage: Usage) -> Self {
+        Self {
+            id: id.into(),
+            object_type: "message".into(),
+            role: Role::Assistant,
+            content: Vec::new(),
+            model: model.into(),
+            stop_reason: None,
+            stop_sequence: None,
+            stop_details: None,
+            usage,
+            container: None,
+            diagnostics: None,
+            context_management: None,
+            input_transformations: None,
+            extra: HashMap::new(),
+            created_at: Utc::now(),
+        }
+    }
+
+    /// Preserve response content as an assistant conversation turn, validating
+    /// known replay shapes and applying an explicit unknown-block policy.
+    pub fn to_conversation_message(
+        &self,
+        policy: super::common::ReplayUnknownPolicy,
+    ) -> crate::error::Result<Message> {
+        if self.role != Role::Assistant {
+            return Err(crate::error::AnthropicError::invalid_input(
+                "Conversation replay requires an assistant response role",
+            ));
+        }
+        let content = self
+            .content
+            .iter()
+            .map(|block| block.checked_replay(&Role::Assistant, policy))
+            .collect::<crate::error::Result<Vec<_>>>()?;
+        Ok(Message::new(Role::Assistant, content))
+    }
+
     /// Whether the response was declined for safety/policy reasons.
     pub fn is_refusal(&self) -> bool {
         matches!(self.stop_reason, Some(StopReason::Refusal))
@@ -825,6 +925,55 @@ impl MessageResponse {
     }
 }
 
+/// Prompt configuration accepted by both Messages and token counting.
+///
+/// Fields stay flat on the wire; this is a reusable construction/projection type.
+#[derive(Debug, Clone, PartialEq, Default)]
+#[non_exhaustive]
+pub struct PromptOptions {
+    /// System prompt, including cacheable blocks.
+    pub system: Option<SystemPrompt>,
+    /// Available tools.
+    pub tools: Option<Vec<Tool>>,
+    /// Thinking configuration.
+    pub thinking: Option<ThinkingConfig>,
+    /// Tool selection policy.
+    pub tool_choice: Option<ToolChoice>,
+    /// Output configuration, including structured output schemas.
+    pub output_config: Option<OutputConfig>,
+    /// Automatic prompt cache breakpoint.
+    pub cache_control: Option<CacheControl>,
+    /// Profile attribution, sent as a header rather than JSON.
+    pub user_profile_id: Option<String>,
+}
+
+impl PromptOptions {
+    /// Extract the countable prompt configuration without validating parity.
+    /// Use [`TokenCountRequest::from_message`] for validated projection.
+    pub fn from_message(request: &MessageRequest) -> Self {
+        Self {
+            system: request.system.clone(),
+            tools: request.tools.clone(),
+            thinking: request.thinking.clone(),
+            tool_choice: request.tool_choice.clone(),
+            output_config: request.output_config.clone(),
+            cache_control: request.cache_control.clone(),
+            user_profile_id: request.user_profile_id.clone(),
+        }
+    }
+
+    /// Apply these fields to a generation request.
+    pub fn apply_to_message(self, request: &mut MessageRequest) {
+        request.system = self.system;
+        request.tools = self.tools;
+        request.thinking = self.thinking;
+        request.tool_choice = self.tool_choice;
+        request.output_config = self.output_config;
+        request.cache_control = self.cache_control;
+        request.user_profile_id = self.user_profile_id;
+    }
+}
+
 /// Request to count tokens in a message
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TokenCountRequest {
@@ -838,12 +987,124 @@ pub struct TokenCountRequest {
     /// Tools to include in token count
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<Tool>>,
+    /// Thinking configuration to include in counting.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thinking: Option<ThinkingConfig>,
+    /// Tool selection policy to include in counting.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_choice: Option<ToolChoice>,
+    /// Output configuration, including structured output schemas.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_config: Option<OutputConfig>,
+    /// Top-level automatic prompt caching.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_control: Option<CacheControl>,
     /// User profile attribution, sent as the Anthropic profile header.
     #[serde(skip)]
     pub user_profile_id: Option<String>,
 }
 
 impl TokenCountRequest {
+    /// Project a message request into the stable counting endpoint's allowlist.
+    ///
+    /// Generation controls are omitted. Context management, containers, MCP server
+    /// configuration and fallback routing can change the effective prompt but are
+    /// not exposed by this counting schema, so projection fails rather than
+    /// claiming an equivalent count. Nested beta thinking/output controls are
+    /// retained verbatim and require the same explicit beta selection on both
+    /// calls. Caller beta/workspace options and model/account eligibility remain
+    /// explicit; projection does not select headers or verify account access.
+    ///
+    /// Verified 2026-10-03 against the official SDK's [stable counting schema](https://github.com/anthropics/anthropic-sdk-python/blob/18f25547f20cf5f01da69ac611e700e3bc9ebf21/src/anthropic/types/message_count_tokens_params.py)
+    /// and [beta counting schema](https://github.com/anthropics/anthropic-sdk-python/blob/18f25547f20cf5f01da69ac611e700e3bc9ebf21/src/anthropic/types/beta/message_count_tokens_params.py).
+    pub fn from_message(request: &MessageRequest) -> crate::error::Result<Self> {
+        use crate::error::AnthropicError;
+        for (present, field) in [
+            (request.container.is_some(), "container"),
+            (request.context_management.is_some(), "context_management"),
+            (request.mcp_servers.is_some(), "mcp_servers"),
+            (request.fallbacks.is_some(), "fallbacks"),
+            (
+                request.fallback_credit_token.is_some(),
+                "fallback_credit_token",
+            ),
+        ] {
+            if present {
+                return Err(AnthropicError::invalid_input(format!(
+                    "Cannot project {field} to the stable token-counting schema"
+                )));
+            }
+        }
+        let mut prompt = PromptOptions::from_message(request);
+        if let Some(format) = &request.output_format {
+            let config = prompt
+                .output_config
+                .get_or_insert_with(OutputConfig::default);
+            if config
+                .format
+                .as_ref()
+                .is_some_and(|existing| existing != format)
+            {
+                return Err(AnthropicError::invalid_input(
+                    "Conflicting output_format and output_config.format",
+                ));
+            }
+            config.format = Some(format.clone());
+        }
+        Ok(Self::new()
+            .model(request.model.clone())
+            .messages(request.messages.clone())
+            .prompt_options(prompt))
+    }
+
+    /// Apply shared countable prompt options.
+    pub fn prompt_options(mut self, prompt: PromptOptions) -> Self {
+        self.system = prompt.system;
+        self.tools = prompt.tools;
+        self.thinking = prompt.thinking;
+        self.tool_choice = prompt.tool_choice;
+        self.output_config = prompt.output_config;
+        self.cache_control = prompt.cache_control;
+        self.user_profile_id = prompt.user_profile_id;
+        self
+    }
+
+    /// Replace messages to count.
+    pub fn messages(mut self, messages: Vec<Message>) -> Self {
+        self.messages = messages;
+        self
+    }
+    /// Replace tools to count.
+    pub fn tools(mut self, tools: Vec<Tool>) -> Self {
+        self.tools = Some(tools);
+        self
+    }
+    /// Set structured system prompt blocks.
+    pub fn system_blocks(mut self, blocks: Vec<SystemBlock>) -> Self {
+        self.system = Some(SystemPrompt::Blocks(blocks));
+        self
+    }
+    /// Set the thinking configuration.
+    pub fn thinking(mut self, thinking: ThinkingConfig) -> Self {
+        self.thinking = Some(thinking);
+        self
+    }
+    /// Set tool selection.
+    pub fn tool_choice(mut self, choice: ToolChoice) -> Self {
+        self.tool_choice = Some(choice);
+        self
+    }
+    /// Set output configuration.
+    pub fn output_config(mut self, output_config: OutputConfig) -> Self {
+        self.output_config = Some(output_config);
+        self
+    }
+    /// Set automatic prompt caching.
+    pub fn cache_control(mut self, cache_control: CacheControl) -> Self {
+        self.cache_control = Some(cache_control);
+        self
+    }
+
     /// Create a new token count request
     pub fn new() -> Self {
         Self {
@@ -851,6 +1112,10 @@ impl TokenCountRequest {
             messages: Vec::new(),
             system: None,
             tools: None,
+            thinking: None,
+            tool_choice: None,
+            output_config: None,
+            cache_control: None,
             user_profile_id: None,
         }
     }
@@ -905,22 +1170,174 @@ pub struct TokenCountResponse {
     pub input_tokens: u32,
 }
 
-/// Streaming message delta
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// A streaming field that distinguishes omission from an explicit JSON null.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum FieldUpdate<T> {
+    /// Field was absent; retain the previous value.
+    #[default]
+    Missing,
+    /// Field was explicitly null.
+    Null,
+    /// Field has a replacement value.
+    Value(T),
+}
+
+impl<T> FieldUpdate<T> {
+    /// Whether the field is absent.
+    pub fn is_missing(&self) -> bool {
+        matches!(self, Self::Missing)
+    }
+    /// Whether a non-null value is present.
+    pub fn is_some(&self) -> bool {
+        matches!(self, Self::Value(_))
+    }
+    /// Whether no non-null value is present.
+    pub fn is_none(&self) -> bool {
+        !self.is_some()
+    }
+    /// Borrow the non-null replacement value.
+    pub fn as_ref(&self) -> Option<&T> {
+        match self {
+            Self::Value(value) => Some(value),
+            _ => None,
+        }
+    }
+    /// Apply this update, including explicit null clearing.
+    pub fn apply(self, target: &mut Option<T>) {
+        match self {
+            Self::Missing => {}
+            Self::Null => *target = None,
+            Self::Value(value) => *target = Some(value),
+        }
+    }
+    /// Apply a non-null replacement; null and omission both retain.
+    pub fn apply_non_null(self, target: &mut Option<T>) {
+        if let Self::Value(value) = self {
+            *target = Some(value);
+        }
+    }
+}
+
+impl<T: Serialize> Serialize for FieldUpdate<T> {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
+        match self {
+            Self::Missing | Self::Null => serializer.serialize_none(),
+            Self::Value(value) => value.serialize(serializer),
+        }
+    }
+}
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for FieldUpdate<T> {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> std::result::Result<Self, D::Error> {
+        Ok(match Option::<T>::deserialize(deserializer)? {
+            Some(value) => Self::Value(value),
+            None => Self::Null,
+        })
+    }
+}
+
+/// Streaming message delta. Stops clear on explicit null; containers retain.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct MessageDelta {
-    /// Stop reason if the message is complete
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub stop_reason: Option<StopReason>,
-    /// Stop sequence that caused the message to stop
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub stop_sequence: Option<String>,
-    /// Additional delta fields for forward compatibility
+    /// Stop reason update.
+    #[serde(default, skip_serializing_if = "FieldUpdate::is_missing")]
+    pub stop_reason: FieldUpdate<StopReason>,
+    /// Stop sequence update.
+    #[serde(default, skip_serializing_if = "FieldUpdate::is_missing")]
+    pub stop_sequence: FieldUpdate<String>,
+    /// Structured stop detail update.
+    #[serde(default, skip_serializing_if = "FieldUpdate::is_missing")]
+    pub stop_details: FieldUpdate<StopDetails>,
+    /// Container snapshot update (null retains the previous container).
+    #[serde(default, skip_serializing_if = "FieldUpdate::is_missing")]
+    pub container: FieldUpdate<serde_json::Value>,
+    /// Additional delta fields retained as raw data, without guessed merge rules.
     #[serde(flatten, default)]
     pub extra: HashMap<String, serde_json::Value>,
 }
 
+/// Cumulative usage updates. Omitted or null fields retain the start snapshot.
+///
+/// Token counts replace previous totals, including zero. They are never added.
+/// Verified 2026-10-03 against the official [stable](https://github.com/anthropics/anthropic-sdk-python/blob/18f25547f20cf5f01da69ac611e700e3bc9ebf21/src/anthropic/lib/streaming/_messages.py)
+/// and [beta](https://github.com/anthropics/anthropic-sdk-python/blob/18f25547f20cf5f01da69ac611e700e3bc9ebf21/src/anthropic/lib/streaming/_beta_messages.py)
+/// accumulators; start-only metadata has no inferred aggregation.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct UsageDelta {
+    /// Cumulative uncached input tokens.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input_tokens: Option<u32>,
+    /// Cumulative output tokens, including thinking tokens.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_tokens: Option<u32>,
+    /// Cumulative tokens written into cache.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_creation_input_tokens: Option<u32>,
+    /// Cumulative tokens read from cache.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_read_input_tokens: Option<u32>,
+    /// Complete server-tool usage replacement.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_tool_use: Option<ServerToolUsage>,
+    /// Complete output token detail replacement.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_tokens_details: Option<OutputTokensDetails>,
+    /// Complete iteration usage replacement; an empty list replaces.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub iterations: Option<Vec<serde_json::Value>>,
+    /// Complete fallback-credit replacement.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fallback_credit: Option<serde_json::Value>,
+    /// Start-only cache creation metadata, retained here for raw event inspection.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_creation: Option<CacheCreationUsage>,
+    /// Start-only geography, retained here for raw event inspection.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inference_geo: Option<String>,
+    /// Start-only service tier, retained here for raw event inspection.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub service_tier: Option<String>,
+    /// Additional raw usage fields; collection does not guess their aggregation.
+    #[serde(flatten, default)]
+    pub extra: HashMap<String, serde_json::Value>,
+}
+
+impl UsageDelta {
+    /// Apply the documented cumulative updates while retaining start-only metadata.
+    pub fn apply(self, usage: &mut Usage) {
+        if let Some(value) = self.input_tokens {
+            usage.input_tokens = value;
+        }
+        if let Some(value) = self.output_tokens {
+            usage.output_tokens = value;
+        }
+        if let Some(value) = self.cache_creation_input_tokens {
+            usage.cache_creation_input_tokens = value;
+        }
+        if let Some(value) = self.cache_read_input_tokens {
+            usage.cache_read_input_tokens = value;
+        }
+        if self.server_tool_use.is_some() {
+            usage.server_tool_use = self.server_tool_use;
+        }
+        if self.output_tokens_details.is_some() {
+            usage.output_tokens_details = self.output_tokens_details;
+        }
+        if self.iterations.is_some() {
+            usage.iterations = self.iterations;
+        }
+        if self.fallback_credit.is_some() {
+            usage.fallback_credit = self.fallback_credit;
+        }
+    }
+}
+
 /// Content block delta for streaming
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ContentBlockDelta {
     /// Type of content block
     #[serde(rename = "type")]
@@ -940,20 +1357,147 @@ pub struct ContentBlockDelta {
     /// Citation delta (for text citations during streaming)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub citation: Option<TextCitation>,
-    /// Additional delta fields for forward compatibility
+    /// Compaction content snapshot; explicit null clears it.
+    #[serde(default, skip_serializing_if = "FieldUpdate::is_missing")]
+    pub content: FieldUpdate<String>,
+    /// Opaque encrypted compaction snapshot; explicit null clears it.
+    #[serde(default, skip_serializing_if = "FieldUpdate::is_missing")]
+    pub encrypted_content: FieldUpdate<String>,
+    /// Additional delta fields for forward compatibility.
     #[serde(flatten, default)]
     pub extra: HashMap<String, serde_json::Value>,
+}
+
+fn take_delta_field<T: serde::de::DeserializeOwned>(
+    extra: &mut HashMap<String, serde_json::Value>,
+    key: &str,
+) -> std::result::Result<Option<T>, serde_json::Error> {
+    extra
+        .remove(key)
+        .map(serde_json::from_value::<Option<T>>)
+        .transpose()
+        .map(Option::flatten)
+}
+fn take_delta_update<T: serde::de::DeserializeOwned>(
+    extra: &mut HashMap<String, serde_json::Value>,
+    key: &str,
+) -> std::result::Result<FieldUpdate<T>, serde_json::Error> {
+    extra
+        .remove(key)
+        .map(serde_json::from_value)
+        .transpose()
+        .map(|value| value.unwrap_or(FieldUpdate::Missing))
+}
+impl<'de> Deserialize<'de> for ContentBlockDelta {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> std::result::Result<Self, D::Error> {
+        let value = serde_json::Value::deserialize(deserializer)?;
+        let serde_json::Value::Object(mut object) = value else {
+            return Err(serde::de::Error::custom(
+                "content delta requires an object with a string type",
+            ));
+        };
+        let block_type = object
+            .remove("type")
+            .and_then(|kind| kind.as_str().map(str::to_owned))
+            .ok_or_else(|| {
+                serde::de::Error::custom("content delta requires an object with a string type")
+            })?;
+        let mut delta = Self {
+            block_type,
+            text: None,
+            partial_json: None,
+            thinking: None,
+            signature: None,
+            citation: None,
+            content: FieldUpdate::Missing,
+            encrypted_content: FieldUpdate::Missing,
+            extra: object.into_iter().collect(),
+        };
+        // Only fields belonging to this discriminator are typed. Future keys,
+        // even ones used by another known delta, retain their original JSON type.
+        match delta.block_type.as_str() {
+            "text_delta" => {
+                delta.text =
+                    take_delta_field(&mut delta.extra, "text").map_err(serde::de::Error::custom)?
+            }
+            "thinking_delta" => {
+                delta.thinking = take_delta_field(&mut delta.extra, "thinking")
+                    .map_err(serde::de::Error::custom)?
+            }
+            "signature_delta" => {
+                delta.signature = take_delta_field(&mut delta.extra, "signature")
+                    .map_err(serde::de::Error::custom)?
+            }
+            "input_json_delta" => {
+                delta.partial_json = take_delta_field(&mut delta.extra, "partial_json")
+                    .map_err(serde::de::Error::custom)?
+            }
+            "citations_delta" => {
+                delta.citation = take_delta_field(&mut delta.extra, "citation")
+                    .map_err(serde::de::Error::custom)?
+            }
+            "compaction_delta" => {
+                delta.content = take_delta_update(&mut delta.extra, "content")
+                    .map_err(serde::de::Error::custom)?;
+                delta.encrypted_content = take_delta_update(&mut delta.extra, "encrypted_content")
+                    .map_err(serde::de::Error::custom)?;
+            }
+            _ => {}
+        }
+        delta.validate().map_err(serde::de::Error::custom)?;
+        Ok(delta)
+    }
+}
+
+impl ContentBlockDelta {
+    /// Reject malformed recognized deltas while preserving future delta types.
+    pub fn validate(&self) -> crate::error::Result<()> {
+        let valid = match self.block_type.as_str() {
+            "text_delta" => self.text.is_some(),
+            "thinking_delta" => self.thinking.is_some(),
+            "signature_delta" => self.signature.is_some(),
+            "input_json_delta" => self.partial_json.is_some(),
+            "citations_delta" => self.citation.is_some(),
+            "compaction_delta" => true,
+            _ => true,
+        };
+        if !valid {
+            return Err(crate::error::AnthropicError::stream(format!(
+                "Missing required field in {}",
+                self.block_type
+            )));
+        }
+        Ok(())
+    }
 }
 
 /// Streaming event types
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 #[allow(clippy::large_enum_variant)]
+#[non_exhaustive]
 pub enum StreamEvent {
     /// Message started
     MessageStart { message: MessageResponse },
     /// Message delta
-    MessageDelta { delta: MessageDelta, usage: Usage },
+    MessageDelta {
+        /// Message-level stop/container updates.
+        delta: MessageDelta,
+        /// Cumulative usage updates.
+        #[serde(default)]
+        usage: UsageDelta,
+        /// Beta event-level context management snapshot.
+        #[serde(default, skip_serializing_if = "FieldUpdate::is_missing")]
+        context_management: FieldUpdate<serde_json::Value>,
+        /// Beta event-level input transformations snapshot.
+        #[serde(default, skip_serializing_if = "FieldUpdate::is_missing")]
+        input_transformations: FieldUpdate<serde_json::Value>,
+        /// Unrecognized event-level fields.
+        #[serde(flatten, default)]
+        extra: HashMap<String, serde_json::Value>,
+    },
     /// Message stopped
     MessageStop,
     /// Content block started
@@ -970,6 +1514,13 @@ pub enum StreamEvent {
     ContentBlockStop { index: usize },
     /// Ping event
     Ping,
+    /// Unknown SSE event retained without assuming a JSON schema or merge rule.
+    Unknown {
+        /// Event name supplied by the server.
+        event_type: String,
+        /// Exact newline-joined SSE data payload.
+        data: String,
+    },
     /// Error event
     Error {
         error: HashMap<String, serde_json::Value>,

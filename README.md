@@ -26,11 +26,17 @@ is authoritative for service behavior and availability.
 - Source-level clients for core, administrative, and selected preview APIs.
 - Compile-checked examples and rustdoc with warnings denied in CI.
 
+The unreleased 0.4 API adds lossless content replay, strict streaming collection,
+current Skills, bounded pagination and batch result streams, an optional tool
+runner, and explicit OAuth administration. Read the [0.4 migration guide](docs/migration-0.4.md)
+for public API changes and the [coverage notes](docs/api-coverage.md) for limits.
+
 ## Requirements
 
 - Rust 1.99.0 or newer (the minimum supported Rust version, or MSRV).
 - An Anthropic API key for live requests.
-- An Anthropic Admin API key for administration endpoints.
+- An Anthropic Admin API key for key-based administration, or an eligible
+  `org:admin` bearer credential for the OAuth-only resources.
 
 ## Installation
 

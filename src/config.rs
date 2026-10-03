@@ -19,6 +19,76 @@ pub const DEFAULT_MODEL: &str = models::SONNET_4_6;
 pub mod models {
     // --- Current models ---------------------------------------------------
 
+    /// Claude Opus 5.5. Adaptive thinking is always enabled.
+    pub const OPUS_5_5: &str = "claude-opus-5-5";
+    /// Claude Sonnet 5.5. Supports adaptive and between-tools thinking.
+    pub const SONNET_5_5: &str = "claude-sonnet-5-5";
+    /// Claude Fable 5.1. Availability depends on account eligibility.
+    pub const FABLE_5_1: &str = "claude-fable-5-1";
+    /// Claude Mythos 5.1. Access is gated by Anthropic.
+    pub const MYTHOS_5_1: &str = "claude-mythos-5-1";
+
+    /// Documented support for a model feature. An unrecognized ID is unknown.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub enum Support {
+        /// The model supports this feature.
+        Supported,
+        /// The model explicitly does not support this feature.
+        Unsupported,
+        /// This SDK has no authoritative capability information.
+        Unknown,
+    }
+
+    /// Features exposed by the dated local model catalog.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub enum Feature {
+        /// Thinking of any supported kind.
+        Thinking,
+        /// Adaptive thinking.
+        AdaptiveThinking,
+        /// Output effort controls.
+        Effort,
+        /// Extra-high effort.
+        XHighEffort,
+        /// A million-token context window.
+        Context1M,
+        /// Forced `any` or named `tool` selection, independent of thinking settings.
+        ForcedToolChoice,
+    }
+
+    /// Query documented capabilities without treating unknown models as unsupported.
+    ///
+    /// Verified 2026-10-03 against the official model migration guides. The Models
+    /// API does not report forced-tool-choice support. This catalog never restricts
+    /// the string IDs accepted by the HTTP APIs.
+    pub fn support(model: &str, feature: Feature) -> Support {
+        if !all_models().contains(&model) {
+            return Support::Unknown;
+        }
+        if feature == Feature::ForcedToolChoice {
+            return match model {
+                OPUS_5_5 | SONNET_5_5 | FABLE_5_1 | MYTHOS_5_1 => Support::Unsupported,
+                OPUS_5 => Support::Supported,
+                _ => Support::Unknown,
+            };
+        }
+        let supported = match feature {
+            Feature::Thinking => supports_thinking(model),
+            Feature::AdaptiveThinking => supports_adaptive_thinking(model),
+            Feature::Effort => supports_effort(model),
+            Feature::XHighEffort => supports_xhigh_effort(model),
+            Feature::Context1M => supports_1m_context(model),
+            Feature::ForcedToolChoice => unreachable!(),
+        };
+        if supported {
+            Support::Supported
+        } else {
+            Support::Unsupported
+        }
+    }
+
     /// Claude Fable 5 — most capable widely released model. Always-on thinking;
     /// requires 30-day data retention.
     pub const FABLE_5: &str = "claude-fable-5";
@@ -71,14 +141,26 @@ pub mod models {
 
     /// Models that support thinking (adaptive and/or extended).
     pub fn supports_thinking(model: &str) -> bool {
-        supports_adaptive_thinking(model) || matches!(model, OPUS_4_5 | SONNET_4_5 | OPUS_4_1)
+        supports_adaptive_thinking(model)
+            || matches!(model, OPUS_4_5 | SONNET_4_5 | OPUS_4_1 | HAIKU_4_5)
     }
 
     /// Models that support adaptive thinking (`thinking: {type: "adaptive"}`).
     pub fn supports_adaptive_thinking(model: &str) -> bool {
         matches!(
             model,
-            FABLE_5 | MYTHOS_5 | OPUS_5 | SONNET_5 | OPUS_4_8 | OPUS_4_7 | OPUS_4_6 | SONNET_4_6
+            OPUS_5_5
+                | SONNET_5_5
+                | FABLE_5_1
+                | MYTHOS_5_1
+                | FABLE_5
+                | MYTHOS_5
+                | OPUS_5
+                | SONNET_5
+                | OPUS_4_8
+                | OPUS_4_7
+                | OPUS_4_6
+                | SONNET_4_6
         )
     }
 
@@ -86,7 +168,11 @@ pub mod models {
     pub fn supports_effort(model: &str) -> bool {
         matches!(
             model,
-            FABLE_5
+            OPUS_5_5
+                | SONNET_5_5
+                | FABLE_5_1
+                | MYTHOS_5_1
+                | FABLE_5
                 | MYTHOS_5
                 | OPUS_5
                 | SONNET_5
@@ -100,14 +186,29 @@ pub mod models {
 
     /// Models that support the `xhigh` effort level.
     pub fn supports_xhigh_effort(model: &str) -> bool {
-        matches!(model, FABLE_5 | MYTHOS_5 | OPUS_5 | OPUS_4_8 | OPUS_4_7)
+        matches!(
+            model,
+            OPUS_5_5
+                | SONNET_5_5
+                | FABLE_5_1
+                | MYTHOS_5_1
+                | FABLE_5
+                | MYTHOS_5
+                | OPUS_5
+                | OPUS_4_8
+                | OPUS_4_7
+        )
     }
 
     /// Check if a model supports a 1M-token context window.
     pub fn supports_1m_context(model: &str) -> bool {
         matches!(
             model,
-            FABLE_5
+            OPUS_5_5
+                | SONNET_5_5
+                | FABLE_5_1
+                | MYTHOS_5_1
+                | FABLE_5
                 | MYTHOS_5
                 | OPUS_5
                 | SONNET_5
@@ -134,8 +235,8 @@ pub mod models {
     /// Get all current (non-retired) models.
     pub fn all_models() -> &'static [&'static str] {
         &[
-            FABLE_5, MYTHOS_5, OPUS_5, SONNET_5, OPUS_4_8, OPUS_4_7, OPUS_4_6, SONNET_4_6,
-            HAIKU_4_5, OPUS_4_5, SONNET_4_5, OPUS_4_1,
+            OPUS_5_5, SONNET_5_5, FABLE_5_1, MYTHOS_5_1, FABLE_5, MYTHOS_5, OPUS_5, SONNET_5,
+            OPUS_4_8, OPUS_4_7, OPUS_4_6, SONNET_4_6, HAIKU_4_5, OPUS_4_5, SONNET_4_5, OPUS_4_1,
         ]
     }
 

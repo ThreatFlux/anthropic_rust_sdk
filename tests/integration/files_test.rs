@@ -4,7 +4,8 @@
 
 use serde_json::json;
 use threatflux_anthropic_sdk::{
-    models::file::FileUploadRequest, types::Pagination, Client, Config,
+    models::file::{FileListParams, FileUploadRequest},
+    Client, Config,
 };
 use wiremock::{
     matchers::{body_string_contains, header, method, path, query_param},
@@ -40,8 +41,7 @@ mod files_api_tests {
         let client = setup_test_client(&mock_server).await;
 
         let content = b"Hello, this is test file content for the Threatflux SDK!";
-        let upload_request =
-            FileUploadRequest::new(content.to_vec(), "test.txt", "text/plain").purpose("user_data");
+        let upload_request = FileUploadRequest::new(content.to_vec(), "test.txt", "text/plain");
 
         let response = client.files().upload(upload_request, None).await;
 
@@ -90,8 +90,7 @@ mod files_api_tests {
         let client = setup_test_client(&mock_server).await;
 
         for (filename, mime_type, content) in test_files {
-            let upload_request =
-                FileUploadRequest::new(content, filename, mime_type).purpose("user_data");
+            let upload_request = FileUploadRequest::new(content, filename, mime_type);
 
             let response = client.files().upload(upload_request, None).await;
             assert!(response.is_ok());
@@ -133,7 +132,7 @@ mod files_api_tests {
         Mock::given(method("GET"))
             .and(path("/v1/files"))
             .and(query_param("limit", "5"))
-            .and(query_param("after", "file_cursor"))
+            .and(query_param("page", "page_file_cursor"))
             .respond_with(
                 ResponseTemplate::new(200).set_body_json(fixtures::test_file_list_response()),
             )
@@ -142,9 +141,11 @@ mod files_api_tests {
 
         let client = setup_test_client(&mock_server).await;
 
-        let pagination = Pagination::new().with_limit(5).with_after("file_cursor");
+        let params = FileListParams::new()
+            .with_limit(5)
+            .with_page("page_file_cursor");
 
-        let response = client.files().list(Some(pagination), None).await;
+        let response = client.files().list_with_params(None, params, None).await;
         assert!(response.is_ok());
     }
 
@@ -180,7 +181,7 @@ mod files_api_tests {
         let file_content = b"This is the downloaded file content";
 
         Mock::given(method("GET"))
-            .and(path("/v1/files/file_test123/download"))
+            .and(path("/v1/files/file_test123/content"))
             .and(header("x-api-key", "sk-ant-test-key"))
             .respond_with(
                 ResponseTemplate::new(200)
@@ -252,39 +253,33 @@ mod files_api_tests {
     }
 
     #[tokio::test]
-    async fn test_file_purposes() {
+    async fn test_expiring_file_upload() {
         let mock_server = MockServer::start().await;
-
-        let purposes = vec!["user_data", "assistant_data"];
-
-        for purpose_str in purposes {
-            let mut file = fixtures::test_file();
-            file.purpose = purpose_str.to_string();
-
-            let upload_response =
-                threatflux_anthropic_sdk::models::file::FileUploadResponse { file: file.clone() };
-
-            // Match on the `purpose` form field so each mock only responds to the
-            // request carrying that purpose (the values are disjoint substrings).
-            Mock::given(method("POST"))
-                .and(path("/v1/files"))
-                .and(body_string_contains(purpose_str))
-                .respond_with(ResponseTemplate::new(200).set_body_json(&upload_response))
-                .mount(&mock_server)
-                .await;
-
-            let client = setup_test_client(&mock_server).await;
-
-            let upload_request =
-                FileUploadRequest::new(b"test content".to_vec(), "test.txt", "text/plain")
-                    .purpose(purpose_str);
-
-            let response = client.files().upload(upload_request, None).await;
-            assert!(response.is_ok());
-
-            let result = response.unwrap();
-            assert_eq!(result.file.purpose, purpose_str);
-        }
+        Mock::given(method("POST"))
+            .and(path("/v1/files"))
+            .and(body_string_contains("name=\"expires_in_seconds\""))
+            .and(body_string_contains("3600"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(fixtures::test_file_upload_response()),
+            )
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+        let request = FileUploadRequest::new(b"test".to_vec(), "test.txt", "text/plain")
+            .expires_in_seconds(3600);
+        setup_test_client(&mock_server)
+            .await
+            .files()
+            .upload(request, None)
+            .await
+            .unwrap();
+        let requests = mock_server.received_requests().await.unwrap();
+        let body = std::str::from_utf8(&requests[0].body).unwrap();
+        assert!(!body.contains("name=\"purpose\""));
+        assert!(requests[0].headers["content-type"]
+            .to_str()
+            .unwrap()
+            .starts_with("multipart/form-data; boundary="));
     }
 
     #[tokio::test]
@@ -308,8 +303,7 @@ mod files_api_tests {
         // Simulate large file
         let large_content = vec![0u8; 10 * 1024 * 1024]; // 10MB
         let upload_request =
-            FileUploadRequest::new(large_content, "large_file.bin", "application/octet-stream")
-                .purpose("user_data");
+            FileUploadRequest::new(large_content, "large_file.bin", "application/octet-stream");
 
         let response = client.files().upload(upload_request, None).await;
         assert!(response.is_err());
@@ -343,8 +337,7 @@ mod files_api_tests {
             b"executable content".to_vec(),
             "malware.exe",
             "application/x-executable",
-        )
-        .purpose("user_data");
+        );
 
         let response = client.files().upload(upload_request, None).await;
         assert!(response.is_err());
@@ -406,7 +399,7 @@ mod files_api_tests {
 
         let file = response.unwrap();
         assert_eq!(file.size_bytes, 100);
-        assert_eq!(file.purpose, "user_data");
+        assert_eq!(file.purpose.as_deref(), Some("user_data"));
         assert_eq!(
             file.status,
             Some(threatflux_anthropic_sdk::models::file::FileStatus::Ready)
@@ -421,7 +414,7 @@ mod files_api_tests {
         let binary_content: Vec<u8> = vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]; // PNG header
 
         Mock::given(method("GET"))
-            .and(path("/v1/files/binary_file/download"))
+            .and(path("/v1/files/binary_file/content"))
             .respond_with(
                 ResponseTemplate::new(200)
                     .insert_header("content-type", "image/png")
@@ -464,8 +457,7 @@ mod files_api_tests {
         let client = setup_test_client(&mock_server).await;
 
         let upload_request =
-            FileUploadRequest::new("测试内容".as_bytes().to_vec(), "测试文件.txt", "text/plain")
-                .purpose("user_data");
+            FileUploadRequest::new("测试内容".as_bytes().to_vec(), "测试文件.txt", "text/plain");
 
         let response = client.files().upload(upload_request, None).await;
         assert!(response.is_ok());
@@ -506,8 +498,7 @@ mod files_api_tests {
                     format!("Content {}", i).as_bytes().to_vec(),
                     format!("concurrent_{}.txt", i),
                     "text/plain",
-                )
-                .purpose("user_data");
+                );
 
                 client.files().upload(upload_request, None).await
             });

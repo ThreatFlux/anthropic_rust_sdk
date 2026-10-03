@@ -237,8 +237,7 @@ mod legacy_file_tests {
         };
 
         let content = b"Hello, this is a test file for Threatflux SDK!";
-        let request =
-            FileUploadRequest::new(content.to_vec(), "test.txt", "text/plain").purpose("user_data");
+        let request = FileUploadRequest::new(content.to_vec(), "test.txt", "text/plain");
 
         let result = client.files().upload(request, None).await;
         assert!(result.is_ok(), "File upload should succeed");

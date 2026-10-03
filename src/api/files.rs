@@ -1,14 +1,13 @@
 //! Files API implementation
 
 use crate::{
-    api::utils::{
-        build_paginated_path, build_pagination_query, build_path_with_query,
-        create_default_pagination,
-    },
+    api::utils::{build_path_with_query, paginate, TraversalPage},
     client::Client,
     error::Result,
     models::file::{File, FileListParams, FileListResponse, FileUploadRequest, FileUploadResponse},
-    types::{HttpMethod, Pagination, ProgressCallback, RequestOptions},
+    types::{
+        HttpMethod, PageStream, Pagination, PaginationLimits, ProgressCallback, RequestOptions,
+    },
 };
 use reqwest::multipart::{Form, Part};
 use std::path::Path;
@@ -37,7 +36,7 @@ impl FilesApi {
     ///
     /// let file_content = std::fs::read("document.pdf")?;
     /// let request = FileUploadRequest::new(file_content, "document.pdf", "application/pdf")
-    ///     .purpose("user_data");
+    ///     .expires_in_seconds(3600);
     ///
     /// let file = client.files().upload(request, None).await?;
     /// println!("Uploaded file: {}", file.file.id);
@@ -49,51 +48,22 @@ impl FilesApi {
         request: FileUploadRequest,
         options: Option<RequestOptions>,
     ) -> Result<FileUploadResponse> {
-        let form = Form::new()
-            .part(
-                "file",
-                Part::bytes(request.content)
-                    .file_name(request.filename)
-                    .mime_str(&request.mime_type)
-                    .map_err(|e| {
-                        crate::error::AnthropicError::file_error(format!(
-                            "Invalid MIME type: {}",
-                            e
-                        ))
-                    })?,
-            )
-            .text("purpose", request.purpose);
-
-        // For file uploads, we need to use multipart form data instead of JSON
-        let mut url = self.client.config().base_url.clone();
-        url.set_path("/v1/files");
-        let headers = self.client.build_headers(&options)?;
-
-        let mut request_builder = reqwest::Client::new()
-            .post(url)
-            .headers(headers)
-            .multipart(form);
-
-        if let Some(opts) = &options {
-            if let Some(timeout) = opts.timeout {
-                request_builder = request_builder.timeout(timeout);
-            }
+        request.validate()?;
+        let mut form = Form::new().part(
+            "file",
+            Part::bytes(request.content)
+                .file_name(request.filename)
+                .mime_str(&request.mime_type)
+                .map_err(|e| {
+                    crate::error::AnthropicError::file_error(format!("Invalid MIME type: {e}"))
+                })?,
+        );
+        if let Some(seconds) = request.expires_in_seconds {
+            form = form.text("expires_in_seconds", seconds.to_string());
         }
-
-        let response = request_builder.send().await?;
-        let status = response.status();
-
-        if !status.is_success() {
-            let error_text = response.text().await.unwrap_or_default();
-            return Err(crate::error::AnthropicError::api_error(
-                status.as_u16(),
-                error_text,
-                None,
-            ));
-        }
-
-        let file_response: FileUploadResponse = response.json().await?;
-        Ok(file_response)
+        self.client
+            .request_multipart(HttpMethod::Post, "/files", form, options)
+            .await
     }
 
     /// Upload a file from a path
@@ -107,7 +77,6 @@ impl FilesApi {
     ///
     /// let file = client.files().upload_from_path(
     ///     "document.pdf",
-    ///     "user_data",
     ///     None,
     ///     None
     /// ).await?;
@@ -118,7 +87,6 @@ impl FilesApi {
     pub async fn upload_from_path(
         &self,
         file_path: impl AsRef<Path>,
-        purpose: &str,
         progress_callback: Option<ProgressCallback>,
         options: Option<RequestOptions>,
     ) -> Result<FileUploadResponse> {
@@ -142,7 +110,7 @@ impl FilesApi {
             callback(0, content_len);
         }
 
-        let request = FileUploadRequest::new(content, filename, &mime_type).purpose(purpose);
+        let request = FileUploadRequest::new(content, filename, &mime_type);
 
         let result = self.upload(request, options).await;
 
@@ -176,14 +144,11 @@ impl FilesApi {
         pagination: Option<Pagination>,
         options: Option<RequestOptions>,
     ) -> Result<FileListResponse> {
-        let path = build_paginated_path("/files", pagination.as_ref());
-
-        self.client
-            .request(HttpMethod::Get, &path, None, options)
+        self.list_with_params(pagination, FileListParams::new(), options)
             .await
     }
 
-    /// List files with optional `scope_id` / `purpose` filters.
+    /// List files with token pagination, explicit IDs, or a beta scope filter.
     ///
     /// This is a backward-compatible companion to [`list`](Self::list): pass a
     /// [`FileListParams`] (e.g. a session `scope_id` for Managed Agents session
@@ -210,14 +175,23 @@ impl FilesApi {
         params: FileListParams,
         options: Option<RequestOptions>,
     ) -> Result<FileListResponse> {
-        let mut query_params = Vec::new();
-        if let Some(pagination) = pagination.as_ref() {
-            query_params.extend(build_pagination_query(pagination));
+        let mut params = params;
+        if let Some(pagination) = pagination {
+            pagination.validate()?;
+            if pagination.after.is_some() || pagination.before.is_some() {
+                return Err(crate::error::AnthropicError::invalid_input(
+                    "Current Files pagination uses page tokens, not after/before IDs",
+                ));
+            }
+            if params.limit.is_some() && pagination.limit.is_some() {
+                return Err(crate::error::AnthropicError::invalid_input(
+                    "File page size specified twice",
+                ));
+            }
+            params.limit = params.limit.or(pagination.limit);
         }
-        query_params.extend(params.query_params());
-
-        let path = build_path_with_query("/files", query_params);
-
+        params.validate()?;
+        let path = build_path_with_query("/files", params.query_params());
         self.client
             .request(HttpMethod::Get, &path, None, options)
             .await
@@ -263,12 +237,19 @@ impl FilesApi {
         file_id: &str,
         options: Option<RequestOptions>,
     ) -> Result<Vec<u8>> {
-        let path = format!("/files/{}/download", file_id);
+        let path = format!("/files/{}/content", file_id);
         let response = self
             .client
             .request_stream(HttpMethod::Get, &path, None, options)
             .await?;
 
+        if !response.status().is_success() {
+            return Err(crate::error::AnthropicError::api_error(
+                response.status().as_u16(),
+                "File download failed".to_string(),
+                None,
+            ));
+        }
         let bytes = response.bytes().await?;
         Ok(bytes.to_vec())
     }
@@ -334,19 +315,54 @@ impl FilesApi {
         Ok(())
     }
 
-    /// List files by purpose
-    pub async fn list_by_purpose(
+    /// Lazily traverse current Files pages with finite limits and preserved filters/options.
+    pub fn pages(
         &self,
-        purpose: &str,
+        mut params: FileListParams,
+        limits: PaginationLimits,
+        options: Option<RequestOptions>,
+    ) -> Result<PageStream<File>> {
+        params.validate()?;
+        if params.ids.is_none() {
+            params.limit = params.limit.or(Some(100));
+        }
+        let initial = params.page.take();
+        let api = self.clone();
+        paginate(limits, initial, move |cursor| {
+            let api = api.clone();
+            let mut params = params.clone();
+            let options = options.clone();
+            params.page = cursor;
+            async move {
+                let response = api.list_with_params(None, params, options).await?;
+                if response.has_more && response.next_page.is_none() {
+                    return Err(crate::error::AnthropicError::invalid_input(
+                        "Files response advertises more pages without next_page",
+                    ));
+                }
+                let item_ids = response.data.iter().map(|file| file.id.clone()).collect();
+                Ok(TraversalPage {
+                    data: response.data,
+                    next_cursor: response.next_page,
+                    item_ids,
+                })
+            }
+        })
+    }
+
+    /// Collect current Files pages using the documented finite defaults.
+    pub async fn list_all(&self, options: Option<RequestOptions>) -> Result<Vec<File>> {
+        self.list_all_with_limits(FileListParams::new(), PaginationLimits::default(), options)
+            .await
+    }
+
+    /// Collect current Files pages, returning an error on a traversal limit.
+    pub async fn list_all_with_limits(
+        &self,
+        params: FileListParams,
+        limits: PaginationLimits,
         options: Option<RequestOptions>,
     ) -> Result<Vec<File>> {
-        let pagination = create_default_pagination(None);
-        let response = self.list(Some(pagination), options).await?;
-
-        Ok(response
-            .data
-            .into_iter()
-            .filter(|file| file.purpose == purpose)
-            .collect())
+        self.pages(params, limits, options)?.collect_items().await
     }
 }
