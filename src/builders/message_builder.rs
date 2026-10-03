@@ -535,7 +535,6 @@ pub fn validate_model_options(
     request: &MessageRequest,
 ) -> Result<(), crate::error::AnthropicError> {
     use crate::config::models::{FABLE_5_1, MYTHOS_5_1, OPUS_5_5, SONNET_5_5};
-    use crate::error::AnthropicError;
     let is_new = matches!(
         request.model.as_str(),
         OPUS_5_5 | SONNET_5_5 | FABLE_5_1 | MYTHOS_5_1
@@ -543,6 +542,14 @@ pub fn validate_model_options(
     if !is_new {
         return Ok(());
     }
+    validate_current_model_prompt(request)?;
+    validate_current_model_thinking(request)
+}
+
+fn validate_current_model_prompt(
+    request: &MessageRequest,
+) -> Result<(), crate::error::AnthropicError> {
+    use crate::error::AnthropicError;
     if request
         .tool_choice
         .as_ref()
@@ -567,6 +574,13 @@ pub fn validate_model_options(
     if request.temperature.is_some() || request.top_p.is_some() || request.top_k.is_some() {
         return Err(AnthropicError::invalid_input("Omit sampling parameters in validated requests for this model; current numeric defaults are unspecified"));
     }
+    Ok(())
+}
+
+fn validate_current_model_thinking(
+    request: &MessageRequest,
+) -> Result<(), crate::error::AnthropicError> {
+    use crate::{config::models::SONNET_5_5, error::AnthropicError};
     if let Some(thinking) = &request.thinking {
         let mode = thinking.thinking_type.as_str();
         if mode != "adaptive" && !(request.model == SONNET_5_5 && mode == "between_tools") {

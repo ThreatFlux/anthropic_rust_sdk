@@ -1,6 +1,6 @@
 //! Current Skills, Files token pagination, and incremental batch results.
 //!
-//! Requires ANTHROPIC_API_KEY. Optionally supply a completed batch ID as argv[1].
+//! Requires ANTHROPIC_API_KEY. Optionally set ANTHROPIC_BATCH_ID to a completed batch ID.
 //! This example only lists resources and reads results.
 
 use futures::StreamExt;
@@ -34,7 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    if let Some(batch_id) = std::env::args().nth(1) {
+    if let Ok(batch_id) = std::env::var("ANTHROPIC_BATCH_ID") {
         let mut results = client
             .message_batches()
             .results_stream(&batch_id, None)

@@ -17,10 +17,9 @@ use wiremock::{
     Mock, MockServer, ResponseTemplate,
 };
 
-#[test]
-fn projection_preserves_all_prompt_fields_and_excludes_generation_controls() {
+fn configured_prompt() -> MessageRequest {
     let thinking: ThinkingConfig = serde_json::from_value(json!({"type":"adaptive","block_binding":{"prefix_mismatch_behavior":"error","future":{"nested":1}},"future_setting":true})).unwrap();
-    let request = MessageRequest::new()
+    MessageRequest::new()
         .model("future-model")
         .add_user_message("Count this")
         .max_tokens(321)
@@ -38,7 +37,12 @@ fn projection_preserves_all_prompt_fields_and_excludes_generation_controls() {
         .cache_control(CacheControl::ephemeral())
         .user_profile_id("profile_123")
         .diagnostics(json!({"controls":true}))
-        .service_tier("standard_only");
+        .service_tier("standard_only")
+}
+
+#[test]
+fn projection_preserves_all_prompt_fields_and_excludes_generation_controls() {
+    let request = configured_prompt();
     let count = TokenCountRequest::from_message(&request).unwrap();
     let count_json = serde_json::to_value(&count).unwrap();
     let request_json = serde_json::to_value(&request).unwrap();
@@ -132,17 +136,10 @@ fn count_setters_stay_flat_and_between_tools_has_exact_schema() {
         .is_err());
 }
 
-#[tokio::test]
-async fn messages_and_counting_send_identical_prompt_fields_and_attribution_headers() {
-    let server = MockServer::start().await;
-    let client = Client::new(
-        Config::new("sk-ant-test-key")
-            .unwrap()
-            .with_base_url(server.uri().parse().unwrap()),
-    );
+async fn mount_prompt_endpoints(server: &MockServer) {
     Mock::given(method("POST")).and(path("/v1/messages"))
         .and(header("anthropic-user-profile-id","profile_test")).and(header("anthropic-workspace-id","workspace_test")).and(header("anthropic-beta","thinking-binding-controls-2026-08-01"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"id":"msg_test","type":"message","role":"assistant","model":"future-model","content":[],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":1}}))).expect(1).mount(&server).await;
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"id":"msg_test","type":"message","role":"assistant","model":"future-model","content":[],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":1}}))).expect(1).mount(server).await;
     Mock::given(method("POST"))
         .and(path("/v1/messages/count_tokens"))
         .and(header("anthropic-user-profile-id", "profile_test"))
@@ -153,9 +150,12 @@ async fn messages_and_counting_send_identical_prompt_fields_and_attribution_head
         ))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({"input_tokens":10})))
         .expect(1)
-        .mount(&server)
+        .mount(server)
         .await;
-    let request = MessageRequest::new()
+}
+
+fn attribution_prompt() -> MessageRequest {
+    MessageRequest::new()
         .model("future-model")
         .add_user_message("hi")
         .system_cached("system")
@@ -164,7 +164,19 @@ async fn messages_and_counting_send_identical_prompt_fields_and_attribution_head
         .thinking_config(ThinkingConfig::adaptive().with_block_binding(json!({})))
         .output_json_schema(json!({"type":"object"}))
         .auto_cache()
-        .user_profile_id("profile_test");
+        .user_profile_id("profile_test")
+}
+
+#[tokio::test]
+async fn messages_and_counting_send_identical_prompt_fields_and_attribution_headers() {
+    let server = MockServer::start().await;
+    let client = Client::new(
+        Config::new("sk-ant-test-key")
+            .unwrap()
+            .with_base_url(server.uri().parse().unwrap()),
+    );
+    mount_prompt_endpoints(&server).await;
+    let request = attribution_prompt();
     let options = RequestOptions::new()
         .with_header("anthropic-workspace-id", "workspace_test")
         .with_beta_feature("thinking-binding-controls-2026-08-01");

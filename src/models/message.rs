@@ -1415,43 +1415,35 @@ impl<'de> Deserialize<'de> for ContentBlockDelta {
             encrypted_content: FieldUpdate::Missing,
             extra: object.into_iter().collect(),
         };
-        // Only fields belonging to this discriminator are typed. Future keys,
-        // even ones used by another known delta, retain their original JSON type.
-        match delta.block_type.as_str() {
-            "text_delta" => {
-                delta.text =
-                    take_delta_field(&mut delta.extra, "text").map_err(serde::de::Error::custom)?
-            }
-            "thinking_delta" => {
-                delta.thinking = take_delta_field(&mut delta.extra, "thinking")
-                    .map_err(serde::de::Error::custom)?
-            }
-            "signature_delta" => {
-                delta.signature = take_delta_field(&mut delta.extra, "signature")
-                    .map_err(serde::de::Error::custom)?
-            }
-            "input_json_delta" => {
-                delta.partial_json = take_delta_field(&mut delta.extra, "partial_json")
-                    .map_err(serde::de::Error::custom)?
-            }
-            "citations_delta" => {
-                delta.citation = take_delta_field(&mut delta.extra, "citation")
-                    .map_err(serde::de::Error::custom)?
-            }
-            "compaction_delta" => {
-                delta.content = take_delta_update(&mut delta.extra, "content")
-                    .map_err(serde::de::Error::custom)?;
-                delta.encrypted_content = take_delta_update(&mut delta.extra, "encrypted_content")
-                    .map_err(serde::de::Error::custom)?;
-            }
-            _ => {}
-        }
+        delta
+            .decode_known_fields()
+            .map_err(serde::de::Error::custom)?;
         delta.validate().map_err(serde::de::Error::custom)?;
         Ok(delta)
     }
 }
 
 impl ContentBlockDelta {
+    fn decode_known_fields(&mut self) -> serde_json::Result<()> {
+        // Only fields belonging to this discriminator are typed. Future keys,
+        // even ones used by another known delta, retain their original JSON type.
+        match self.block_type.as_str() {
+            "text_delta" => self.text = take_delta_field(&mut self.extra, "text")?,
+            "thinking_delta" => self.thinking = take_delta_field(&mut self.extra, "thinking")?,
+            "signature_delta" => self.signature = take_delta_field(&mut self.extra, "signature")?,
+            "input_json_delta" => {
+                self.partial_json = take_delta_field(&mut self.extra, "partial_json")?
+            }
+            "citations_delta" => self.citation = take_delta_field(&mut self.extra, "citation")?,
+            "compaction_delta" => {
+                self.content = take_delta_update(&mut self.extra, "content")?;
+                self.encrypted_content = take_delta_update(&mut self.extra, "encrypted_content")?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
     /// Reject malformed recognized deltas while preserving future delta types.
     pub fn validate(&self) -> crate::error::Result<()> {
         let valid = match self.block_type.as_str() {

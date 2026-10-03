@@ -155,6 +155,17 @@ async fn federation_rejects_subjects_above_the_official_16kib_limit_without_http
     assert!(server.received_requests().await.unwrap().is_empty());
 }
 
+async fn read_accounts(client: &OAuthAdminClient) -> Result<Value> {
+    client
+        .request(
+            HttpMethod::Get,
+            "/organizations/service_accounts",
+            None,
+            None,
+        )
+        .await
+}
+
 #[tokio::test]
 async fn a_second_401_is_bounded_and_does_not_leave_the_refreshed_token_cached() {
     let server = MockServer::start().await;
@@ -183,14 +194,7 @@ async fn a_second_401_is_bounded_and_does_not_leave_the_refreshed_token_cached()
         .expect(1)
         .mount(&server)
         .await;
-    let first: Result<Value> = client
-        .request(
-            HttpMethod::Get,
-            "/organizations/service_accounts",
-            None,
-            None,
-        )
-        .await;
+    let first = read_accounts(&client).await;
     assert_eq!(first.unwrap_err().status_code(), Some(401));
     assert_eq!(
         provider.calls.load(Ordering::SeqCst),
@@ -198,15 +202,7 @@ async fn a_second_401_is_bounded_and_does_not_leave_the_refreshed_token_cached()
         "only one refresh after the initial 401"
     );
     assert_eq!(server.received_requests().await.unwrap().len(), 2);
-    let next: Value = client
-        .request(
-            HttpMethod::Get,
-            "/organizations/service_accounts",
-            None,
-            None,
-        )
-        .await
-        .unwrap();
+    let next = read_accounts(&client).await.unwrap();
     assert_eq!(next["ok"], true);
     assert_eq!(
         provider.calls.load(Ordering::SeqCst),

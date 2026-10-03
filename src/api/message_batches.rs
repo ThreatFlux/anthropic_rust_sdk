@@ -10,51 +10,11 @@ use crate::{
     },
     types::{HttpMethod, PageStream, Pagination, PaginationLimits, RequestOptions},
 };
-use futures::{Stream, StreamExt};
-use std::{
-    pin::Pin,
-    task::{Context, Poll},
-};
+use futures::StreamExt;
 
-/// Memory ceiling for one JSONL result row, excluding its newline.
-#[derive(Debug, Clone, Copy)]
-#[non_exhaustive]
-pub struct BatchResultsStreamOptions {
-    /// Maximum row size in bytes. Defaults to 8 MiB.
-    pub max_row_bytes: usize,
-}
+mod results;
 
-impl BatchResultsStreamOptions {
-    /// Construct a positive maximum row-byte ceiling.
-    pub fn new(max_row_bytes: usize) -> Result<Self> {
-        if max_row_bytes == 0 {
-            return Err(crate::error::AnthropicError::invalid_input(
-                "Batch result row limit must be positive",
-            ));
-        }
-        Ok(Self { max_row_bytes })
-    }
-}
-
-impl Default for BatchResultsStreamOptions {
-    fn default() -> Self {
-        Self {
-            max_row_bytes: 8 * 1024 * 1024,
-        }
-    }
-}
-
-/// Incremental batch results. Dropping releases the response and cancels further reads.
-pub struct BatchResultsStream {
-    inner: Pin<Box<dyn Stream<Item = Result<MessageBatchResultEntry>> + Send>>,
-}
-
-impl Stream for BatchResultsStream {
-    type Item = Result<MessageBatchResultEntry>;
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        self.inner.as_mut().poll_next(cx)
-    }
-}
+pub use results::{BatchResultsStream, BatchResultsStreamOptions};
 
 /// API client for Message Batches endpoints
 #[derive(Clone)]
@@ -279,11 +239,7 @@ impl MessageBatchesApi {
         limits: BatchResultsStreamOptions,
         options: Option<RequestOptions>,
     ) -> Result<BatchResultsStream> {
-        if limits.max_row_bytes == 0 {
-            return Err(crate::error::AnthropicError::invalid_input(
-                "Batch result row limit must be positive",
-            ));
-        }
+        limits.validate()?;
         let response = self
             .client
             .request_stream(
@@ -293,87 +249,7 @@ impl MessageBatchesApi {
                 options,
             )
             .await?;
-        if !response.status().is_success() {
-            return Err(crate::error::AnthropicError::api_error(
-                response.status().as_u16(),
-                "Batch results request failed".to_string(),
-                None,
-            ));
-        }
-        // Retain one transport chunk and one row; parse UTF-8 only after a whole row.
-        let source = Box::pin(response.bytes_stream());
-        let state = (
-            source,
-            Vec::<u8>::new(),
-            Vec::<u8>::new(),
-            0_usize,
-            1_usize,
-            false,
-        );
-        let stream = futures::stream::try_unfold(state, move |state| async move {
-            let (mut source, mut chunk, mut row, mut offset, mut line, mut eof) = state;
-            loop {
-                while offset < chunk.len() {
-                    let remaining = &chunk[offset..];
-                    let end = remaining.iter().position(|byte| *byte == b'\n');
-                    let bytes = end.unwrap_or(remaining.len());
-                    if row.len().saturating_add(bytes) > limits.max_row_bytes {
-                        return Err(crate::error::AnthropicError::json(format!(
-                            "Batch result row {line} exceeds the byte limit"
-                        )));
-                    }
-                    row.extend_from_slice(&remaining[..bytes]);
-                    offset += bytes;
-                    if end.is_some() {
-                        offset += 1;
-                        let row_number = line;
-                        line += 1;
-                        if row.iter().all(u8::is_ascii_whitespace) {
-                            row.clear();
-                            continue;
-                        }
-                        let value = serde_json::from_slice(&row).map_err(|_| {
-                            crate::error::AnthropicError::json(format!(
-                                "Invalid JSON or UTF-8 in batch result row {row_number}"
-                            ))
-                        })?;
-                        row.clear();
-                        return Ok(Some((value, (source, chunk, row, offset, line, eof))));
-                    }
-                }
-                if eof {
-                    if row.is_empty() || row.iter().all(u8::is_ascii_whitespace) {
-                        return Ok(None);
-                    }
-                    let value = serde_json::from_slice(&row).map_err(|_| {
-                        crate::error::AnthropicError::json(format!(
-                            "Invalid JSON or UTF-8 in batch result row {line}"
-                        ))
-                    })?;
-                    row.clear();
-                    return Ok(Some((value, (source, chunk, row, offset, line + 1, eof))));
-                }
-                match source.next().await {
-                    Some(Ok(bytes)) => {
-                        chunk = bytes.to_vec();
-                        offset = 0;
-                    }
-                    Some(Err(_)) => {
-                        return Err(crate::error::AnthropicError::stream(format!(
-                            "Transport failure reading batch result row {line}"
-                        )))
-                    }
-                    None => {
-                        eof = true;
-                        chunk.clear();
-                        offset = 0;
-                    }
-                }
-            }
-        });
-        Ok(BatchResultsStream {
-            inner: Box::pin(stream),
-        })
+        BatchResultsStream::from_response(response, limits)
     }
 
     /// Lazily traverse batch pages with finite limits.
