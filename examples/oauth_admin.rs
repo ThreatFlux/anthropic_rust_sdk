@@ -10,29 +10,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = OAuthAdminClient::from_env()?;
     let organization = client.organization();
     let limits = PaginationLimits::new(10, 1_000)?;
-    for account in organization
+    let accounts = organization
         .service_accounts()
         .list_all_with_limits(OAuthListParams::default(), limits, None)
-        .await?
-    {
-        println!(
-            "{}: {} ({})",
-            account.id, account.name, account.organization_role
-        );
-    }
-    for issuer in organization
+        .await?;
+    let issuers = organization
         .federation_issuers()
         .list_all_with_limits(OAuthListParams::default(), limits, None)
-        .await?
-    {
-        println!("{}: {}", issuer.id, issuer.issuer_url);
-    }
-    for rule in organization
+        .await?;
+    let rules = organization
         .federation_rules()
         .list_all_with_limits(OAuthListParams::default(), limits, None)
-        .await?
-    {
-        println!("{}: {} ({})", rule.id, rule.name, rule.oauth_scope);
-    }
+        .await?;
+    // Resource details can contain private organization and trust configuration.
+    println!(
+        "Retrieved {} service accounts, {} federation issuers, and {} federation rules",
+        accounts.len(),
+        issuers.len(),
+        rules.len()
+    );
     Ok(())
 }
