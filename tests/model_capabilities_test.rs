@@ -3,7 +3,7 @@ use threatflux_anthropic_sdk::config::models::{self, Feature, Support};
 use threatflux_anthropic_sdk::{MessageBuilder, Model, OutputEffort, ThinkingConfig, ToolChoice};
 
 #[test]
-fn current_catalog_is_conservative_and_future_ids_remain_usable() {
+fn current_catalog_is_conservative() {
     for id in [
         models::OPUS_5_5,
         models::SONNET_5_5,
@@ -49,6 +49,10 @@ fn current_catalog_is_conservative_and_future_ids_remain_usable() {
             .build_validated()
             .is_err());
     }
+}
+
+#[test]
+fn future_ids_remain_usable_and_older_forced_choices_remain_supported() {
     let future = "claude-opus-99-custom";
     assert!(!models::is_valid_model(future));
     assert_eq!(

@@ -13,6 +13,92 @@ pub(crate) struct TraversalPage<T> {
     pub item_ids: Vec<String>,
 }
 
+/// Cursor and progress tracking for one bounded traversal.
+struct TraversalState {
+    cursor: Option<String>,
+    seen_cursors: HashSet<String>,
+    seen_items: HashSet<String>,
+    pages: usize,
+    items: usize,
+    done: bool,
+}
+
+impl TraversalState {
+    fn new(cursor: Option<String>) -> Result<Self> {
+        if cursor.as_deref() == Some("") {
+            return Err(AnthropicError::invalid_input(
+                "Pagination cursor must not be empty",
+            ));
+        }
+        let seen_cursors = cursor.iter().cloned().collect();
+        Ok(Self {
+            cursor,
+            seen_cursors,
+            seen_items: HashSet::new(),
+            pages: 0,
+            items: 0,
+            done: false,
+        })
+    }
+
+    fn ensure_capacity(&self, limits: PaginationLimits) -> Result<()> {
+        if self.pages >= limits.max_pages || self.items >= limits.max_items {
+            return Err(AnthropicError::invalid_input(
+                "Pagination traversal limit reached while more pages remain",
+            ));
+        }
+        Ok(())
+    }
+
+    fn advance<T>(&mut self, page: &TraversalPage<T>, limits: PaginationLimits) -> Result<()> {
+        self.validate_cursor(page)?;
+        let new_items = page
+            .item_ids
+            .iter()
+            .filter(|id| self.seen_items.insert((*id).clone()))
+            .count();
+        if !page.data.is_empty() && !page.item_ids.is_empty() && new_items == 0 {
+            return Err(AnthropicError::invalid_input(
+                "Pagination returned no new items",
+            ));
+        }
+        self.items = self
+            .items
+            .checked_add(page.data.len())
+            .ok_or_else(|| AnthropicError::invalid_input("Pagination item count overflow"))?;
+        if self.items > limits.max_items {
+            return Err(AnthropicError::invalid_input(
+                "Pagination item limit exceeded",
+            ));
+        }
+        self.pages += 1;
+        self.done = page.next_cursor.is_none();
+        self.cursor.clone_from(&page.next_cursor);
+        Ok(())
+    }
+
+    fn validate_cursor<T>(&mut self, page: &TraversalPage<T>) -> Result<()> {
+        if page.next_cursor.as_deref() == Some("") {
+            return Err(AnthropicError::invalid_input(
+                "Pagination response contains an empty next cursor",
+            ));
+        }
+        if page.next_cursor.is_some() && page.data.is_empty() {
+            return Err(AnthropicError::invalid_input(
+                "Pagination returned an empty continuing page",
+            ));
+        }
+        if let Some(next) = &page.next_cursor {
+            if !self.seen_cursors.insert(next.clone()) {
+                return Err(AnthropicError::invalid_input(
+                    "Pagination cursor repeated or formed a cycle",
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
 /// Construct a lazy, bounded traversal shared by ID- and token-cursor APIs.
 pub(crate) fn paginate<T, F, Fut>(
     limits: PaginationLimits,
@@ -25,85 +111,17 @@ where
     Fut: std::future::Future<Output = Result<TraversalPage<T>>> + Send,
 {
     limits.validate()?;
-    if initial_cursor.as_deref() == Some("") {
-        return Err(AnthropicError::invalid_input(
-            "Pagination cursor must not be empty",
-        ));
-    }
-    let mut seen_cursors = HashSet::new();
-    if let Some(cursor) = &initial_cursor {
-        seen_cursors.insert(cursor.clone());
-    }
-    let state = (
-        initial_cursor,
-        seen_cursors,
-        HashSet::<String>::new(),
-        0_usize,
-        0_usize,
-        false,
-        fetch,
-    );
+    let state = (TraversalState::new(initial_cursor)?, fetch);
     Ok(PageStream::new(futures::stream::try_unfold(
         state,
-        move |state| async move {
-            let (cursor, mut seen_cursors, mut seen_items, pages, items, done, mut fetch) = state;
-            if done {
+        move |(mut state, mut fetch)| async move {
+            if state.done {
                 return Ok(None);
             }
-            if pages >= limits.max_pages || items >= limits.max_items {
-                return Err(AnthropicError::invalid_input(
-                    "Pagination traversal limit reached while more pages remain",
-                ));
-            }
-            let page = fetch(cursor).await?;
-            if page.next_cursor.as_deref() == Some("") {
-                return Err(AnthropicError::invalid_input(
-                    "Pagination response contains an empty next cursor",
-                ));
-            }
-            if page.next_cursor.is_some() && page.data.is_empty() {
-                return Err(AnthropicError::invalid_input(
-                    "Pagination returned an empty continuing page",
-                ));
-            }
-            if let Some(next) = &page.next_cursor {
-                if !seen_cursors.insert(next.clone()) {
-                    return Err(AnthropicError::invalid_input(
-                        "Pagination cursor repeated or formed a cycle",
-                    ));
-                }
-            }
-            let new_items = page
-                .item_ids
-                .iter()
-                .filter(|id| seen_items.insert((*id).clone()))
-                .count();
-            if !page.data.is_empty() && !page.item_ids.is_empty() && new_items == 0 {
-                return Err(AnthropicError::invalid_input(
-                    "Pagination returned no new items",
-                ));
-            }
-            let count = items
-                .checked_add(page.data.len())
-                .ok_or_else(|| AnthropicError::invalid_input("Pagination item count overflow"))?;
-            if count > limits.max_items {
-                return Err(AnthropicError::invalid_input(
-                    "Pagination item limit exceeded",
-                ));
-            }
-            let done = page.next_cursor.is_none();
-            Ok(Some((
-                page.data,
-                (
-                    page.next_cursor,
-                    seen_cursors,
-                    seen_items,
-                    pages + 1,
-                    count,
-                    done,
-                    fetch,
-                ),
-            )))
+            state.ensure_capacity(limits)?;
+            let page = fetch(state.cursor.take()).await?;
+            state.advance(&page, limits)?;
+            Ok(Some((page.data, (state, fetch))))
         },
     )))
 }

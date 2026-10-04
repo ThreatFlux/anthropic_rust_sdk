@@ -203,27 +203,7 @@ impl FederationTokenProvider {
     }
 
     async fn exchange(&self) -> Result<OAuthToken> {
-        let subject = match &self.federation.subject {
-            SubjectTokenSource::Token(token) => token.clone(),
-            SubjectTokenSource::File(path) => {
-                let file = tokio::fs::File::open(path)
-                    .await
-                    .map_err(|_| AnthropicError::auth("Cannot read subject-token file"))?;
-                let mut bytes = Vec::new();
-                file.take((MAX_SUBJECT_BYTES + 1) as u64)
-                    .read_to_end(&mut bytes)
-                    .await
-                    .map_err(|_| AnthropicError::auth("Cannot read subject-token file"))?;
-                String::from_utf8(bytes)
-                    .map_err(|_| AnthropicError::auth("Subject-token file must contain UTF-8"))?
-            }
-        };
-        let subject = subject.trim();
-        if subject.is_empty() || subject.len() > MAX_SUBJECT_BYTES {
-            return Err(AnthropicError::auth(
-                "Subject token is empty or exceeds the byte limit",
-            ));
-        }
+        let subject = self.read_subject().await?;
         let url = Url::parse(&format!(
             "{}/v1/oauth/token",
             self.transport.base_url.as_str().trim_end_matches('/')
@@ -231,7 +211,7 @@ impl FederationTokenProvider {
         .map_err(|_| AnthropicError::config("Invalid exchange URL"))?;
         let body = serde_json::to_value(ExchangeRequest {
             grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-            assertion: subject,
+            assertion: &subject,
             federation_rule_id: &self.federation.federation_rule_id,
             organization_id: &self.federation.organization_id,
             service_account_id: &self.federation.service_account_id,
@@ -255,16 +235,47 @@ impl FederationTokenProvider {
                 ),
                 None => AnthropicError::auth("Federation exchange failed"),
             })?;
-        if !response.token_type.eq_ignore_ascii_case("Bearer") || response.expires_in == 0 {
+        response.into_token()
+    }
+
+    async fn read_subject(&self) -> Result<String> {
+        let subject = match &self.federation.subject {
+            SubjectTokenSource::Token(token) => token.clone(),
+            SubjectTokenSource::File(path) => {
+                let file = tokio::fs::File::open(path)
+                    .await
+                    .map_err(|_| AnthropicError::auth("Cannot read subject-token file"))?;
+                let mut bytes = Vec::new();
+                file.take((MAX_SUBJECT_BYTES + 1) as u64)
+                    .read_to_end(&mut bytes)
+                    .await
+                    .map_err(|_| AnthropicError::auth("Cannot read subject-token file"))?;
+                String::from_utf8(bytes)
+                    .map_err(|_| AnthropicError::auth("Subject-token file must contain UTF-8"))?
+            }
+        };
+        let subject = subject.trim().to_owned();
+        if subject.is_empty() || subject.len() > MAX_SUBJECT_BYTES {
+            return Err(AnthropicError::auth(
+                "Subject token is empty or exceeds the byte limit",
+            ));
+        }
+        Ok(subject)
+    }
+}
+
+impl ExchangeResponse {
+    fn into_token(self) -> Result<OAuthToken> {
+        if !self.token_type.eq_ignore_ascii_case("Bearer") || self.expires_in == 0 {
             return Err(AnthropicError::auth(
                 "Invalid federation token type or lifetime",
             ));
         }
         let expires_at = SystemTime::now()
-            .checked_add(Duration::from_secs(response.expires_in))
+            .checked_add(Duration::from_secs(self.expires_in))
             .ok_or_else(|| AnthropicError::auth("Invalid federation token lifetime"))?;
-        Ok(OAuthToken::new(response.access_token)?
-            .with_expiration(expires_at, response.scope)
+        Ok(OAuthToken::new(self.access_token)?
+            .with_expiration(expires_at, self.scope)
             .with_principal(OAuthPrincipal::ServiceAccount))
     }
 }

@@ -36,9 +36,7 @@ fn client(uri: &str) -> Client {
     )
 }
 
-#[tokio::test]
-async fn collected_http_stream_matches_equivalent_message_payload() {
-    let server = MockServer::start().await;
+fn equivalent_payload_fixture() -> (Value, Vec<u8>) {
     let mut expected = response();
     expected["content"] = json!([{"type":"text","text":"é😀","future":{"retained":true}}]);
     expected["stop_reason"] = json!("future_stop_reason");
@@ -54,6 +52,13 @@ async fn collected_http_stream_matches_equivalent_message_payload() {
     ] {
         bytes.extend(frame(&event));
     }
+    (expected, bytes)
+}
+
+#[tokio::test]
+async fn collected_http_stream_matches_equivalent_message_payload() {
+    let server = MockServer::start().await;
+    let (expected, bytes) = equivalent_payload_fixture();
     Mock::given(method("POST"))
         .and(path("/v1/messages"))
         .respond_with(
@@ -143,36 +148,62 @@ async fn write_chunk(socket: &mut tokio::net::TcpStream, chunk: &[u8]) {
     socket.flush().await.unwrap();
 }
 
+async fn accept_sse(listener: TcpListener) -> tokio::net::TcpStream {
+    let (mut socket, _) = listener.accept().await.unwrap();
+    let mut request = [0u8; 8192];
+    let _ = socket.read(&mut request).await.unwrap();
+    socket.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n").await.unwrap();
+    socket
+}
+
+async fn serve_split_utf8(listener: TcpListener, continue_receiver: oneshot::Receiver<()>) {
+    let mut socket = accept_sse(listener).await;
+    write_chunk(
+        &mut socket,
+        &frame(&json!({"type":"message_start","message":response()})),
+    )
+    .await;
+    continue_receiver.await.unwrap();
+    let mut remainder = Vec::new();
+    for event in [
+        json!({"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}),
+        json!({"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"é😀"}}),
+        json!({"type":"content_block_stop","index":0}),
+        json!({"type":"message_stop"}),
+    ] {
+        remainder.extend(frame(&event));
+    }
+    for byte in remainder {
+        write_chunk(&mut socket, &[byte]).await;
+    }
+    socket.write_all(b"0\r\n\r\n").await.unwrap();
+}
+
+async fn serve_pending_terminal(listener: TcpListener, release_receiver: oneshot::Receiver<()>) {
+    let mut socket = accept_sse(listener).await;
+    let mut body = Vec::new();
+    for event in [
+        json!({"type":"message_start","message":response()}),
+        json!({"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}),
+        json!({"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"finished"}}),
+        json!({"type":"content_block_stop","index":0}),
+        json!({"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":2}}),
+        json!({"type":"message_stop"}),
+    ] {
+        body.extend(frame(&event));
+    }
+    write_chunk(&mut socket, &body).await;
+    // This signal is sent only after collection has returned. Withhold
+    // the HTTP zero chunk so terminal SSE, rather than HTTP EOF, wins.
+    release_receiver.await.unwrap();
+}
+
 #[tokio::test]
 async fn chunked_http_yields_before_completion_and_keeps_split_utf8() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     let (continue_sender, continue_receiver) = oneshot::channel();
-    let task = tokio::spawn(async move {
-        let (mut socket, _) = listener.accept().await.unwrap();
-        let mut request = [0u8; 8192];
-        let _ = socket.read(&mut request).await.unwrap();
-        socket.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n").await.unwrap();
-        write_chunk(
-            &mut socket,
-            &frame(&json!({"type":"message_start","message":response()})),
-        )
-        .await;
-        continue_receiver.await.unwrap();
-        let mut remainder = Vec::new();
-        for event in [
-            json!({"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}),
-            json!({"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"é😀"}}),
-            json!({"type":"content_block_stop","index":0}),
-            json!({"type":"message_stop"}),
-        ] {
-            remainder.extend(frame(&event));
-        }
-        for byte in remainder {
-            write_chunk(&mut socket, &[byte]).await;
-        }
-        socket.write_all(b"0\r\n\r\n").await.unwrap();
-    });
+    let task = tokio::spawn(serve_split_utf8(listener, continue_receiver));
     let mut stream = client(&format!("http://{address}"))
         .messages()
         .create_stream(
@@ -214,27 +245,7 @@ async fn valid_message_stop_finishes_collectors_while_chunked_http_body_stays_op
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let (release_sender, release_receiver) = oneshot::channel();
-        let task = tokio::spawn(async move {
-            let (mut socket, _) = listener.accept().await.unwrap();
-            let mut request = [0u8; 8192];
-            let _ = socket.read(&mut request).await.unwrap();
-            socket.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n").await.unwrap();
-            let mut body = Vec::new();
-            for event in [
-                json!({"type":"message_start","message":response()}),
-                json!({"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}),
-                json!({"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"finished"}}),
-                json!({"type":"content_block_stop","index":0}),
-                json!({"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":2}}),
-                json!({"type":"message_stop"}),
-            ] {
-                body.extend(frame(&event));
-            }
-            write_chunk(&mut socket, &body).await;
-            // This signal is sent only after collection has returned. Withhold
-            // the HTTP zero chunk so terminal SSE, rather than HTTP EOF, wins.
-            release_receiver.await.unwrap();
-        });
+        let task = tokio::spawn(serve_pending_terminal(listener, release_receiver));
         let stream = client(&format!("http://{address}"))
             .messages()
             .create_stream(

@@ -223,27 +223,6 @@ async fn expired_provider_tokens_refresh_and_bad_scope_or_expiry_fails_before_ht
         .await
         .unwrap();
     assert_eq!(provider.calls.load(Ordering::SeqCst), 2);
-    for (expiry, scope) in [
-        (SystemTime::now() - Duration::from_secs(1), "org:admin"),
-        (
-            SystemTime::now() + Duration::from_secs(60),
-            "workspace:inference",
-        ),
-    ] {
-        let token = OAuthToken::new("forbidden")
-            .unwrap()
-            .with_expiration(expiry, scope);
-        let client = OAuthAdminClient::with_token(token, config(&server)).unwrap();
-        assert!(client
-            .request::<Value>(
-                HttpMethod::Get,
-                "/organizations/service_accounts",
-                None,
-                None
-            )
-            .await
-            .is_err());
-    }
     assert_eq!(server.received_requests().await.unwrap().len(), 2);
 }
 
@@ -333,4 +312,31 @@ async fn generic_client_recognizes_anthropic_oauth_prefix_as_bearer() {
     assert!(!server.received_requests().await.unwrap()[0]
         .headers
         .contains_key("x-api-key"));
+}
+
+#[tokio::test]
+async fn invalid_provider_scope_and_expiry_fail_before_http() {
+    let server = MockServer::start().await;
+    for (expiry, scope) in [
+        (SystemTime::now() - Duration::from_secs(1), "org:admin"),
+        (
+            SystemTime::now() + Duration::from_secs(60),
+            "workspace:inference",
+        ),
+    ] {
+        let token = OAuthToken::new("forbidden")
+            .unwrap()
+            .with_expiration(expiry, scope);
+        let client = OAuthAdminClient::with_token(token, config(&server)).unwrap();
+        assert!(client
+            .request::<Value>(
+                HttpMethod::Get,
+                "/organizations/service_accounts",
+                None,
+                None
+            )
+            .await
+            .is_err());
+    }
+    assert!(server.received_requests().await.unwrap().is_empty());
 }

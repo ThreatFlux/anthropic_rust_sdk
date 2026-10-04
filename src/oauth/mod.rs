@@ -345,6 +345,38 @@ impl OAuthAdminClient {
         body: Option<serde_json::Value>,
         options: Option<RequestOptions>,
     ) -> Result<T> {
+        let url = self.organization_url(path)?;
+        let options = options.unwrap_or_default();
+        let timeout = options.timeout.unwrap_or(self.inner.config.timeout);
+        let token = self.credential(None).await?;
+        if !token.usable(Duration::ZERO) {
+            return Err(AnthropicError::auth("OAuth credential has expired"));
+        }
+        let headers = self.headers(&token, &options)?;
+        let read = method == HttpMethod::Get;
+        let result = self
+            .send_request(
+                method,
+                &url,
+                body.clone(),
+                headers,
+                timeout,
+                read && !options.no_retry,
+            )
+            .await;
+        if !Self::is_unauthorized(&result) {
+            return result;
+        }
+        self.invalidate_rejected(&token).await;
+        if read && matches!(self.inner.credential, Credential::Provider(_)) {
+            return self
+                .refresh_request(method, &url, body, &options, timeout, &token)
+                .await;
+        }
+        result
+    }
+
+    fn organization_url(&self, path: &str) -> Result<Url> {
         if !path.starts_with("/organizations/") && path != "/organizations" {
             return Err(AnthropicError::invalid_input(
                 "OAuth administration paths must start with /organizations",
@@ -363,54 +395,56 @@ impl OAuthAdminClient {
                 "OAuth administration paths must remain within organization resources",
             ));
         }
-        let options = options.unwrap_or_default();
-        let timeout = options.timeout.unwrap_or(self.inner.config.timeout);
-        let token = self.credential(None).await?;
-        if !token.usable(Duration::ZERO) {
-            return Err(AnthropicError::auth("OAuth credential has expired"));
-        }
-        let headers = self.headers(&token, &options)?;
-        let read = method == HttpMethod::Get;
-        let result = if read && !options.no_retry {
+        Ok(url)
+    }
+
+    fn is_unauthorized<T>(result: &Result<T>) -> bool {
+        result
+            .as_ref()
+            .err()
+            .is_some_and(|error| error.status_code() == Some(401))
+    }
+
+    async fn send_request<T: DeserializeOwned>(
+        &self,
+        method: HttpMethod,
+        url: &Url,
+        body: Option<serde_json::Value>,
+        headers: HeaderMap,
+        timeout: Duration,
+        retry: bool,
+    ) -> Result<T> {
+        if retry {
             self.inner
                 .retry
-                .request(method, &url, body.clone(), headers, timeout)
+                .request(method, url, body, headers, timeout)
                 .await
         } else {
             self.inner
                 .http
-                .request(method, &url, body.clone(), headers, timeout)
+                .request(method, url, body, headers, timeout)
                 .await
-        };
-        if result
-            .as_ref()
-            .err()
-            .is_some_and(|error| error.status_code() == Some(401))
-        {
-            self.invalidate_rejected(&token).await;
         }
-        if read
-            && result
-                .as_ref()
-                .err()
-                .is_some_and(|error| error.status_code() == Some(401))
-            && matches!(self.inner.credential, Credential::Provider(_))
-        {
-            let token = self.credential(Some(token.expose_secret())).await?;
-            let headers = self.headers(&token, &options)?;
-            let refreshed_result = self
-                .inner
-                .http
-                .request(method, &url, body, headers, timeout)
-                .await;
-            if refreshed_result
-                .as_ref()
-                .err()
-                .is_some_and(|error| error.status_code() == Some(401))
-            {
-                self.invalidate_rejected(&token).await;
-            }
-            return refreshed_result;
+    }
+
+    async fn refresh_request<T: DeserializeOwned>(
+        &self,
+        method: HttpMethod,
+        url: &Url,
+        body: Option<serde_json::Value>,
+        options: &RequestOptions,
+        timeout: Duration,
+        rejected: &OAuthToken,
+    ) -> Result<T> {
+        let token = self.credential(Some(rejected.expose_secret())).await?;
+        let headers = self.headers(&token, options)?;
+        let result = self
+            .inner
+            .http
+            .request(method, url, body, headers, timeout)
+            .await;
+        if Self::is_unauthorized(&result) {
+            self.invalidate_rejected(&token).await;
         }
         result
     }
