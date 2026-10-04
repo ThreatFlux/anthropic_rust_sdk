@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0](https://github.com/ThreatFlux/anthropic_rust_sdk/compare/v0.3.0...v0.4.0) (2026-10-03)
+
+
+### ⚠ BREAKING CHANGES
+
+* **sdk:** Evolving content, stop and stream enums require updated matches; public response literals gain fields, Files purpose and list/upload APIs change, Model.capabilities uses ModelCapabilities, and nullable streaming/usage deltas use presence-aware types. Follow docs/migration-0.4.md.
+
+### Features
+
+* **sdk:** implement the reviewed SDK gap plan ([#61](https://github.com/ThreatFlux/anthropic_rust_sdk/issues/61)) ([017130b](https://github.com/ThreatFlux/anthropic_rust_sdk/commit/017130b16f94cd48b0ca1772c4b560bb77a15d08))
+
 ## [0.3.0](https://github.com/ThreatFlux/anthropic_rust_sdk/compare/v0.2.0...v0.3.0) (2026-08-02)
 
 
