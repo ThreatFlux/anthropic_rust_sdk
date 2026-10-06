@@ -542,6 +542,10 @@ jobs:
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ${{ env.IMAGE_NAME }}
+          # The semver rules would add `latest` on their own (flavor latest=auto);
+          # only the gated raw rule below may set it.
+          flavor: |
+            latest=false
           tags: |
             type=semver,pattern={{version}},value=${{ needs.prepare.outputs.tag }}
             type=semver,pattern={{major}}.{{minor}},value=${{ needs.prepare.outputs.tag }},enable=${{ steps.aliases.outputs.minor }}
