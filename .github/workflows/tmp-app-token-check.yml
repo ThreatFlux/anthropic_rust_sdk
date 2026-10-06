@@ -1,0 +1,37 @@
+name: Temporary App Token Check
+
+# Temporary verification for the Release Please App token; removed before merge.
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: App token labels check
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create GitHub App installation token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.TF_AUTOMATION_APP_ID }}
+          private-key: ${{ secrets.TF_AUTOMATION_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Add and remove a pull request label with the App token
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/labels?per_page=100" --jq '.[].name' | grep -Fx 'autorelease: pending'
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/issues/${PR}/labels" -f 'labels[]=github-actions' --jq '.[].name'
+          gh api -X DELETE "repos/${GITHUB_REPOSITORY}/issues/${PR}/labels/github-actions" --jq '.[].name'
+          gh api "repos/${GITHUB_REPOSITORY}/git/matching-refs/tags/v0.4" --jq '.[].ref'
