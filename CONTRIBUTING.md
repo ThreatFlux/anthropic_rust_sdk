@@ -180,6 +180,13 @@ Releases are managed by Release Please and the workflows under
    the crate to crates.io, pushes the GHCR image
    `ghcr.io/threatflux/anthropic-rust-sdk`, and attaches the archives,
    checksums, SBOM and `.crate` file to the GitHub release.
+5. The image is built natively for `linux/amd64` (`ubuntu-latest`) and
+   `linux/arm64` (`ubuntu-24.04-arm`). Each platform is smoke-tested, pushed by
+   digest and combined into one multi-arch index; only the index is tagged.
+   The index gets a keyless cosign signature (the `release.yml` GitHub OIDC
+   identity, logged in Rekor) and a GitHub build provenance attestation, and
+   the archives, `.crate` and SBOM get provenance attestations too. The README
+   lists the `gh attestation verify` and `cosign verify` commands.
 
 crates.io publishing uses [trusted publishing](https://crates.io/docs/trusted-publishing):
 the `publish` job in `release.yml` runs in the `crates-io` environment and

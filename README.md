@@ -30,8 +30,8 @@ The 0.4 API adds lossless content replay, strict streaming collection,
 current Skills, bounded pagination and batch result streams, an optional tool
 runner, and explicit OAuth administration. Read the [0.4 migration guide](docs/migration-0.4.md)
 for public API changes and the [coverage notes](docs/api-coverage.md) for limits.
-The v0.4.0 GitHub release was not published to crates.io; until the next
-release publishes a 0.4.x version there, `cargo add` installs 0.3.
+The v0.4.0 GitHub release was not published to crates.io; 0.4.1 is the
+first 0.4.x release there.
 
 ## Requirements
 
@@ -61,6 +61,24 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
 Do not use the Git form when reproducible crates.io releases are required.
+
+### Release artifacts
+
+Each [GitHub release](https://github.com/ThreatFlux/anthropic_rust_sdk/releases)
+attaches the `check_my_usage` and `test_api` helper binaries for Linux, macOS
+and Windows with SHA-256 checksums, the `.crate` file and a CycloneDX SBOM. The
+helper image `ghcr.io/threatflux/anthropic-rust-sdk` is published for
+`linux/amd64` and `linux/arm64`. The release workflow signs the image with a
+keyless cosign signature and records GitHub build provenance attestations for
+the image and the release files. Verify them with:
+
+```bash
+gh attestation verify threatflux-anthropic-sdk-linux-amd64.tar.gz --repo ThreatFlux/anthropic_rust_sdk
+gh attestation verify oci://ghcr.io/threatflux/anthropic-rust-sdk:<version> --repo ThreatFlux/anthropic_rust_sdk
+cosign verify ghcr.io/threatflux/anthropic-rust-sdk:<version> \
+  --certificate-identity-regexp '^https://github\.com/ThreatFlux/anthropic_rust_sdk/\.github/workflows/release\.yml@' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
 
 ## Quickstart
 
