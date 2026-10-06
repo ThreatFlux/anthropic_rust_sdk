@@ -512,6 +512,31 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Rebuilding an older release must not roll the mutable aliases back:
+      # each alias moves only when this version is the newest stable release
+      # it covers (latest: all releases, X: its major, X.Y: its minor line).
+      - name: Select mutable image aliases
+        id: aliases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ "$VERSION" == *-* ]]; then
+            printf '%s\n' latest=false major=false minor=false >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          stable="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/git/matching-refs/tags/v" --jq '.[].ref | ltrimstr("refs/tags/v")' \
+            | { grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true; } | sort -V)"
+          IFS=. read -r major minor _ <<< "$VERSION"
+          newest() { { grep -E "^$1" <<< "$stable" || true; } | tail -n 1; }
+          is_newest() { [[ "$(newest "$1")" == "$VERSION" ]] && echo true || echo false; }
+          {
+            echo "latest=$(is_newest '')"
+            echo "major=$(is_newest "${major}\.")"
+            echo "minor=$(is_newest "${major}\.${minor}\.")"
+          } | tee -a "$GITHUB_OUTPUT"
+
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
@@ -519,9 +544,9 @@ jobs:
           images: ${{ env.IMAGE_NAME }}
           tags: |
             type=semver,pattern={{version}},value=${{ needs.prepare.outputs.tag }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ needs.prepare.outputs.tag }}
-            type=semver,pattern={{major}},value=${{ needs.prepare.outputs.tag }}
-            type=raw,value=latest
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.prepare.outputs.tag }},enable=${{ steps.aliases.outputs.minor }}
+            type=semver,pattern={{major}},value=${{ needs.prepare.outputs.tag }},enable=${{ steps.aliases.outputs.major }}
+            type=raw,value=latest,enable=${{ steps.aliases.outputs.latest }}
           labels: |
             org.opencontainers.image.title=ThreatFlux Anthropic Rust SDK
             org.opencontainers.image.description=Rust SDK and helper binaries for the Anthropic API
