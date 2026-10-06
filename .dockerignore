@@ -6,4 +6,3 @@ plans
 *.log
 .env
 .env.*
-Cargo.lock

@@ -62,9 +62,14 @@ def check_toolchains(package: dict, errors: list[str]) -> None:
         errors.append(f"rust-toolchain.toml: expected Rust {rust_version}")
 
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
-    expected_image = f"FROM rust:{rust_version}-bookworm AS builder"
-    if expected_image not in dockerfile.splitlines():
-        errors.append(f"Dockerfile: expected builder image rust:{rust_version}-bookworm")
+    builder_re = re.compile(
+        rf"^FROM rust:{re.escape(rust_version)}-trixie@sha256:[0-9a-f]{{64}} AS builder$",
+        re.MULTILINE,
+    )
+    if not builder_re.search(dockerfile):
+        errors.append(
+            f"Dockerfile: expected digest-pinned builder image rust:{rust_version}-trixie"
+        )
 
 
 def check_features(readme: str, manifest: dict, errors: list[str]) -> None:

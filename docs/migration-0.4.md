@@ -3,8 +3,8 @@
 This source implements the [reviewed gap plan](sdk-gap-implementation-plan.md) and
 [design issue #60](https://github.com/ThreatFlux/anthropic_rust_sdk/issues/60).
 The changes require a 0.4 release because Rust enum matches, public struct
-literals, and several field types change. Cargo and release metadata remain at
-the last published version until the Release Please version PR is merged.
+literals, and several field types change. Release Please cut them as v0.4.0
+(pull request #62).
 
 ## Content, stop reasons, and replay
 

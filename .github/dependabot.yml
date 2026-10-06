@@ -34,7 +34,7 @@ updates:
         patterns:
           - "*"
         dependency-type: "production"
-        
+
   # Enable version updates for GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -51,3 +51,32 @@ updates:
     commit-message:
       prefix: "ci"
       include: "scope"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  # Refresh the digest-pinned Docker base images (Dockerfile)
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "ThreatFlux/maintainers"
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    ignore:
+      # The builder tag tracks `rust-version` in Cargo.toml (the docs contract
+      # checks it); raise both together by hand. Digest refreshes still arrive.
+      - dependency-name: "rust"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"

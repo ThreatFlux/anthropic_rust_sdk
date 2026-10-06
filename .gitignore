@@ -204,3 +204,6 @@ lcov.info
 
 # Examples with API keys
 examples/.env
+
+# Generated SBOMs (make sbom)
+/sbom/

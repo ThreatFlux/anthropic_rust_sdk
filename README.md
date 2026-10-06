@@ -26,10 +26,12 @@ is authoritative for service behavior and availability.
 - Source-level clients for core, administrative, and selected preview APIs.
 - Compile-checked examples and rustdoc with warnings denied in CI.
 
-The unreleased 0.4 API adds lossless content replay, strict streaming collection,
+The 0.4 API adds lossless content replay, strict streaming collection,
 current Skills, bounded pagination and batch result streams, an optional tool
 runner, and explicit OAuth administration. Read the [0.4 migration guide](docs/migration-0.4.md)
 for public API changes and the [coverage notes](docs/api-coverage.md) for limits.
+The v0.4.0 GitHub release was not published to crates.io; until the next
+release publishes a 0.4.x version there, `cargo add` installs 0.3.
 
 ## Requirements
 

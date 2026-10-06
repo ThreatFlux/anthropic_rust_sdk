@@ -1,4 +1,4 @@
-.PHONY: all build test clean fmt lint audit doc release check install dev-setup \
+.PHONY: all build test clean fmt lint audit doc release check install dev-setup sbom \
         ci ci-fmt ci-clippy ci-build ci-test ci-doctest ci-doc ci-audit \
         ci-examples ci-msrv ci-license ci-docs ci-coverage pre-commit examples deps \
         bench coverage watch help
@@ -48,11 +48,23 @@ doc:
 	@echo "Generating documentation..."
 	@RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features --document-private-items
 
-# Prepare for release
+# Prepare for release (a local dry run; crates.io publishing happens only in
+# .github/workflows/release.yml through trusted publishing)
 release: all
 	@echo "Checking for release readiness..."
 	@cargo generate-lockfile
 	@cargo publish --dry-run --locked
+
+# CycloneDX SBOM for the crate (release.yml attaches it to each GitHub Release).
+# Needs cargo-cyclonedx: cargo install --locked cargo-cyclonedx@0.5.9
+SBOM_NAME = threatflux-anthropic-sdk-sbom
+sbom:
+	@echo "Generating SBOM..."
+	@mkdir -p sbom
+	@rm -f sbom/*.json
+	@cargo cyclonedx --manifest-path Cargo.toml --all-features --format json --spec-version 1.5 --override-filename $(SBOM_NAME)
+	@mv $(SBOM_NAME).json sbom/
+	@echo "SBOM written to sbom/$(SBOM_NAME).json"
 
 # Quick check
 check:
@@ -190,6 +202,7 @@ help:
 	@echo "  audit      - Run security audit"
 	@echo "  doc        - Generate documentation"
 	@echo "  release    - Prepare for crates.io release"
+	@echo "  sbom       - Generate a CycloneDX SBOM in sbom/"
 	@echo "  check      - Quick check (format, lint)"
 	@echo "  ci         - Full local CI gate mirroring GitHub CI (run before commit)"
 	@echo "  ci-docs    - Validate documentation contracts and the quickstart"
