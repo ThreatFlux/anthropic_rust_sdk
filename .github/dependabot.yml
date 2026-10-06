@@ -34,7 +34,7 @@ updates:
         patterns:
           - "*"
         dependency-type: "production"
-        
+
   # Enable version updates for GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -51,3 +51,29 @@ updates:
     commit-message:
       prefix: "ci"
       include: "scope"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  # Refresh the digest-pinned Docker base images (Dockerfile)
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "ThreatFlux/maintainers"
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    # A rust builder bump must land together with `rust-version` in Cargo.toml
+    # and rust-toolchain.toml: the docs contract (scripts/check_docs.py) fails
+    # the Dependabot PR until they match. Dependabot does not refresh the digest
+    # of an unchanged versioned tag, so these bumps are how a rebuilt base image
+    # arrives; the distroless `nonroot` digest is refreshed in place.

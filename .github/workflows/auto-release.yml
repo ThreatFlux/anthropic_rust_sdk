@@ -1,12 +1,14 @@
 name: Auto Release
 
+# Dry runs use their own group, so a rehearsal never cancels a real run.
 concurrency:
-  group: auto-release-${{ github.event.workflow_run.head_branch || github.ref_name || 'main' }}
+  group: auto-release-${{ github.ref_name }}${{ inputs.dry_run && '-dry-run' || '' }}
   cancel-in-progress: true
 
 on:
-  # Release Please owns automatic releases. This optional manual helper stages
-  # a reviewable release PR instead of independently tagging an API migration.
+  # Release Please owns automatic releases (release.yml). This optional manual
+  # helper stages a reviewable release pull request instead of independently
+  # tagging; a dry run only reports what it would do.
   workflow_dispatch:
     inputs:
       version_bump:
@@ -19,20 +21,31 @@ on:
           - patch
           - minor
           - major
+      dry_run:
+        description: Report the next release without creating a branch, pull request, tag or release
+        required: false
+        default: false
+        type: boolean
 
 permissions:
-  actions: read
   contents: read
-  pull-requests: read
 
 jobs:
   release:
+    # The reusable workflow's jobs request these scopes; with the GitHub App
+    # configured, its writes use the App installation token instead.
     permissions:
       actions: write
       contents: write
       pull-requests: write
-    uses: ThreatFlux/github_actions/.github/workflows/reusable-auto-release.yml@7a5f08885a77520db023882c8de17d9e6580b7ae # v0.7.5
+    uses: ThreatFlux/github_actions/.github/workflows/reusable-auto-release.yml@eb9f3cf78c3899be0c4c9323d5cc86de5e1fdee8 # v0.7.7
     with:
-      bump: ${{ github.event.inputs.version_bump || 'auto' }}
+      bump: ${{ inputs.version_bump }}
+      dry-run: ${{ inputs.dry_run }}
       create-pr: true
       required-workflows: ci.yml
+      # The threatflux-automation App opens the release pull request, so its
+      # CI runs (a GITHUB_TOKEN pull request would start no workflows).
+      github-app-id: ${{ vars.TF_AUTOMATION_APP_ID }}
+    secrets:
+      github-app-private-key: ${{ secrets.TF_AUTOMATION_APP_PRIVATE_KEY }}

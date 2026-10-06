@@ -166,10 +166,34 @@ Releases are managed by Release Please and the workflows under
 `.github/workflows/`:
 
 1. Conventional commits merged to `main` feed the release pull request.
+   `feat` and `fix` commits are releasable; `ci`, `build`, `chore`, `docs` and
+   `test` commits are not.
 2. The release pull request updates the crate version and changelog.
 3. Merging it creates the tag and GitHub release.
-4. The release workflow validates and publishes the crate and associated
-   artifacts when repository credentials and environments permit.
+4. The same `release.yml` run then builds the helper binaries for Linux
+   (glibc and musl), macOS and Windows, generates a CycloneDX SBOM, publishes
+   the crate to crates.io, pushes the GHCR image
+   `ghcr.io/threatflux/anthropic-rust-sdk`, and attaches the archives,
+   checksums, SBOM and `.crate` file to the GitHub release.
+
+crates.io publishing uses [trusted publishing](https://crates.io/docs/trusted-publishing):
+the `publish` job in `release.yml` runs in the `crates-io` environment and
+exchanges a GitHub OIDC token for a short-lived crates.io token. No registry
+token is stored in the repository. A version that is already on crates.io is
+skipped, so a re-run is safe.
+
+To rehearse a release without publishing anything, dispatch the workflow as a
+dry run. It builds every target, generates the SBOM, builds and smoke-tests the
+image, and runs `cargo publish --dry-run`:
+
+```bash
+gh workflow run release.yml --ref main -f dry_run=true
+```
+
+A non-dry-run dispatch on a release tag rebuilds that existing release
+(`gh workflow run release.yml --ref vX.Y.Z`). The workflow never creates or
+moves a tag. The optional `auto-release.yml` helper only stages a release pull
+request; Release Please remains the release owner.
 
 Maintainers should verify the package with `cargo package` and its generated
 file list before publishing. Do not manually edit a release tag after it has

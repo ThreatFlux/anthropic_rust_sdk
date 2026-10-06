@@ -1,27 +1,68 @@
 name: Release
 
+# Release Please owns versions, the changelog, tags and GitHub Releases: every
+# push to main runs it, and merging its release pull request creates the tag
+# and the Release. This workflow then builds the helper binaries for every
+# target, generates the SBOM, publishes the crate to crates.io through trusted
+# publishing (OIDC, no registry token), pushes the GHCR image and attaches the
+# assets to that Release.
+#
+# A manual dispatch on a release tag (`gh workflow run release.yml --ref vX.Y.Z`)
+# rebuilds that existing release; this workflow never creates or moves a tag.
+# With dry_run, a dispatch on any branch or tag builds, packages and verifies it
+# without publishing anything.
+#
+# Every job builds the workflow's own commit (GITHUB_SHA): the pushed main
+# commit that Release Please tagged, or the head of the ref picked at dispatch
+# time. There is no input for building another revision, so a branch that
+# moves mid-run cannot mix commits and a dispatch cannot build an unreviewed
+# ref with the default branch's cache scope.
+
 on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      version:
+        description: Version to rebuild (e.g. 0.4.1). Defaults to the Cargo.toml version of the dispatched ref.
+        required: false
+        type: string
+      dry_run:
+        description: Build, package and verify without publishing to crates.io, pushing images or uploading release assets
+        required: false
+        type: boolean
+        default: false
+
+# Read-only by default; only the jobs that create the Release or upload its
+# assets get contents: write, only the image job gets packages: write, and only
+# the publish job gets id-token.
+permissions:
+  contents: read
+
+# Real releases run one at a time per ref; dry runs use their own group so a
+# rehearsal never queues behind (or cancels) a real release.
+concurrency:
+  group: release-${{ github.ref }}${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '-dry-run' || '' }}
+  cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTUP_TOOLCHAIN: stable
+  RUST_BACKTRACE: 1
+  RUST_VERSION: 1.99.0
   CRATE_NAME: threatflux-anthropic-sdk
   IMAGE_NAME: ghcr.io/threatflux/anthropic-rust-sdk
-
-permissions:
-  contents: read
+  # Only workflow_dispatch can set this; Release Please releases are always real.
+  DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
 
 jobs:
   release-please:
     name: Version and create GitHub release
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      pull-requests: write
-      issues: write
+      contents: write # Release commits, tags and GitHub Releases.
+      pull-requests: write # The release pull request.
+      issues: write # Release pull request labels.
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
@@ -34,138 +75,432 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  verify-crate:
-    name: Verify crate package
+  prepare:
+    name: Prepare Release
     needs: release-please
-    if: needs.release-please.outputs.release_created == 'true'
+    # release-please only runs on push, so dispatches continue past it.
+    if: >-
+      !cancelled() && (
+        github.event_name == 'workflow_dispatch' ||
+        (needs.release-please.result == 'success' && needs.release-please.outputs.release_created == 'true')
+      )
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ needs.release-please.outputs.tag_name }}
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
-        with:
-          components: rustfmt, clippy
-
-      - name: Verify crate name and version
+      - name: Determine version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          RELEASE_VERSION: ${{ needs.release-please.outputs.version }}
         run: |
           set -euo pipefail
-          TAG_VERSION="${RELEASE_TAG#v}"
-          CARGO_NAME="$(grep '^name = ' Cargo.toml | head -n1 | cut -d'"' -f2)"
-          CARGO_VERSION="$(grep '^version = ' Cargo.toml | head -n1 | cut -d'"' -f2)"
-
-          if [ "$CARGO_NAME" != "$CRATE_NAME" ]; then
-            echo "Cargo.toml package name ($CARGO_NAME) does not match expected crate ($CRATE_NAME)"
+          MANIFEST_VERSION="$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["package"]["version"])')"
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            VERSION="$RELEASE_VERSION"
+          elif [[ -n "$INPUT_VERSION" ]]; then
+            VERSION="${INPUT_VERSION#v}"
+          else
+            VERSION="$MANIFEST_VERSION"
+          fi
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid version format: $VERSION" >&2
             exit 1
           fi
-
-          if [ "$TAG_VERSION" != "$CARGO_VERSION" ]; then
-            echo "Tag version ($TAG_VERSION) does not match Cargo.toml version ($CARGO_VERSION)"
+          # The crate is published at its Cargo.toml version, so a release must
+          # match it. A dry run may rehearse an unbumped manifest, so it warns.
+          if [[ "$MANIFEST_VERSION" != "$VERSION" ]]; then
+            if [[ "$DRY_RUN" == "true" ]]; then
+              echo "::warning::Cargo.toml version ${MANIFEST_VERSION} does not match ${VERSION}; the dry run packages and verifies ${MANIFEST_VERSION}"
+            else
+              echo "Cargo.toml version ${MANIFEST_VERSION} does not match release version ${VERSION}" >&2
+              exit 1
+            fi
+          fi
+          if [[ "$CRATE_NAME" != "$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["package"]["name"])')" ]]; then
+            echo "Cargo.toml package name does not match ${CRATE_NAME}" >&2
             exit 1
           fi
+          {
+            echo "version=${VERSION}"
+            echo "tag=v${VERSION}"
+            echo "manifest_version=${MANIFEST_VERSION}"
+          } >> "$GITHUB_OUTPUT"
+
+      # Release Please created the tag and the Release; a real run only builds
+      # the commit that tag points to and never creates or moves a tag.
+      - name: Verify release tag and GitHub Release
+        if: env.DRY_RUN != 'true'
         env:
-          RELEASE_TAG: ${{ needs.release-please.outputs.tag_name }}
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if ! TAG_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/commits/refs/tags/${TAG}" --jq .sha)"; then
+            echo "Tag ${TAG} does not exist; Release Please creates release tags" >&2
+            exit 1
+          fi
+          if [[ "$TAG_SHA" != "$GITHUB_SHA" ]]; then
+            echo "Tag ${TAG} points to ${TAG_SHA}, not this run's commit ${GITHUB_SHA}; dispatch the rebuild on the tag (--ref ${TAG})" >&2
+            exit 1
+          fi
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json tagName,url --jq '"Release \(.tagName): \(.url)"'
 
-      - name: Check formatting
-        run: cargo fmt --all -- --check
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
 
-      - name: Run clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
-
-      - name: Compile all targets
-        run: cargo test --all-targets --no-run
-
-      - name: Build documentation
-        run: cargo doc --no-deps --all-features
-        env:
-          RUSTDOCFLAGS: "-D warnings"
-
-      - name: Generate lockfile
+      # Cargo.lock is not committed (library crate). Resolve it once here so the
+      # binaries, SBOM, crate and image all use the same dependency graph.
+      - name: Resolve Cargo.lock
         run: cargo generate-lockfile
 
-      - name: Package crate
-        run: cargo package --locked
+      - name: Upload Cargo.lock
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cargo-lock
+          path: Cargo.lock
+          retention-days: 5
 
-      - name: Publish dry run
-        run: cargo publish --dry-run --locked
+      - name: Dry run summary
+        if: env.DRY_RUN == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          MANIFEST_VERSION: ${{ steps.version.outputs.manifest_version }}
+        run: |
+          {
+            echo "### Release dry run: v${VERSION}"
+            echo
+            echo "Source commit: \`${GITHUB_SHA}\`. No crates.io package, image, tag, GitHub Release or release asset is published."
+            echo
+            echo "Cargo.toml version packaged and verified: \`${MANIFEST_VERSION}\`."
+          } >> "$GITHUB_STEP_SUMMARY"
 
-  publish-crate:
+  build:
+    name: Build (${{ matrix.target }})
+    needs: prepare
+    if: ${{ !cancelled() && needs.prepare.result == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: linux-amd64
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            artifact: linux-musl-amd64
+            use_cross: true
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            artifact: linux-arm64
+            use_cross: true
+          - os: macos-15
+            target: aarch64-apple-darwin
+            artifact: macos-arm64
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            artifact: macos-amd64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: windows-amd64
+    runs-on: ${{ matrix.os }}
+    env:
+      # Release binaries use rustls, so no target needs a system OpenSSL
+      # (cross images have none for musl or aarch64).
+      BUILD_FEATURES: --no-default-features --features rustls-tls
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download Cargo.lock
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: cargo-lock
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: ${{ matrix.target }}
+
+      - name: Install cross
+        if: matrix.use_cross
+        uses: taiki-e/install-action@183e4297cca2404691e9380e1307288dced5c82a # v2.87.25
+        with:
+          tool: cross@0.2.5
+
+      - name: Build
+        shell: bash
+        env:
+          CARGO_BUILD: ${{ matrix.use_cross && 'cross' || 'cargo' }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          # BUILD_FEATURES is intentionally word-split into separate flags.
+          # shellcheck disable=SC2086
+          "${CARGO_BUILD}" build --locked --release --target "${TARGET}" --bins ${BUILD_FEATURES}
+
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          ARCHIVE: ${{ env.CRATE_NAME }}-${{ matrix.artifact }}.tar.gz
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp "target/${TARGET}/release/check_my_usage" "target/${TARGET}/release/test_api" LICENSE dist/
+          tar -czf "${ARCHIVE}" -C dist .
+          shasum -a 256 "${ARCHIVE}" > "${ARCHIVE}.sha256"
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.target }}
+          ARCHIVE: ${{ env.CRATE_NAME }}-${{ matrix.artifact }}.zip
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item "target/$env:TARGET/release/check_my_usage.exe", "target/$env:TARGET/release/test_api.exe", LICENSE -Destination dist/
+          Compress-Archive -Path dist/* -DestinationPath $env:ARCHIVE
+          $hash = (Get-FileHash $env:ARCHIVE -Algorithm SHA256).Hash.ToLower()
+          "$hash  $env:ARCHIVE" | Out-File -Encoding ascii "$env:ARCHIVE.sha256"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-${{ matrix.artifact }}
+          path: ${{ env.CRATE_NAME }}-${{ matrix.artifact }}.*
+          if-no-files-found: error
+          retention-days: 5
+
+  sbom:
+    name: Generate Release SBOM
+    needs: prepare
+    if: ${{ !cancelled() && needs.prepare.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download Cargo.lock
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: cargo-lock
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: Install cargo-cyclonedx
+        uses: taiki-e/install-action@183e4297cca2404691e9380e1307288dced5c82a # v2.87.25
+        with:
+          tool: cargo-cyclonedx@0.5.9
+
+      - name: Generate SBOM
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          make sbom
+          mv "sbom/${CRATE_NAME}-sbom.json" "sbom/${CRATE_NAME}-v${VERSION}.cdx.json"
+          jq -e '.bomFormat == "CycloneDX" and (.components | length > 0)' "sbom/${CRATE_NAME}-v${VERSION}.cdx.json" > /dev/null
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-sbom
+          path: sbom/*.cdx.json
+          if-no-files-found: error
+          retention-days: 5
+
+  package:
+    name: Package Crate
+    needs: prepare
+    if: ${{ !cancelled() && needs.prepare.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download Cargo.lock
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: cargo-lock
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: Package crate and checksum
+        run: |
+          set -euo pipefail
+          cargo package --locked --all-features
+          cargo package --locked --list
+          crate_file="$(find target/package -maxdepth 1 -name '*.crate' -print -quit)"
+          mkdir -p dist
+          cp "$crate_file" dist/
+          (cd dist && sha256sum ./*.crate > "$(basename "$crate_file").sha256")
+
+      - name: Upload crate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-crate
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 5
+
+  publish:
     name: Publish to crates.io
-    needs: [release-please, verify-crate]
-    if: needs.release-please.outputs.release_created == 'true'
+    needs: [prepare, build, package]
+    # Real publishes skip pre-release versions; a dry run always runs
+    # `cargo publish --dry-run`.
+    if: >-
+      !cancelled() &&
+      needs.prepare.result == 'success' && needs.build.result == 'success' && needs.package.result == 'success' &&
+      ((github.event_name == 'workflow_dispatch' && inputs.dry_run) || !contains(needs.prepare.outputs.version, '-'))
     runs-on: ubuntu-latest
+    # crates.io trusted publishing trusts this workflow file (release.yml) in the
+    # crates-io environment. A dry run gets an empty environment name, which runs
+    # the job without an environment, so it records no deployment.
+    environment:
+      name: ${{ !(github.event_name == 'workflow_dispatch' && inputs.dry_run) && 'crates-io' || '' }}
+    permissions:
+      contents: read
+      id-token: write # Exchanged for a short-lived crates.io token; no registry secret is used.
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ needs.release-please.outputs.tag_name }}
+
+      - name: Download Cargo.lock
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: cargo-lock
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
 
-      - name: Verify crate name and version
+      - name: Verify crates.io package (dry run)
+        if: env.DRY_RUN == 'true'
+        run: cargo publish --all-features --locked --dry-run
+
+      # crates.io versions are immutable, so a rerun (or a second run for the
+      # same tag) skips a version that is already published instead of failing.
+      - name: Check whether the version is already published
+        id: pending
+        if: env.DRY_RUN != 'true'
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail
-          TAG_VERSION="${RELEASE_TAG#v}"
-          CARGO_NAME="$(grep '^name = ' Cargo.toml | head -n1 | cut -d'"' -f2)"
-          CARGO_VERSION="$(grep '^version = ' Cargo.toml | head -n1 | cut -d'"' -f2)"
+          status="$(curl --silent --show-error --retry 3 --retry-all-errors \
+            --user-agent "${GITHUB_REPOSITORY}-release/${GITHUB_RUN_ID} (https://github.com/${GITHUB_REPOSITORY})" \
+            --output /dev/null --write-out '%{http_code}' \
+            "https://crates.io/api/v1/crates/${CRATE_NAME}/${VERSION}")"
+          case "${status}" in
+            200)
+              echo "::notice::${CRATE_NAME} ${VERSION} is already on crates.io; skipping the publish"
+              echo "publish=false" >> "$GITHUB_OUTPUT"
+              ;;
+            404) echo "publish=true" >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "crates.io returned HTTP ${status} for ${CRATE_NAME} ${VERSION}" >&2
+              exit 1
+              ;;
+          esac
 
-          if [ "$CARGO_NAME" != "$CRATE_NAME" ]; then
-            echo "Cargo.toml package name ($CARGO_NAME) does not match expected crate ($CRATE_NAME)"
-            exit 1
-          fi
-
-          if [ "$TAG_VERSION" != "$CARGO_VERSION" ]; then
-            echo "Tag version ($TAG_VERSION) does not match Cargo.toml version ($CARGO_VERSION)"
-            exit 1
-          fi
-        env:
-          RELEASE_TAG: ${{ needs.release-please.outputs.tag_name }}
-
-      - name: Generate lockfile
-        run: cargo generate-lockfile
+      - name: Authenticate with crates.io
+        id: crates-io-auth
+        if: env.DRY_RUN != 'true' && steps.pending.outputs.publish == 'true'
+        uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
 
       - name: Publish to crates.io
-        run: cargo publish --locked
+        if: env.DRY_RUN != 'true' && steps.pending.outputs.publish == 'true'
         env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          # Short-lived trusted-publishing token; the auth action revokes it in
+          # its post step. No long-lived registry secret is read.
+          CARGO_REGISTRY_TOKEN: ${{ steps.crates-io-auth.outputs.token }}
+        run: cargo publish --all-features --locked
 
-      - name: Verify crates.io indexing
-        run: |
-          set -euo pipefail
-          VERSION="${RELEASE_TAG#v}"
-          for attempt in 1 2 3 4 5 6 7 8 9 10; do
-            if cargo search "$CRATE_NAME" --limit 1 | grep -q "$CRATE_NAME = \"$VERSION\""; then
-              exit 0
-            fi
+  image:
+    name: Build and Smoke-Test Image
+    needs: prepare
+    if: ${{ !cancelled() && needs.prepare.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-            echo "Waiting for crates.io to index $CRATE_NAME $VERSION (attempt $attempt/10)"
-            sleep 30
-          done
+      # The build context includes this lockfile, so the image matches the
+      # other release assets.
+      - name: Download Cargo.lock
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: cargo-lock
 
-          echo "crates.io did not index $CRATE_NAME $VERSION in time"
-          exit 1
-        env:
-          RELEASE_TAG: ${{ needs.release-please.outputs.tag_name }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
-  publish-ghcr:
+      - name: Build image without pushing
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: release-image:local
+          cache-from: type=gha,scope=release-image
+          cache-to: type=gha,scope=release-image,mode=max
+          build-args: |
+            VERSION=${{ needs.prepare.outputs.version }}
+            VCS_REF=${{ github.sha }}
+
+      - name: Smoke test image
+        run: scripts/smoke_test_image.sh release-image:local
+
+  publish-image:
     name: Publish GitHub Packages image
-    needs: [release-please, verify-crate]
-    if: needs.release-please.outputs.release_created == 'true'
+    needs: [prepare, image]
+    if: >-
+      !cancelled() && !(github.event_name == 'workflow_dispatch' && inputs.dry_run) &&
+      needs.prepare.result == 'success' && needs.image.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
+      packages: write # Pushes the release image to GHCR.
     outputs:
       digest: ${{ steps.build.outputs.digest }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ needs.release-please.outputs.tag_name }}
+
+      - name: Download Cargo.lock
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: cargo-lock
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
@@ -177,68 +512,101 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Rebuilding an older release must not roll the mutable aliases back:
+      # each alias moves only when this version is the newest stable release
+      # it covers (latest: all releases, X: its major, X.Y: its minor line).
+      - name: Select mutable image aliases
+        id: aliases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ "$VERSION" == *-* ]]; then
+            printf '%s\n' latest=false major=false minor=false >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          stable="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/git/matching-refs/tags/v" --jq '.[].ref | ltrimstr("refs/tags/v")' \
+            | { grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true; } | sort -V)"
+          IFS=. read -r major minor _ <<< "$VERSION"
+          newest() { { grep -E "^$1" <<< "$stable" || true; } | tail -n 1; }
+          is_newest() { [[ "$(newest "$1")" == "$VERSION" ]] && echo true || echo false; }
+          {
+            echo "latest=$(is_newest '')"
+            echo "major=$(is_newest "${major}\.")"
+            echo "minor=$(is_newest "${major}\.${minor}\.")"
+          } | tee -a "$GITHUB_OUTPUT"
+
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ${{ env.IMAGE_NAME }}
+          # The semver rules would add `latest` on their own (flavor latest=auto);
+          # only the gated raw rule below may set it.
+          flavor: |
+            latest=false
           tags: |
-            type=semver,pattern={{version}},value=${{ needs.release-please.outputs.tag_name }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ needs.release-please.outputs.tag_name }}
-            type=semver,pattern={{major}},value=${{ needs.release-please.outputs.tag_name }}
-            type=raw,value=latest
+            type=semver,pattern={{version}},value=${{ needs.prepare.outputs.tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.prepare.outputs.tag }},enable=${{ steps.aliases.outputs.minor }}
+            type=semver,pattern={{major}},value=${{ needs.prepare.outputs.tag }},enable=${{ steps.aliases.outputs.major }}
+            type=raw,value=latest,enable=${{ steps.aliases.outputs.latest }}
           labels: |
             org.opencontainers.image.title=ThreatFlux Anthropic Rust SDK
             org.opencontainers.image.description=Rust SDK and helper binaries for the Anthropic API
             org.opencontainers.image.vendor=ThreatFlux
 
+      # Same context, lockfile and cache scope as the smoke-tested build.
       - name: Build and push image
         id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
+          platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=release-image
           build-args: |
-            VERSION=${{ needs.release-please.outputs.version }}
+            VERSION=${{ needs.prepare.outputs.version }}
+            VCS_REF=${{ github.sha }}
 
-  release-assets:
-    name: Attach package assets to GitHub release
-    needs: [release-please, publish-crate, publish-ghcr]
-    if: needs.release-please.outputs.release_created == 'true'
+  upload-assets:
+    name: Attach assets to GitHub release
+    needs: [prepare, build, sbom, package, publish, publish-image]
+    if: >-
+      !cancelled() && !(github.event_name == 'workflow_dispatch' && inputs.dry_run) &&
+      needs.prepare.result == 'success' && needs.build.result == 'success' && needs.sbom.result == 'success' &&
+      needs.package.result == 'success' && needs.publish-image.result == 'success' &&
+      (needs.publish.result == 'success' || needs.publish.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write # Uploads the release assets.
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Download release artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          persist-credentials: false
-          ref: ${{ needs.release-please.outputs.tag_name }}
+          path: artifacts
+          pattern: release-*
+          merge-multiple: true
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
-
-      - name: Package crate and checksums
+      - name: Record the published image
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+          IMAGE_DIGEST: ${{ needs.publish-image.outputs.digest }}
         run: |
-          set -euo pipefail
-          cargo generate-lockfile
-          cargo package --locked
-
-          crate_file="$(find target/package -maxdepth 1 -name '*.crate' -print -quit)"
-          sha256sum "$crate_file" > "$crate_file.sha256"
           {
             echo "image=${IMAGE_NAME}"
-            echo "tag=${RELEASE_TAG}"
+            echo "tag=${TAG}"
             echo "digest=${IMAGE_DIGEST}"
-          } > ghcr-image.txt
-        env:
-          IMAGE_NAME: ${{ env.IMAGE_NAME }}
-          IMAGE_DIGEST: ${{ needs.publish-ghcr.outputs.digest }}
-          RELEASE_TAG: ${{ needs.release-please.outputs.tag_name }}
+          } > artifacts/ghcr-image.txt
 
-      - name: Upload release assets
-        run: gh release upload "$RELEASE_TAG" target/package/*.crate target/package/*.crate.sha256 ghcr-image.txt --clobber
+      - name: Upload to release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ needs.release-please.outputs.tag_name }}
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(artifacts/*)
+          gh release upload "${TAG}" "${files[@]}" --repo "${GITHUB_REPOSITORY}" --clobber

@@ -2,9 +2,9 @@ name: Benchmarks
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 env:
   CARGO_TERM_COLOR: always
@@ -17,33 +17,35 @@ jobs:
   benchmark:
     name: Performance Benchmarks
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      issues: write
-      pull-requests: write
+    outputs:
+      has_results: ${{ steps.run_benchmarks.outputs.has_results }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      
+
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
-      
+        if: hashFiles('benches/**') != ''
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
+        with:
+          toolchain: stable
+
       - name: Cache cargo registry
+        if: hashFiles('benches/**') != ''
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-      
-      - name: Cache cargo index
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
-      
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
+
       - name: Install criterion
-        run: cargo install cargo-criterion
-      
+        if: hashFiles('benches/**') != ''
+        run: cargo install --locked cargo-criterion@1.1.0
+
       - name: Run benchmarks
         id: run_benchmarks
         run: |
@@ -59,10 +61,36 @@ jobs:
             echo "No benchmarks found, skipping..."
             echo "has_results=false" >> "$GITHUB_OUTPUT"
           fi
-      
+
+      - name: Upload benchmark results
+        if: steps.run_benchmarks.outputs.has_results == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: benchmark-results
+          path: benchmark-results.json
+          retention-days: 5
+
+  # Only pushes to main with results store them; this is the one job that can
+  # write (the benchmark history on gh-pages and alert commit comments).
+  store:
+    name: Store Benchmark Results
+    needs: benchmark
+    if: github.event_name == 'push' && needs.benchmark.outputs.has_results == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Pushes benchmark data and comments on the commit.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download benchmark results
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: benchmark-results
+
       - name: Store benchmark result
-        if: github.event_name == 'push' && steps.run_benchmarks.outputs.has_results == 'true'
-        uses: benchmark-action/github-action-benchmark@4322e5726e6334590d251fc4f92bec0efafc45dc # v1
+        uses: benchmark-action/github-action-benchmark@4322e5726e6334590d251fc4f92bec0efafc45dc # v1.22.2
         with:
           name: Rust Benchmarks
           tool: 'cargo'
