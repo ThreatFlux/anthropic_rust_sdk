@@ -7,10 +7,11 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-# Pull request runs are superseded by newer pushes; runs on main queue instead,
-# so every main commit gets a result and gh-pages deploys never overlap.
+# Pull request runs are superseded by newer pushes. Every other run gets its
+# own per-commit group, so each main commit gets a result; the deploy job has
+# its own group so gh-pages deploys never overlap.
 concurrency:
-  group: docs-${{ github.ref }}
+  group: docs-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -130,6 +131,9 @@ jobs:
     name: Deploy Documentation
     needs: build-docs
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    concurrency:
+      group: docs-deploy
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     permissions:
       contents: write # Pushes the gh-pages branch.

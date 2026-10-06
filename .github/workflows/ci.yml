@@ -10,10 +10,10 @@ on:
     - cron: "0 2 * * *"
   workflow_dispatch:
 
-# A newer push to the same pull request supersedes the running checks; runs on
-# main always finish so every commit gets a result.
+# A newer push to the same pull request supersedes the running checks. Every
+# other run gets its own per-commit group, so each main commit gets a result.
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}-${{ github.event_name }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:

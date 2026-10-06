@@ -27,8 +27,10 @@ on:
     - cron: "0 4 * * 1"
   workflow_dispatch:
 
+# Pull request runs are superseded by newer pushes; every other run gets its
+# own per-commit group, so each main commit gets a result.
 concurrency:
-  group: docker-${{ github.event.pull_request.number || github.ref }}
+  group: docker-${{ github.event_name == 'pull_request' && github.ref || github.sha }}-${{ github.event_name }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
