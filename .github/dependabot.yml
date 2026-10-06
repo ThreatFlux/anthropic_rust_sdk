@@ -72,11 +72,8 @@ updates:
     commit-message:
       prefix: "chore"
       include: "scope"
-    ignore:
-      # The builder tag tracks `rust-version` in Cargo.toml (the docs contract
-      # checks it); raise both together by hand. Digest refreshes still arrive.
-      - dependency-name: "rust"
-        update-types:
-          - "version-update:semver-major"
-          - "version-update:semver-minor"
-          - "version-update:semver-patch"
+    # A rust builder bump must land together with `rust-version` in Cargo.toml
+    # and rust-toolchain.toml: the docs contract (scripts/check_docs.py) fails
+    # the Dependabot PR until they match. Dependabot does not refresh the digest
+    # of an unchanged versioned tag, so these bumps are how a rebuilt base image
+    # arrives; the distroless `nonroot` digest is refreshed in place.

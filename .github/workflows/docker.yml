@@ -84,8 +84,14 @@ jobs:
           ignore-unfixed: true
           vuln-type: os,library
 
+      # Fork pull requests and Dependabot-triggered runs get a read-only token
+      # without security-events: write, so they skip the upload; any other
+      # upload failure must not turn the image build red either.
       - name: Upload Trivy results
-        if: always() && hashFiles('trivy-results.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        if: >-
+          always() && hashFiles('trivy-results.sarif') != '' && github.actor != 'dependabot[bot]' &&
+          (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        continue-on-error: true
         uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
         with:
           sarif_file: trivy-results.sarif
