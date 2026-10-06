@@ -7,9 +7,16 @@ name: Release
 # publishing (OIDC, no registry token), pushes the GHCR image and attaches the
 # assets to that Release.
 #
-# A manual dispatch rebuilds an existing release (its tag must already exist;
-# this workflow never creates or moves a tag), or, with dry_run, builds,
-# packages and verifies a ref without publishing anything.
+# A manual dispatch on a release tag (`gh workflow run release.yml --ref vX.Y.Z`)
+# rebuilds that existing release; this workflow never creates or moves a tag.
+# With dry_run, a dispatch on any branch or tag builds, packages and verifies it
+# without publishing anything.
+#
+# Every job builds the workflow's own commit (GITHUB_SHA): the pushed main
+# commit that Release Please tagged, or the head of the ref picked at dispatch
+# time. There is no input for building another revision, so a branch that
+# moves mid-run cannot mix commits and a dispatch cannot build an unreviewed
+# ref with the default branch's cache scope.
 
 on:
   push:
@@ -17,11 +24,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Version to rebuild (e.g. 0.4.1). Defaults to the Cargo.toml version of the source ref.
-        required: false
-        type: string
-      source_ref:
-        description: Git ref to build from (e.g. v0.4.1). Defaults to the ref the workflow is dispatched on.
+        description: Version to rebuild (e.g. 0.4.1). Defaults to the Cargo.toml version of the dispatched ref.
         required: false
         type: string
       dry_run:
@@ -85,39 +88,11 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
-      source_sha: ${{ steps.source_sha.outputs.source_sha }}
     steps:
-      - name: Determine source ref
-        id: source_ref
-        env:
-          INPUT_SOURCE_REF: ${{ inputs.source_ref }}
-          RELEASE_TAG: ${{ needs.release-please.outputs.tag_name }}
-        run: |
-          set -euo pipefail
-          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
-            SOURCE_REF="refs/tags/${RELEASE_TAG}"
-          elif [[ -n "$INPUT_SOURCE_REF" ]]; then
-            SOURCE_REF="$INPUT_SOURCE_REF"
-          else
-            SOURCE_REF="$GITHUB_REF"
-          fi
-          if [[ "$SOURCE_REF" == *$'\n'* || "$SOURCE_REF" == *$'\r'* ]]; then
-            echo "Source ref must be one line" >&2
-            exit 1
-          fi
-          echo "source_ref=${SOURCE_REF}" >> "$GITHUB_OUTPUT"
-
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ steps.source_ref.outputs.source_ref }}
-
-      # Resolve the ref once; every downstream job builds this exact commit, so
-      # a moving branch cannot make the assets differ from each other.
-      - name: Resolve source commit
-        id: source_sha
-        run: echo "source_sha=$(git rev-parse --verify HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Determine version
         id: version
@@ -165,15 +140,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}
-          SOURCE_SHA: ${{ steps.source_sha.outputs.source_sha }}
         run: |
           set -euo pipefail
           if ! TAG_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/commits/refs/tags/${TAG}" --jq .sha)"; then
             echo "Tag ${TAG} does not exist; Release Please creates release tags" >&2
             exit 1
           fi
-          if [[ "$TAG_SHA" != "$SOURCE_SHA" ]]; then
-            echo "Tag ${TAG} points to ${TAG_SHA}, not the selected source commit ${SOURCE_SHA}" >&2
+          if [[ "$TAG_SHA" != "$GITHUB_SHA" ]]; then
+            echo "Tag ${TAG} points to ${TAG_SHA}, not this run's commit ${GITHUB_SHA}; dispatch the rebuild on the tag (--ref ${TAG})" >&2
             exit 1
           fi
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json tagName,url --jq '"Release \(.tagName): \(.url)"'
@@ -200,12 +174,11 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
           MANIFEST_VERSION: ${{ steps.version.outputs.manifest_version }}
-          SOURCE_SHA: ${{ steps.source_sha.outputs.source_sha }}
         run: |
           {
             echo "### Release dry run: v${VERSION}"
             echo
-            echo "Source commit: \`${SOURCE_SHA}\`. No crates.io package, image, tag, GitHub Release or release asset is published."
+            echo "Source commit: \`${GITHUB_SHA}\`. No crates.io package, image, tag, GitHub Release or release asset is published."
             echo
             echo "Cargo.toml version packaged and verified: \`${MANIFEST_VERSION}\`."
           } >> "$GITHUB_STEP_SUMMARY"
@@ -248,7 +221,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ needs.prepare.outputs.source_sha }}
 
       - name: Download Cargo.lock
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -321,7 +293,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ needs.prepare.outputs.source_sha }}
 
       - name: Download Cargo.lock
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -365,7 +336,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ needs.prepare.outputs.source_sha }}
 
       - name: Download Cargo.lock
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -418,7 +388,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ needs.prepare.outputs.source_sha }}
 
       - name: Download Cargo.lock
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -482,7 +451,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ needs.prepare.outputs.source_sha }}
 
       # The build context includes this lockfile, so the image matches the
       # other release assets.
@@ -506,7 +474,7 @@ jobs:
           cache-to: type=gha,scope=release-image,mode=max
           build-args: |
             VERSION=${{ needs.prepare.outputs.version }}
-            VCS_REF=${{ needs.prepare.outputs.source_sha }}
+            VCS_REF=${{ github.sha }}
 
       - name: Smoke test image
         run: scripts/smoke_test_image.sh release-image:local
@@ -528,7 +496,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ needs.prepare.outputs.source_sha }}
 
       - name: Download Cargo.lock
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -573,7 +540,7 @@ jobs:
           cache-from: type=gha,scope=release-image
           build-args: |
             VERSION=${{ needs.prepare.outputs.version }}
-            VCS_REF=${{ needs.prepare.outputs.source_sha }}
+            VCS_REF=${{ github.sha }}
 
   upload-assets:
     name: Attach assets to GitHub release

@@ -190,10 +190,10 @@ image, and runs `cargo publish --dry-run`:
 gh workflow run release.yml --ref main -f dry_run=true
 ```
 
-A non-dry-run dispatch rebuilds an existing release; its tag must already
-exist (`-f source_ref=vX.Y.Z`). The workflow never creates or moves a tag. The
-optional `auto-release.yml` helper only stages a release pull request; Release
-Please remains the release owner.
+A non-dry-run dispatch on a release tag rebuilds that existing release
+(`gh workflow run release.yml --ref vX.Y.Z`). The workflow never creates or
+moves a tag. The optional `auto-release.yml` helper only stages a release pull
+request; Release Please remains the release owner.
 
 Maintainers should verify the package with `cargo package` and its generated
 file list before publishing. Do not manually edit a release tag after it has
