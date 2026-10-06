@@ -201,8 +201,15 @@ async fn expired_provider_tokens_refresh_and_bad_scope_or_expiry_fails_before_ht
         .expect(1)
         .mount(&server)
         .await;
-    let provider = Arc::new(Provider::new(Duration::from_millis(20)));
-    let client = OAuthAdminClient::with_provider(provider.clone(), config(&server)).unwrap();
+    // Each token stays valid for a minute, but the refresh skew is longer, so the
+    // cached token is already inside the refresh window when the second request
+    // runs. This exercises the refresh path without depending on wall-clock
+    // sleeps, which made the test flaky under slow instrumented runs (tarpaulin):
+    // a 20 ms token could expire before the client accepted it.
+    let provider = Arc::new(Provider::new(Duration::from_secs(60)));
+    let mut config = config(&server);
+    config.refresh_skew = Duration::from_secs(120);
+    let client = OAuthAdminClient::with_provider(provider.clone(), config).unwrap();
     client
         .request::<Value>(
             HttpMethod::Get,
@@ -212,7 +219,6 @@ async fn expired_provider_tokens_refresh_and_bad_scope_or_expiry_fails_before_ht
         )
         .await
         .unwrap();
-    tokio::time::sleep(Duration::from_millis(30)).await;
     client
         .request::<Value>(
             HttpMethod::Get,

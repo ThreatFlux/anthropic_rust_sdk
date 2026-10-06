@@ -1,0 +1,5 @@
+# Codecov configuration: https://docs.codecov.com/docs/codecov-yaml
+ignore:
+  # The helper binaries (check_my_usage, test_api) are demos that the test
+  # suite does not run; their lines would only dilute patch coverage.
+  - "src/bin/**"
