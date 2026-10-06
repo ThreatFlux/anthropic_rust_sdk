@@ -8,6 +8,10 @@ Publish this Anthropic Rust SDK under a ThreatFlux-owned crates.io target and ma
 
 Implemented with `threatflux-anthropic-sdk` as the crates.io package name and `threatflux_anthropic_sdk` as the Rust import path. Releases are managed by Release Please, which opens version-bump PRs from conventional commits and creates the GitHub Release/tag after the release PR is merged. The release workflow then publishes crates.io, publishes a GHCR image to GitHub Packages, and uploads crate/checksum assets to the GitHub Release.
 
+crates.io publishing now uses [trusted publishing](https://crates.io/docs/trusted-publishing) instead of a stored registry token. The `publish` job in `.github/workflows/release.yml` runs in the `crates-io` environment, and `rust-lang/crates-io-auth-action` exchanges the job's GitHub OIDC token for a short-lived crates.io token, which it revokes when the job ends. No registry token secret is stored or read. 0.4.1 was the first version published this way. `CONTRIBUTING.md` documents the current release process.
+
+The rest of this file is the original June 2026 plan, kept for history. Where it mentions a registry token, trusted publishing replaces it.
+
 ## Scope
 
 In scope:
@@ -22,7 +26,7 @@ Out of scope:
 - Running real Anthropic API tests unless credentials are explicitly supplied.
 - Publishing any crate before the final name is confirmed.
 
-## Current Findings
+## Original Findings (June 2026)
 
 - `cargo publish --dry-run --allow-dirty` passes for the current package.
 - The current package name is `threatflux`, not `anthropic_rust_sdk`.
@@ -104,7 +108,7 @@ Acceptable alternatives if preferred:
      - verify: `cargo test --all-targets --no-run`, `cargo doc --no-deps`, `cargo package --locked`
      - publish: `cargo publish --locked`
    - Ensure publish depends only on successful verification, not on broken binary artifact packaging.
-   - Use `CARGO_REGISTRY_TOKEN`; Cargo reads it directly during `cargo publish`.
+   - Authenticate with crates.io trusted publishing: give the publish job `id-token: write` and the `crates-io` environment, and get a short-lived token from `rust-lang/crates-io-auth-action`. Do not store a long-lived registry token.
 
 5. Decide binary release policy.
    - Preferred: remove `build-release` for this SDK library release.
@@ -119,7 +123,7 @@ Acceptable alternatives if preferred:
    - `cargo publish --dry-run --locked`
 
 7. Publish.
-   - Confirm `CARGO_REGISTRY_TOKEN` belongs to the crates.io account/org that should own the crate.
+   - Confirm the crate's crates.io trusted publisher matches the workflow: owner `ThreatFlux`, repository `anthropic_rust_sdk`, workflow `release.yml`, environment `crates-io`.
    - Publish once from CI or locally, not both.
    - Add additional crates.io owners/team members after the first publish if needed.
 
@@ -147,6 +151,7 @@ Acceptable alternatives if preferred:
 
 - Crate name: `threatflux-anthropic-sdk`.
 - Auto-versioning: Release Please with `release-type = "rust"` and manifest version tracking.
+- crates.io authentication: trusted publishing (GitHub OIDC) from `release.yml` in the `crates-io` environment; no stored registry token.
 - GitHub Packages target: GHCR image `ghcr.io/threatflux/anthropic-rust-sdk`, because GitHub Packages does not provide a native Cargo registry.
 - GitHub releases publish the library crate and attach `.crate` plus checksum assets.
 - `plans/` is excluded from the crates.io package archive.
