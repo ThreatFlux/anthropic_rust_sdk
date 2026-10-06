@@ -15,7 +15,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     });
 
-    println!("✅ Using API key: {}...", &api_key[..10.min(api_key.len())]);
+    // Never echo any part of the credential (CodeQL rust/cleartext-logging).
+    println!("✅ Using the API key from ANTHROPIC_API_KEY");
 
     // Create client
     let config = Config::new(api_key)?;
