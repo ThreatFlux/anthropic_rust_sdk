@@ -59,19 +59,49 @@ jobs:
     name: Version and create GitHub release
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    # These scopes only back the GITHUB_TOKEN fallback; with the GitHub App
+    # configured, Release Please writes with the App installation token.
     permissions:
       contents: write # Release commits, tags and GitHub Releases.
       pull-requests: write # The release pull request.
       issues: write # Release pull request labels.
+    env:
+      # The `secrets` context is not available to a step-level `if:`, so the
+      # presence of the App key is surfaced here and the steps branch on it.
+      HAS_APP_PRIVATE_KEY: ${{ secrets.TF_AUTOMATION_APP_PRIVATE_KEY != '' }}
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
       version: ${{ steps.release.outputs.version }}
     steps:
+      # The threatflux-automation GitHub App opens the release pull request, so
+      # its pull_request CI runs; a GITHUB_TOKEN pull request starts no
+      # workflows. The token is limited to this repository, and the App has no
+      # Issues permission: Release Please's labels and comments on the release
+      # pull request use the Pull requests permission.
+      - name: Create GitHub App installation token
+        id: app-token
+        if: vars.TF_AUTOMATION_APP_ID != '' && env.HAS_APP_PRIVATE_KEY == 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.TF_AUTOMATION_APP_ID }}
+          private-key: ${{ secrets.TF_AUTOMATION_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Warn about the GITHUB_TOKEN fallback
+        if: steps.app-token.outcome != 'success'
+        run: >-
+          echo "::warning::The threatflux-automation GitHub App is not configured for this run;
+          Release Please falls back to GITHUB_TOKEN, so its release pull request will not start CI"
+
       - name: Run release-please
         id: release
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
+          token: ${{ steps.app-token.outputs.token || github.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 

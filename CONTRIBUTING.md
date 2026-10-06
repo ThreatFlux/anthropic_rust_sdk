@@ -169,6 +169,8 @@ Releases are managed by Release Please and the workflows under
    `feat` and `fix` commits are releasable; `ci`, `build`, `chore`, `docs` and
    `test` commits are not.
 2. The release pull request updates the crate version and changelog.
+   Release Please opens it with the organization's `threatflux-automation`
+   GitHub App token, so the pull request runs CI like any other.
 3. Merging it creates the tag and GitHub release.
 4. The same `release.yml` run then builds the helper binaries for Linux
    (glibc and musl), macOS and Windows, generates a CycloneDX SBOM, publishes
