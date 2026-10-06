@@ -159,11 +159,12 @@ mod error_tests {
     #[test]
     fn test_error_from_reqwest() {
         // `reqwest::Error` has no public constructor, so produce a genuine one by
-        // driving a request that fails (DNS resolution of a reserved-invalid TLD).
+        // driving a request that fails (DNS resolution of a reserved-invalid TLD fails
+        // before any TLS handshake, so HTTPS needs no network access either).
         // The `#[from] reqwest::Error` impl maps it to `AnthropicError::Http`.
         let rt = tokio::runtime::Runtime::new().unwrap();
         let reqwest_error = rt.block_on(async {
-            reqwest::get("http://nonexistent.invalid/")
+            reqwest::get("https://nonexistent.invalid/")
                 .await
                 .expect_err("request to .invalid host must fail")
         });
