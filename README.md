@@ -30,8 +30,8 @@ The 0.4 API adds lossless content replay, strict streaming collection,
 current Skills, bounded pagination and batch result streams, an optional tool
 runner, and explicit OAuth administration. Read the [0.4 migration guide](docs/migration-0.4.md)
 for public API changes and the [coverage notes](docs/api-coverage.md) for limits.
-The v0.4.0 GitHub release was not published to crates.io; 0.4.1 is the
-first 0.4.x release there.
+The v0.4.0 GitHub release was not published to crates.io; install 0.4.1 or
+later from crates.io for the 0.4 API.
 
 ## Requirements
 

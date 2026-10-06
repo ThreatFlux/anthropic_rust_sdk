@@ -615,9 +615,11 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  # Combines the platform images into one index, tags it, signs it with a
-  # keyless cosign signature (this workflow's GitHub OIDC identity, recorded in
-  # the public Rekor log) and attaches a GitHub build provenance attestation.
+  # Combines the platform images into one index and stages it under the
+  # commit tag (sha-<commit>). The index is checked, signed with a keyless
+  # cosign signature (this workflow's GitHub OIDC identity, recorded in the
+  # public Rekor log) and given a GitHub build provenance attestation, all by
+  # digest; only then do the release tags move to that same digest.
   publish-image-index:
     name: Publish, Sign and Attest Image Index
     needs: [prepare, publish-image]
@@ -697,7 +699,10 @@ jobs:
             org.opencontainers.image.description=Rust SDK and helper binaries for the Anthropic API
             org.opencontainers.image.vendor=ThreatFlux
 
-      - name: Create and push the multi-arch index
+      # The digest comes from this create's own result, never from a tag that
+      # another run could move.
+      - name: Create and stage the multi-arch index
+        id: index
         run: |
           set -euo pipefail
           sources=()
@@ -708,34 +713,26 @@ jobs:
             echo "Expected 2 platform digests, found ${#sources[@]}" >&2
             exit 1
           fi
-          mapfile -t tag_args < <(jq -r '.tags[] | "--tag", .' <<< "${DOCKER_METADATA_OUTPUT_JSON}")
           mapfile -t annotation_args < <(jq -r '.annotations[] | "--annotation", .' <<< "${DOCKER_METADATA_OUTPUT_JSON}")
-          docker buildx imagetools create "${tag_args[@]}" "${annotation_args[@]}" "${sources[@]}"
-
-      - name: Verify the index platforms
-        id: index
-        env:
-          VERSION: ${{ needs.prepare.outputs.version }}
-        run: |
-          set -euo pipefail
-          image="${IMAGE_NAME}:${VERSION}"
-          docker buildx imagetools inspect "${image}"
-          raw="$(docker buildx imagetools inspect --raw "${image}")"
+          docker buildx imagetools create --metadata-file "${RUNNER_TEMP}/index-metadata.json" \
+            --tag "${IMAGE_NAME}:sha-${GITHUB_SHA}" "${annotation_args[@]}" "${sources[@]}"
+          digest="$(jq -r '."containerimage.descriptor".digest // empty' "${RUNNER_TEMP}/index-metadata.json")"
+          [[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "Unexpected index digest: '${digest}'" >&2; exit 1; }
+          docker buildx imagetools inspect "${IMAGE_NAME}@${digest}"
+          raw="$(docker buildx imagetools inspect --raw "${IMAGE_NAME}@${digest}")"
           platforms="$(jq -r '[.manifests[].platform | select(.os != "unknown") | "\(.os)/\(.architecture)"] | sort | join(",")' <<< "${raw}")"
           if [[ "${platforms}" != "linux/amd64,linux/arm64" ]]; then
-            echo "Index ${image} has platforms '${platforms}', expected linux/amd64,linux/arm64" >&2
+            echo "Index ${IMAGE_NAME}@${digest} has platforms '${platforms}', expected linux/amd64,linux/arm64" >&2
             exit 1
           fi
-          digest="$(docker buildx imagetools inspect "${image}" --format '{{json .Manifest}}' | jq -r .digest)"
-          [[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "Unexpected index digest: ${digest}" >&2; exit 1; }
           echo "digest=${digest}" >> "$GITHUB_OUTPUT"
-          echo "Published ${IMAGE_NAME}@${digest} (${platforms})"
+          echo "Staged ${IMAGE_NAME}@${digest} (${platforms}) as sha-${GITHUB_SHA}"
 
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
-      # Sign by digest, never by tag, then verify the signature against this
-      # workflow's identity before anything links to the image.
+      # Sign by digest, never by tag, and verify the signature against this
+      # workflow's identity before any release tag points at the index.
       - name: Sign the image index
         env:
           DIGEST: ${{ steps.index.outputs.digest }}
@@ -754,6 +751,28 @@ jobs:
           subject-name: ${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.index.outputs.digest }}
           push-to-registry: true
+
+      # Retagging a single index copies it unchanged, so every release tag
+      # resolves to the signed and attested digest; the check confirms it.
+      - name: Apply the release tags
+        env:
+          DIGEST: ${{ steps.index.outputs.digest }}
+        run: |
+          set -euo pipefail
+          mapfile -t tags < <(jq -r '.tags[]' <<< "${DOCKER_METADATA_OUTPUT_JSON}")
+          tag_args=()
+          for tag in "${tags[@]}"; do
+            tag_args+=(--tag "${tag}")
+          done
+          docker buildx imagetools create "${tag_args[@]}" "${IMAGE_NAME}@${DIGEST}"
+          for tag in "${tags[@]}"; do
+            tagged="$(docker buildx imagetools inspect "${tag}" --format '{{json .Manifest}}' | jq -r .digest)"
+            if [[ "${tagged}" != "${DIGEST}" ]]; then
+              echo "${tag} resolves to ${tagged}, expected ${DIGEST}" >&2
+              exit 1
+            fi
+            echo "${tag} -> ${DIGEST}"
+          done
 
   upload-assets:
     name: Attach assets to GitHub release
