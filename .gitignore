@@ -169,6 +169,9 @@ perf.data*
 *.yaml
 *.yml
 !Cargo.yml
+# ...but never the repository's own GitHub and Codecov configuration.
+!/.github/**/*.yml
+!/codecov.yml
 
 # Terraform
 *.tfstate
