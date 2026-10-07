@@ -309,8 +309,13 @@ jobs:
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Copy-Item "target/$env:TARGET/release/check_my_usage.exe", "target/$env:TARGET/release/test_api.exe", LICENSE -Destination dist/
           Compress-Archive -Path dist/* -DestinationPath $env:ARCHIVE
-          $hash = (Get-FileHash $env:ARCHIVE -Algorithm SHA256).Hash.ToLower()
-          "$hash  $env:ARCHIVE" | Out-File -Encoding ascii "$env:ARCHIVE.sha256"
+          $hash = (Get-FileHash $env:ARCHIVE -Algorithm SHA256).Hash.ToLowerInvariant()
+          # The "<hash>  <file>" line shasum writes, with an LF ending, so
+          # `shasum -a 256 -c` and `sha256sum -c` verify it on any platform.
+          # (Out-File ends the line with CRLF, and the stray CR makes those
+          # tools look for a file named "<archive>\r".)
+          [System.IO.File]::WriteAllText((Join-Path $PWD "$env:ARCHIVE.sha256"), "$hash  $env:ARCHIVE`n")
+          Get-Content "$env:ARCHIVE.sha256"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
