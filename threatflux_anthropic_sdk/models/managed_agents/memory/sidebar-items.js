@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["Memory","MemoryCreateRequest","MemoryRedactRequest","MemoryStore","MemoryStoreCreateRequest","MemoryStoreUpdateRequest","MemoryUpdateRequest","MemoryVersion"],"type":["MemoryListResponse","MemoryStoreListResponse","MemoryVersionListResponse"]};

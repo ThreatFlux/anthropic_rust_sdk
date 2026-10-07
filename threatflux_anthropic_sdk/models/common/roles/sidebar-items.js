@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Capability","Role"],"struct":["Metadata"],"trait":["VecPush"]};

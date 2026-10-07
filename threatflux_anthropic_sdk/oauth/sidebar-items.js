@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Credential","OAuthPrincipal"],"mod":["resources","wif"],"struct":["Inner","OAuthAdminClient","OAuthConfig","OAuthToken"],"trait":["TokenProvider"]};
