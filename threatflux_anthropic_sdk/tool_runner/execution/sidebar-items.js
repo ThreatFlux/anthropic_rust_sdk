@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["attach_tool_id"],"struct":["CompletedTurn"],"type":["CallOutcome"]};
