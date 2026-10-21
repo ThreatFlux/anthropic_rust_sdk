@@ -50,7 +50,7 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  RUST_VERSION: 1.99.0
+  RUST_VERSION: 1.99.1
   CRATE_NAME: threatflux-anthropic-sdk
   IMAGE_NAME: ghcr.io/threatflux/anthropic-rust-sdk
   # Only workflow_dispatch can set this; Release Please releases are always real.

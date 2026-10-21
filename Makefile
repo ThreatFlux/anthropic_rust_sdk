@@ -112,6 +112,7 @@ ci-doc:
 	@RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features --document-private-items
 
 ci-docs:
+	@python3 -m unittest discover -s scripts -p "test_check_docs.py"
 	@echo "[ci] python3 scripts/check_docs.py"
 	@python3 scripts/check_docs.py
 	@echo "[ci] cargo check --example quickstart"

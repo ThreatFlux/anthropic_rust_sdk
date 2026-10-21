@@ -58,17 +58,20 @@ def check_toolchains(package: dict, errors: list[str]) -> None:
     rust_version = package["rust-version"]
     with (ROOT / "rust-toolchain.toml").open("rb") as toolchain_file:
         toolchain = tomllib.load(toolchain_file)["toolchain"]
-    if toolchain["channel"] != rust_version:
-        errors.append(f"rust-toolchain.toml: expected Rust {rust_version}")
+    build_parts = tuple(map(int, toolchain["channel"].split(".")))
+    msrv_parts = tuple(map(int, rust_version.split(".")))
+    if build_parts < msrv_parts:
+        errors.append(f"rust-toolchain.toml: build toolchain must support MSRV {rust_version}")
 
+    build_version = toolchain["channel"]
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
     builder_re = re.compile(
-        rf"^FROM rust:{re.escape(rust_version)}-trixie@sha256:[0-9a-f]{{64}} AS builder$",
+        rf"^FROM rust:{re.escape(build_version)}-trixie@sha256:[0-9a-f]{{64}} AS builder$",
         re.MULTILINE,
     )
     if not builder_re.search(dockerfile):
         errors.append(
-            f"Dockerfile: expected digest-pinned builder image rust:{rust_version}-trixie"
+            f"Dockerfile: expected digest-pinned builder image rust:{build_version}-trixie"
         )
 
 
