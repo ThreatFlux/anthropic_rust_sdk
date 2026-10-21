@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["accumulator","content_delta","framing"],"struct":["MessageStream","StreamLimits"]};

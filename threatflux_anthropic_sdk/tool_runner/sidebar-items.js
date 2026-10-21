@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CallbackErrorPolicy","CompactionReplayPolicy","ToolRunnerTermination"],"mod":["cancellation","execution","options","registry","result","turns"],"struct":["ToolCall","ToolRegistry","ToolRunner","ToolRunnerCancellation","ToolRunnerOptions","ToolRunnerResult"],"type":["ExecutionHook","PreparedCalls","RunFailure","RunResult","StartedCalls"]};
