@@ -18,7 +18,7 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTUP_TOOLCHAIN: stable
+  RUSTUP_TOOLCHAIN: 1.99.1
   RUST_BACKTRACE: 1
   RUSTFLAGS: "-D warnings"
   MSRV: "1.99.0"
@@ -37,7 +37,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        rust: [stable, beta, nightly]
+        rust: [1.99.1, beta, nightly]
         exclude:
           # Exclude some combinations to save CI time
           - os: windows-latest

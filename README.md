@@ -143,6 +143,7 @@ Choose one TLS backend. The default build uses the platform-native TLS stack.
 | --- | --- | --- |
 | `default` | Yes | Enables the `native-tls` feature. |
 | `native-tls` | Yes | Enables Reqwest's platform-native TLS backend. |
+| `vendored-native-tls` | No | Builds OpenSSL from source for native TLS; used by the helper image. |
 | `rustls-tls` | No | Enables Reqwest's Rustls TLS backend. Disable default features when selecting only Rustls. |
 | `real_api_tests` | No | Compiles opt-in tests that can call the live Anthropic API and incur usage. |
 
@@ -301,9 +302,9 @@ async fn send(client: &Client, request: MessageRequest) -> Result<(), AnthropicE
 The fast, credential-free validation path is:
 
 ```bash
-cargo +1.99.0 fmt --all -- --check
-cargo +1.99.0 clippy --all-targets --all-features -- -D warnings
-cargo +1.99.0 test --test unit_suite
+cargo +1.99.1 fmt --all -- --check
+cargo +1.99.1 clippy --all-targets --all-features -- -D warnings
+cargo +1.99.1 test --test unit_suite
 python3 scripts/check_docs.py
 ```
 

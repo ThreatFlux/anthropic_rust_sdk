@@ -1,20 +1,20 @@
 # ThreatFlux Anthropic Rust SDK helper image.
 #
 # Follows ThreatFlux/rust-cicd-template's canonical layout: a Debian 13
-# (trixie) Rust builder and a distroless Debian 13 runtime with no shell,
+# (trixie) Rust builder and a minimal Wolfi GNU runtime with no shell,
 # package manager or coreutils. The helper binaries link OpenSSL through the
-# default `native-tls` feature; distroless/cc supplies glibc, libgcc, OpenSSL
-# and the CA certificates they need.
+# default `native-tls` feature; the helper image vendors OpenSSL while the
+# runtime supplies patched glibc, libgcc and CA certificates.
 #
 # Base images are pinned by digest for reproducibility (Scorecard
 # Pinned-Dependencies). Dependabot refreshes both digests; refresh one by hand
 # with:
 #   docker buildx imagetools inspect <image> | awk '/^Digest:/{print $2}'
-# The builder tag must match `rust-version` in Cargo.toml
+# The builder tag must match the build toolchain in rust-toolchain.toml
 # (scripts/check_docs.py enforces this).
 
-# rust 1.99.0 on Debian 13 (trixie); multi-arch index digest
-FROM rust:1.99.0-trixie@sha256:81015672d6939b0265f09adf96d5de125482bb1330106076956b0518e74edc90 AS builder
+# rust 1.99.1 on Debian 13 (trixie); multi-arch index digest
+FROM rust:1.99.1-trixie@sha256:7e9eb23ac694dda816c76933ab63b2703e6becbf3b10da90970124656788d47b AS builder
 
 # tini is installed here so the runtime stage can copy it out: distroless ships
 # no init, and PID 1 must reap zombies and forward signals. Package revisions
@@ -40,12 +40,13 @@ COPY --chown=builder:builder . .
 # without one resolves it here.
 RUN rustc --version --verbose && cargo --version \
     && if [ ! -f Cargo.lock ]; then cargo generate-lockfile; fi \
-    && cargo build --release --locked --bins \
+    && cargo build --release --locked --bins --features vendored-native-tls \
     && mkdir -p /home/builder/out/bin \
     && cp target/release/check_my_usage target/release/test_api /home/builder/out/bin/
 
-# distroless cc on Debian 13, nonroot tag (uid/gid 65532); multi-arch index digest
-FROM gcr.io/distroless/cc-debian13:nonroot@sha256:e792ab3d241a468a4fd7519ddbbebe66b49b5f365771716ea688ad40b6c6f1c2 AS runtime
+# Wolfi GNU runtime with glibc 2.44-r8; multi-arch index digest.
+# GNU ABI is retained; native TLS uses statically linked vendored OpenSSL.
+FROM cgr.dev/chainguard/glibc-dynamic:latest@sha256:3f1283dc2a6a48c25cd2e1c7730a871b19b721975240e108e0d6a73b555a3a20 AS runtime
 
 ARG VERSION=dev
 ARG VCS_REF=unknown

@@ -50,7 +50,7 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  RUST_VERSION: 1.99.0
+  RUST_VERSION: 1.99.1
   CRATE_NAME: threatflux-anthropic-sdk
   IMAGE_NAME: ghcr.io/threatflux/anthropic-rust-sdk
   # Only workflow_dispatch can set this; Release Please releases are always real.
@@ -735,6 +735,8 @@ jobs:
 
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: v3.1.4
 
       # Sign by digest, never by tag, and verify the signature against this
       # workflow's identity before any release tag points at the index.

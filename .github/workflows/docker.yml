@@ -70,20 +70,19 @@ jobs:
       - name: Smoke test image
         run: scripts/smoke_test_image.sh anthropic-rust-sdk:scan
 
-      # Report only fixable HIGH/CRITICAL findings so every alert is actionable
-      # (refresh the pinned base image digests to clear them).
-      # The vulnerability database download can be rate-limited; that must not
-      # turn the build red (findings never fail the step: exit-code is 0).
+      # Report every severity, including unresolved vendor packages.
+      # An empty filtered report must not be mistaken for a clean image.
+      # Scanner/database failures must remain visible as failed checks.
       - name: Run Trivy scanner
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        continue-on-error: true
         with:
+          exit-code: "1"
           image-ref: anthropic-rust-sdk:scan
           format: sarif
           output: trivy-results.sarif
-          severity: CRITICAL,HIGH
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
           limit-severities-for-sarif: true
-          ignore-unfixed: true
+          ignore-unfixed: false
           vuln-type: os,library
 
       # Fork pull requests and Dependabot-triggered runs get a read-only token

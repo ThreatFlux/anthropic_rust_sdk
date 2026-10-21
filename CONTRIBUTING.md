@@ -30,7 +30,7 @@ issue, test, commit, or pull request.
 2. Install the declared MSRV and useful components:
 
    ```bash
-   rustup toolchain install 1.99.0 --profile minimal --component rustfmt,clippy
+   rustup toolchain install 1.99.1 --profile minimal --component rustfmt,clippy
    ```
 
    [rust-toolchain.toml](rust-toolchain.toml) selects this exact toolchain for
@@ -50,20 +50,20 @@ credentials only when deliberately running opt-in real API tests.
 Run the checks relevant to the change. The standard credential-free set is:
 
 ```bash
-cargo +1.99.0 fmt --all -- --check
-cargo +1.99.0 clippy --all-targets --all-features -- -D warnings
-cargo +1.99.0 test --test unit_suite
-cargo +1.99.0 test --test integration_suite
-cargo +1.99.0 test --doc --all-features
-RUSTDOCFLAGS="-D warnings" cargo +1.99.0 doc --no-deps --all-features
+cargo +1.99.1 fmt --all -- --check
+cargo +1.99.1 clippy --all-targets --all-features -- -D warnings
+cargo +1.99.1 test --test unit_suite
+cargo +1.99.1 test --test integration_suite
+cargo +1.99.1 test --doc --all-features
+RUSTDOCFLAGS="-D warnings" cargo +1.99.1 doc --no-deps --all-features
 python3 scripts/check_docs.py
 ```
 
 When changing TLS features, validate both supported configurations:
 
 ```bash
-cargo +1.99.0 check --no-default-features --features native-tls
-cargo +1.99.0 check --no-default-features --features rustls-tls
+cargo +1.99.1 check --no-default-features --features native-tls
+cargo +1.99.1 check --no-default-features --features rustls-tls
 ```
 
 Run `cargo audit` and `cargo deny check` for dependency or release changes when
@@ -77,7 +77,7 @@ resources, and incur charges:
 
 ```bash
 export ANTHROPIC_API_KEY="dedicated-test-key"
-cargo +1.99.0 test --features real_api_tests --test real_api_suite
+cargo +1.99.1 test --features real_api_tests --test real_api_suite
 ```
 
 Some end-to-end tests are also marked `#[ignore]`. Read the test before adding
