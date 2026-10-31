@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.3](https://github.com/ThreatFlux/anthropic_rust_sdk/compare/v0.4.2...v0.4.3) (2026-10-31)
+
+
+### Bug Fixes
+
+* **deps:** require patched Tokio 1.54.1 ([#81](https://github.com/ThreatFlux/anthropic_rust_sdk/issues/81)) ([31a8741](https://github.com/ThreatFlux/anthropic_rust_sdk/commit/31a8741cd2676e7e7ffba904cd6331e71bea0871))
+
 ## [0.4.2](https://github.com/ThreatFlux/anthropic_rust_sdk/compare/v0.4.1...v0.4.2) (2026-10-21)
 
 
