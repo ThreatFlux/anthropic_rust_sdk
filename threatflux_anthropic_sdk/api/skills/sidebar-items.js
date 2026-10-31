@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["current_skill_options","legacy_skill_cursor","skill_path_segment","validate_skill_pagination"],"struct":["CurrentSkillsApi","SkillsApi"]};
