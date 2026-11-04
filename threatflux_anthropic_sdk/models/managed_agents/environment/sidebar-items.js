@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["EnvironmentConfig","NetworkingConfig"],"struct":["Environment","EnvironmentCreateRequest","EnvironmentUpdateRequest"],"type":["EnvironmentListResponse"]};

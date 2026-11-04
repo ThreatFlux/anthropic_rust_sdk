@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CredentialKind"],"struct":["Credential","CredentialCreateRequest","CredentialUpdateRequest","Vault","VaultCreateRequest","VaultUpdateRequest"],"type":["CredentialListResponse","VaultListResponse"]};
