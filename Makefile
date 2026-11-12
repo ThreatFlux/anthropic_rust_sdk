@@ -56,7 +56,7 @@ release: all
 	@cargo publish --dry-run --locked
 
 # CycloneDX SBOM for the crate (release.yml attaches it to each GitHub Release).
-# Needs cargo-cyclonedx: cargo install --locked cargo-cyclonedx@0.5.9
+# Needs cargo-cyclonedx: cargo install --locked cargo-cyclonedx@0.5.10
 SBOM_NAME = threatflux-anthropic-sdk-sbom
 sbom:
 	@echo "Generating SBOM..."
