@@ -109,11 +109,14 @@ Keys can be loaded from `.env` file or environment.
 ## Model Constants
 
 Model identifiers are available in `src/config.rs` (`config::models`):
-- Current: `FABLE_5`, `MYTHOS_5`, `OPUS_5`, `SONNET_5`, `OPUS_4_8`, `OPUS_4_7`, `OPUS_4_6`, `SONNET_4_6`, `HAIKU_4_5`
+- Current: `HAIKU_5_5`, `SONNET_5_5`, `OPUS_5_5`, `FABLE_5_2`, `MYTHOS_5_2`, `FABLE_5_1`, `MYTHOS_5_1`, `FABLE_5`, `MYTHOS_5`, `OPUS_5`, `SONNET_5`, `OPUS_4_8`, `OPUS_4_7`, `OPUS_4_6`, `SONNET_4_6`, `HAIKU_4_5`
 - Legacy (active): `OPUS_4_5`, `SONNET_4_5`, `OPUS_4_1`
 - Retired (`#[deprecated]`, return 404): `OPUS_4`, `SONNET_4`, `SONNET_3_7`, `HAIKU_3_5`, `SONNET_3_5`, `OPUS_3`
-- `DEFAULT_MODEL` is `claude-sonnet-4-6`. Use adaptive thinking (`adaptive_thinking()`)
-  and the `effort` parameter on current models — `budget_tokens` 400s on Opus 4.7+/Fable 5.
+- `DEFAULT_MODEL` is `claude-haiku-5-5` (Haiku 5.5 for agents; pipelines raise the model
+  explicitly). Use adaptive thinking (`adaptive_thinking()`) and the `effort` parameter on
+  current models — `budget_tokens` 400s on Haiku 5.5, Opus 4.7+ and Fable 5+.
+- Haiku 5.5, Sonnet 5/5.5, Opus 4.7+ and Fable/Mythos reject non-default `temperature`/`top_p`/
+  `top_k`; presets omit them there (`models::supports_sampling_parameters`).
 
 Current beta API modules include Dreams, MCP Tunnels (tokens and certificates), User Profiles
 (including enrollment URLs), and Managed Agents event-delta/initial-event support.

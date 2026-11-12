@@ -1,6 +1,8 @@
 //! Builder for constructing message requests
 
-use crate::builders::common::{FluentBuilder, ParameterBuilder, ValidatedBuilder, ValidationUtils};
+use crate::builders::common::{
+    FluentBuilder, ParameterBuilder, PresetConfig, ValidatedBuilder, ValidationUtils,
+};
 use crate::models::{
     common::{ContentBlock, DocumentSource, ImageSource, Metadata, Role, Tool, ToolChoice},
     message::{Message, MessageRequest, OutputConfig, OutputEffort, ThinkingConfig},
@@ -8,9 +10,24 @@ use crate::models::{
 use std::path::Path;
 
 /// Builder for constructing message requests with a fluent API
+///
+/// Preset sampling values (from [`ParameterBuilder::creative`] and the other
+/// presets) are resolved when the request is built: they are sent only when
+/// the final model accepts sampling parameters
+/// ([`crate::config::models::supports_sampling_parameters`]). Values set
+/// explicitly with [`MessageBuilder::temperature`], [`MessageBuilder::top_p`]
+/// or [`MessageBuilder::top_k`] are always sent as given.
 #[derive(Debug, Clone)]
 pub struct MessageBuilder {
     request: MessageRequest,
+    preset_sampling: Option<PresetSampling>,
+}
+
+/// Sampling values a preset asked for, pending the final model choice.
+#[derive(Debug, Clone, Copy)]
+struct PresetSampling {
+    temperature: Option<f32>,
+    top_p: Option<f32>,
 }
 
 impl MessageBuilder {
@@ -18,6 +35,7 @@ impl MessageBuilder {
     pub fn new() -> Self {
         Self {
             request: MessageRequest::new(),
+            preset_sampling: None,
         }
     }
 
@@ -69,16 +87,28 @@ impl MessageBuilder {
     }
 
     /// Set temperature (0.0 to 1.0)
+    ///
+    /// An explicit value is always sent. Current models such as the default
+    /// Claude Haiku 5.5 reject non-default values; see
+    /// [`crate::config::models::supports_sampling_parameters`].
     pub fn temperature(mut self, temperature: f32) -> Self {
         // Note: We clamp here for backwards compatibility, but validation will catch invalid values
         self.request.temperature = Some(temperature.clamp(0.0, 1.0));
+        if let Some(preset) = self.preset_sampling.as_mut() {
+            preset.temperature = None;
+        }
         self
     }
 
     /// Set top-p (0.0 to 1.0)
+    ///
+    /// An explicit value is always sent; see [`MessageBuilder::temperature`].
     pub fn top_p(mut self, top_p: f32) -> Self {
         // Note: We clamp here for backwards compatibility, but validation will catch invalid values
         self.request.top_p = Some(top_p.clamp(0.0, 1.0));
+        if let Some(preset) = self.preset_sampling.as_mut() {
+            preset.top_p = None;
+        }
         self
     }
 
@@ -411,9 +441,7 @@ impl MessageBuilder {
 
     /// Preset for code generation (includes stop sequences specific to code)
     pub fn code_generation(self) -> Self {
-        use crate::builders::common::PresetConfig;
-        PresetConfig::CODE_GENERATION
-            .apply_to_builder(self)
+        ParameterBuilder::with_preset(self, PresetConfig::CODE_GENERATION)
             .stop_sequences(vec!["```".to_string()])
     }
 
@@ -484,13 +512,27 @@ impl MessageBuilder {
     }
 
     /// Build the message request
+    ///
+    /// Pending preset sampling values are applied only when the model accepts
+    /// sampling parameters.
     pub fn build(self) -> MessageRequest {
-        self.request
+        let mut request = self.request;
+        if let Some(preset) = self.preset_sampling {
+            if crate::config::models::supports_sampling_parameters(&request.model) {
+                if request.temperature.is_none() {
+                    request.temperature = preset.temperature;
+                }
+                if request.top_p.is_none() {
+                    request.top_p = preset.top_p;
+                }
+            }
+        }
+        request
     }
 
     /// Build and validate the message request
     pub fn build_validated(self) -> Result<MessageRequest, crate::error::AnthropicError> {
-        let request = self.request;
+        let request = self.build();
 
         // Use common validation utilities
         ValidationUtils::validate_messages_not_empty(request.messages.len(), "MessageRequest")?;
@@ -522,6 +564,9 @@ impl MessageBuilder {
     }
 
     /// Get a reference to the current request (for inspection)
+    ///
+    /// Preset sampling values are not included until [`MessageBuilder::build`]
+    /// resolves them against the final model.
     pub fn as_request(&self) -> &MessageRequest {
         &self.request
     }
@@ -534,26 +579,44 @@ impl MessageBuilder {
 pub fn validate_model_options(
     request: &MessageRequest,
 ) -> Result<(), crate::error::AnthropicError> {
-    use crate::config::models::{FABLE_5_1, MYTHOS_5_1, OPUS_5_5, SONNET_5_5};
-    let is_new = matches!(
-        request.model.as_str(),
-        OPUS_5_5 | SONNET_5_5 | FABLE_5_1 | MYTHOS_5_1
+    use crate::config::models::{
+        supports_sampling_parameters, FABLE_5_1, FABLE_5_2, HAIKU_5_5, MYTHOS_5_1, MYTHOS_5_2,
+        OPUS_5_5, SONNET_5_5,
+    };
+    use crate::error::AnthropicError;
+    // Current guides say to omit sampling parameters on these models: any
+    // non-default value is a 400. Validated builds require omission instead
+    // of second-guessing per-parameter defaults; unvalidated low-level calls
+    // still send explicitly supplied values.
+    if !supports_sampling_parameters(&request.model)
+        && (request.temperature.is_some() || request.top_p.is_some() || request.top_k.is_some())
+    {
+        return Err(AnthropicError::invalid_input(
+            "This model rejects non-default sampling parameters; omit temperature, top_p and top_k",
+        ));
+    }
+    let model = request.model.as_str();
+    let rejects_forced_tools = matches!(
+        model,
+        OPUS_5_5 | SONNET_5_5 | FABLE_5_2 | MYTHOS_5_2 | FABLE_5_1 | MYTHOS_5_1
     );
-    if !is_new {
+    if !rejects_forced_tools && model != HAIKU_5_5 {
         return Ok(());
     }
-    validate_current_model_prompt(request)?;
+    validate_current_model_prompt(request, rejects_forced_tools)?;
     validate_current_model_thinking(request)
 }
 
 fn validate_current_model_prompt(
     request: &MessageRequest,
+    rejects_forced_tools: bool,
 ) -> Result<(), crate::error::AnthropicError> {
     use crate::error::AnthropicError;
-    if request
-        .tool_choice
-        .as_ref()
-        .is_some_and(|choice| matches!(choice.kind(), "any" | "tool"))
+    if rejects_forced_tools
+        && request
+            .tool_choice
+            .as_ref()
+            .is_some_and(|choice| matches!(choice.kind(), "any" | "tool"))
     {
         return Err(AnthropicError::invalid_input(
             "This model supports auto or none tool choice; forced tools are unsupported",
@@ -568,24 +631,29 @@ fn validate_current_model_prompt(
             "This model does not accept assistant prefill",
         ));
     }
-    // Current guides recommend omission and do not publish numeric defaults.
-    // Validated builders therefore require omission instead of guessing defaults;
-    // unvalidated low-level calls still preserve explicitly supplied parameters.
-    if request.temperature.is_some() || request.top_p.is_some() || request.top_k.is_some() {
-        return Err(AnthropicError::invalid_input("Omit sampling parameters in validated requests for this model; current numeric defaults are unspecified"));
-    }
     Ok(())
 }
 
 fn validate_current_model_thinking(
     request: &MessageRequest,
 ) -> Result<(), crate::error::AnthropicError> {
-    use crate::{config::models::SONNET_5_5, error::AnthropicError};
+    use crate::{
+        config::models::{HAIKU_5_5, SONNET_5_5},
+        error::AnthropicError,
+    };
+    let high_effort = request
+        .output_config
+        .as_ref()
+        .and_then(|config| config.effort.as_ref())
+        .is_some_and(|effort| matches!(effort, OutputEffort::XHigh | OutputEffort::Max));
     if let Some(thinking) = &request.thinking {
         let mode = thinking.thinking_type.as_str();
-        if mode != "adaptive" && !(request.model == SONNET_5_5 && mode == "between_tools") {
+        let allowed = mode == "adaptive"
+            || (request.model == SONNET_5_5 && mode == "between_tools")
+            || (request.model == HAIKU_5_5 && mode == "disabled");
+        if !allowed {
             return Err(AnthropicError::invalid_input(
-                "This model requires adaptive thinking (Sonnet 5.5 also accepts between_tools)",
+                "This model requires adaptive thinking (Sonnet 5.5 also accepts between_tools; Haiku 5.5 also accepts disabled)",
             ));
         }
         if thinking.budget_tokens.is_some() || thinking.allow_tool_use.is_some() {
@@ -595,16 +663,16 @@ fn validate_current_model_thinking(
         }
         if mode == "between_tools" {
             thinking.validate_between_tools()?;
-            if request
-                .output_config
-                .as_ref()
-                .and_then(|config| config.effort.as_ref())
-                .is_some_and(|effort| matches!(effort, OutputEffort::XHigh | OutputEffort::Max))
-            {
+            if high_effort {
                 return Err(AnthropicError::invalid_input(
                     "between_tools requires low, medium or high effort",
                 ));
             }
+        }
+        if mode == "disabled" && high_effort {
+            return Err(AnthropicError::invalid_input(
+                "Disabled thinking requires low, medium or high effort on this model",
+            ));
         }
     }
     Ok(())
@@ -635,6 +703,20 @@ impl FluentBuilder for MessageBuilder {
 }
 
 impl ParameterBuilder for MessageBuilder {
+    /// Apply a preset. Its `max_tokens` applies immediately; its sampling values
+    /// are resolved against the final model when the request is built, so
+    /// presets stay valid on models that reject sampling parameters.
+    fn with_preset(mut self, preset: PresetConfig) -> Self {
+        self.request.temperature = None;
+        self.request.top_p = None;
+        // Normalize like the explicit setters so deferred values match them.
+        self.preset_sampling = Some(PresetSampling {
+            temperature: Some(preset.temperature.clamp(0.0, 1.0)),
+            top_p: Some(preset.top_p.clamp(0.0, 1.0)),
+        });
+        self.max_tokens(preset.max_tokens)
+    }
+
     fn temperature(self, temperature: f32) -> Self {
         self.temperature(temperature)
     }

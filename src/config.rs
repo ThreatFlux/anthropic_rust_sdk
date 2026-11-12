@@ -4,12 +4,17 @@ use crate::error::{AnthropicError, Result};
 use std::time::Duration;
 use url::Url;
 
-/// Default model to use when none is specified.
+/// Default model to use when none is specified: Claude Haiku 5.5.
 ///
-/// A current, active, balanced model. Override per-request with
-/// [`crate::models::message::MessageRequest::model`] — e.g. `claude-opus-4-8`
-/// or `claude-fable-5` for the most capable, `claude-haiku-4-5` for the cheapest.
-pub const DEFAULT_MODEL: &str = models::SONNET_4_6;
+/// The fastest, lowest-cost current model (1M context, 128K output, adaptive
+/// thinking on by default, default effort `medium`). Pipelines that need more
+/// capability should raise the model explicitly per request with
+/// [`crate::models::message::MessageRequest::model`] — e.g.
+/// [`models::SONNET_5_5`], [`models::OPUS_5_5`] or [`models::FABLE_5_2`].
+///
+/// Claude Haiku 5.5 rejects non-default `temperature`, `top_p` and `top_k`
+/// values; see [`models::supports_sampling_parameters`].
+pub const DEFAULT_MODEL: &str = models::HAIKU_5_5;
 
 /// Available Claude models.
 ///
@@ -19,6 +24,14 @@ pub const DEFAULT_MODEL: &str = models::SONNET_4_6;
 pub mod models {
     // --- Current models ---------------------------------------------------
 
+    /// Claude Haiku 5.5 — the crate default. 1M context, 128K output; adaptive
+    /// thinking on by default; rejects non-default sampling parameters.
+    pub const HAIKU_5_5: &str = "claude-haiku-5-5";
+    /// Claude Fable 5.2. Adaptive thinking is always enabled; requires 30-day
+    /// data retention.
+    pub const FABLE_5_2: &str = "claude-fable-5-2";
+    /// Claude Mythos 5.2. Access is gated by Anthropic's verification programs.
+    pub const MYTHOS_5_2: &str = "claude-mythos-5-2";
     /// Claude Opus 5.5. Adaptive thinking is always enabled.
     pub const OPUS_5_5: &str = "claude-opus-5-5";
     /// Claude Sonnet 5.5. Supports adaptive and between-tools thinking.
@@ -56,11 +69,15 @@ pub mod models {
         Context1M,
         /// Forced `any` or named `tool` selection, independent of thinking settings.
         ForcedToolChoice,
+        /// Non-default `temperature`, `top_p` or `top_k` values.
+        SamplingParameters,
     }
 
     /// Query documented capabilities without treating unknown models as unsupported.
     ///
-    /// Verified 2026-10-03 against the official model migration guides. The Models
+    /// Verified 2026-11-12 against the official model overview and thinking
+    /// guides (Claude Haiku 5.5, Claude Fable 5.2 and Claude Mythos 5.2 added;
+    /// earlier entries verified 2026-10-03). The Models
     /// API does not report forced-tool-choice support. This catalog never restricts
     /// the string IDs accepted by the HTTP APIs.
     pub fn support(model: &str, feature: Feature) -> Support {
@@ -69,8 +86,10 @@ pub mod models {
         }
         if feature == Feature::ForcedToolChoice {
             return match model {
-                OPUS_5_5 | SONNET_5_5 | FABLE_5_1 | MYTHOS_5_1 => Support::Unsupported,
-                OPUS_5 => Support::Supported,
+                OPUS_5_5 | SONNET_5_5 | FABLE_5_2 | MYTHOS_5_2 | FABLE_5_1 | MYTHOS_5_1 => {
+                    Support::Unsupported
+                }
+                HAIKU_5_5 | OPUS_5 => Support::Supported,
                 _ => Support::Unknown,
             };
         }
@@ -80,6 +99,7 @@ pub mod models {
             Feature::Effort => supports_effort(model),
             Feature::XHighEffort => supports_xhigh_effort(model),
             Feature::Context1M => supports_1m_context(model),
+            Feature::SamplingParameters => supports_sampling_parameters(model),
             Feature::ForcedToolChoice => unreachable!(),
         };
         if supported {
@@ -149,7 +169,10 @@ pub mod models {
     pub fn supports_adaptive_thinking(model: &str) -> bool {
         matches!(
             model,
-            OPUS_5_5
+            HAIKU_5_5
+                | FABLE_5_2
+                | MYTHOS_5_2
+                | OPUS_5_5
                 | SONNET_5_5
                 | FABLE_5_1
                 | MYTHOS_5_1
@@ -168,7 +191,10 @@ pub mod models {
     pub fn supports_effort(model: &str) -> bool {
         matches!(
             model,
-            OPUS_5_5
+            HAIKU_5_5
+                | FABLE_5_2
+                | MYTHOS_5_2
+                | OPUS_5_5
                 | SONNET_5_5
                 | FABLE_5_1
                 | MYTHOS_5_1
@@ -188,7 +214,10 @@ pub mod models {
     pub fn supports_xhigh_effort(model: &str) -> bool {
         matches!(
             model,
-            OPUS_5_5
+            HAIKU_5_5
+                | FABLE_5_2
+                | MYTHOS_5_2
+                | OPUS_5_5
                 | SONNET_5_5
                 | FABLE_5_1
                 | MYTHOS_5_1
@@ -204,7 +233,10 @@ pub mod models {
     pub fn supports_1m_context(model: &str) -> bool {
         matches!(
             model,
-            OPUS_5_5
+            HAIKU_5_5
+                | FABLE_5_2
+                | MYTHOS_5_2
+                | OPUS_5_5
                 | SONNET_5_5
                 | FABLE_5_1
                 | MYTHOS_5_1
@@ -232,11 +264,68 @@ pub mod models {
         None
     }
 
+    /// Models that accept non-default `temperature`, `top_p` and `top_k` values.
+    ///
+    /// Returns `false` for catalog models that reject non-default sampling values
+    /// with a 400 on every request (Claude Haiku 5.5, Sonnet 5.5/5, Opus
+    /// 5.5/5/4.8/4.7 and every Fable/Mythos model), and `true` for older catalog
+    /// models and for IDs this catalog does not know, so new or custom IDs are
+    /// never restricted locally. Builder presets omit their sampling values when
+    /// this returns `false`.
+    pub fn supports_sampling_parameters(model: &str) -> bool {
+        !matches!(
+            model,
+            HAIKU_5_5
+                | FABLE_5_2
+                | MYTHOS_5_2
+                | OPUS_5_5
+                | SONNET_5_5
+                | FABLE_5_1
+                | MYTHOS_5_1
+                | FABLE_5
+                | MYTHOS_5
+                | OPUS_5
+                | SONNET_5
+                | OPUS_4_8
+                | OPUS_4_7
+        )
+    }
+
+    /// Documented context window (input tokens) for a catalog model.
+    ///
+    /// `None` for IDs this catalog does not know; query the Models API
+    /// (`max_input_tokens`) for authoritative live values.
+    pub fn context_window(model: &str) -> Option<u32> {
+        // Sonnet 4.5's 1M window was a beta opt-in; its documented default is 200K.
+        if model != SONNET_4_5 && supports_1m_context(model) {
+            Some(1_000_000)
+        } else if is_valid_model(model) {
+            Some(200_000)
+        } else {
+            None
+        }
+    }
+
+    /// Documented synchronous Messages API output ceiling (`max_tokens`) for a
+    /// catalog model.
+    ///
+    /// `None` for IDs this catalog does not know; query the Models API
+    /// (`max_tokens`) for authoritative live values.
+    pub fn max_output_tokens(model: &str) -> Option<u32> {
+        match model {
+            OPUS_4_1 => Some(32_000),
+            HAIKU_4_5 | OPUS_4_5 | SONNET_4_5 => Some(64_000),
+            _ if is_valid_model(model) => Some(128_000),
+            _ => None,
+        }
+    }
+
     /// Get all current (non-retired) models.
     pub fn all_models() -> &'static [&'static str] {
         &[
-            OPUS_5_5, SONNET_5_5, FABLE_5_1, MYTHOS_5_1, FABLE_5, MYTHOS_5, OPUS_5, SONNET_5,
-            OPUS_4_8, OPUS_4_7, OPUS_4_6, SONNET_4_6, HAIKU_4_5, OPUS_4_5, SONNET_4_5, OPUS_4_1,
+            HAIKU_5_5, FABLE_5_2, MYTHOS_5_2, OPUS_5_5, SONNET_5_5, FABLE_5_1, MYTHOS_5_1, FABLE_5,
+            MYTHOS_5, OPUS_5, SONNET_5, OPUS_4_8, OPUS_4_7, OPUS_4_6, SONNET_4_6, HAIKU_4_5,
+            OPUS_4_5, SONNET_4_5, OPUS_4_1,
         ]
     }
 

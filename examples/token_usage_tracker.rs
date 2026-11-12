@@ -44,12 +44,35 @@ impl TokenUsageTracker {
     fn new() -> Self {
         let mut pricing = HashMap::new();
 
-        // Claude 3.5 models
+        // Current models (list prices, prompts up to 100K tokens for Haiku 5.5)
+        pricing.insert(
+            models::HAIKU_5_5.to_string(),
+            ModelPricing {
+                input_per_million: 0.10,
+                output_per_million: 0.50,
+            },
+        );
+        pricing.insert(
+            models::SONNET_5_5.to_string(),
+            ModelPricing {
+                input_per_million: 2.0,
+                output_per_million: 10.0,
+            },
+        );
+        pricing.insert(
+            models::OPUS_5_5.to_string(),
+            ModelPricing {
+                input_per_million: 4.0,
+                output_per_million: 20.0,
+            },
+        );
+
+        // Older models kept for compatibility
         pricing.insert(
             models::HAIKU_4_5.to_string(),
             ModelPricing {
-                input_per_million: 0.25,
-                output_per_million: 1.25,
+                input_per_million: 1.0,
+                output_per_million: 5.0,
             },
         );
         pricing.insert(
@@ -180,9 +203,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut tracker = TokenUsageTracker::new();
 
     // Example 1: Track basic message usage
-    println!("📝 Test 1: Basic Message with Haiku 3.5");
+    println!("📝 Test 1: Basic Message with Haiku 5.5");
     let request = MessageBuilder::new()
-        .model(models::HAIKU_4_5)
+        .model(models::HAIKU_5_5)
         .max_tokens(100)
         .user("Write a haiku about API tokens.")
         .build();
@@ -207,7 +230,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Example 2: Track streaming usage
     println!("\n📝 Test 2: Streaming with Token Tracking");
     let request = MessageBuilder::new()
-        .model(models::HAIKU_4_5)
+        .model(models::HAIKU_5_5)
         .max_tokens(150)
         .stream()
         .user("List 5 ways to optimize API token usage.")
@@ -249,7 +272,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 "Stream tokens: {} in, {} out",
                 stream_input_tokens, stream_output_tokens
             );
-            tracker.track_usage(models::HAIKU_4_5, stream_input_tokens, stream_output_tokens);
+            tracker.track_usage(models::HAIKU_5_5, stream_input_tokens, stream_output_tokens);
         }
         Err(e) => println!("Stream error: {}", e),
     }
@@ -261,14 +284,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     match client
         .messages()
-        .count_tokens_simple(models::HAIKU_4_5, test_message, None)
+        .count_tokens_simple(models::HAIKU_5_5, test_message, None)
         .await
     {
         Ok(count) => {
             println!("Message: \"{}...\"", &test_message[..50]);
             println!("Would use {} input tokens", count.input_tokens);
 
-            if let Some(pricing) = tracker.pricing.get(models::HAIKU_4_5) {
+            if let Some(pricing) = tracker.pricing.get(models::HAIKU_5_5) {
                 let estimated_cost = pricing.calculate_cost(count.input_tokens, 100); // Assume 100 output
                 println!(
                     "Estimated cost: ${:.6} (assuming 100 output tokens)",
@@ -283,7 +306,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("\n📝 Test 4: Compare Token Usage Across Models");
     let test_prompt = "Explain quantum computing in one sentence.";
 
-    for model in &[models::HAIKU_4_5, models::SONNET_4_6] {
+    for model in &[models::HAIKU_5_5, models::SONNET_5_5] {
         println!("\nTesting {}", model);
 
         // Count tokens
