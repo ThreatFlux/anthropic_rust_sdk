@@ -115,8 +115,20 @@ mod legacy_message_builder_tests {
         let analytical = MessageBuilder::new().temperature(0.3).build();
         assert!(analytical.temperature.unwrap() < 0.4);
 
-        let code = MessageBuilder::new().code_generation().build();
+        // Presets send sampling values only to models that accept them.
+        let code = MessageBuilder::new()
+            .model("claude-sonnet-4-6")
+            .code_generation()
+            .build();
         assert!(code.temperature.unwrap() < 0.2);
+        assert!(code.stop_sequences.is_some());
+
+        // The default model (Claude Haiku 5.5) rejects sampling parameters, so
+        // the preset keeps its stop sequences and max_tokens but omits them.
+        let code = MessageBuilder::new().code_generation().build();
+        assert_eq!(code.model, "claude-haiku-5-5");
+        assert_eq!(code.temperature, None);
+        assert_eq!(code.top_p, None);
         assert!(code.stop_sequences.is_some());
     }
 
@@ -141,11 +153,19 @@ mod legacy_message_builder_tests {
         // the request validates successfully with the clamped value (1.0) rather
         // than erroring.
         let clamped = MessageBuilder::new()
+            .model("claude-sonnet-4-6")
             .temperature(1.5)
             .user("Hello")
             .build_validated();
         assert!(clamped.is_ok());
         assert_eq!(clamped.unwrap().temperature, Some(1.0));
+
+        // The default model rejects explicit sampling parameters.
+        let rejected = MessageBuilder::new()
+            .temperature(0.5)
+            .user("Hello")
+            .build_validated();
+        assert!(rejected.is_err());
     }
 }
 

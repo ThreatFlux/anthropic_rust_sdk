@@ -48,7 +48,16 @@ falling back would be undesirable.
 
 ## Model selection
 
-`MessageBuilder::new()` starts with the crate's compile-time `DEFAULT_MODEL`.
+`MessageBuilder::new()` starts with the crate's compile-time `DEFAULT_MODEL`,
+Claude Haiku 5.5 (`claude-haiku-5-5`). Raise the model explicitly for
+pipelines that need more capability, for example `models::SONNET_5_5` or
+`models::OPUS_5_5`.
+
+Claude Haiku 5.5 and the other current models reject non-default
+`temperature`, `top_p` and `top_k` values. Builder presets omit their sampling
+values for those models, and `build_validated()` rejects explicit ones; see
+`config::models::supports_sampling_parameters`.
+
 To make the environment-configured value effective, apply it explicitly:
 
 ```rust

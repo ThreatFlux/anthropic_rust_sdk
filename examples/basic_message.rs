@@ -23,9 +23,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Simple message using the builder pattern
     let request = MessageBuilder::new()
-        .model("claude-haiku-4-5")
+        .model("claude-haiku-5-5")
         .max_tokens(1000)
-        .temperature(0.7)
         .system("You are a helpful AI assistant.")
         .user("Hello! Can you tell me a interesting fact about Rust programming language?")
         .build();
@@ -52,7 +51,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("{}", "=".repeat(50));
 
     let conversation_request = MessageBuilder::new()
-        .model("claude-haiku-4-5")
+        .model("claude-haiku-5-5")
         .max_tokens(500)
         .user("What's your name?")
         .assistant("I'm Claude, an AI assistant created by Anthropic.")
@@ -70,8 +69,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("{}", "=".repeat(50));
 
     let creative_request = MessageBuilder::new()
-        .model("claude-haiku-4-5")
-        .creative() // Uses creative preset (high temperature)
+        .model("claude-haiku-5-5")
+        .creative() // Creative preset; sampling values are omitted on Haiku 5.5
         .user("Write a short poem about programming in Rust")
         .build();
 
@@ -87,7 +86,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let token_count = client
         .messages()
-        .count_tokens_simple("claude-haiku-4-5", "Hello, how are you?", None)
+        .count_tokens_simple("claude-haiku-5-5", "Hello, how are you?", None)
         .await?;
 
     println!(

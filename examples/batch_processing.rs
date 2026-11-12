@@ -27,29 +27,29 @@ async fn main() -> Result<(), Box<dyn Error>> {
         // Simple text requests
         .add_simple_request(
             "greeting",
-            "claude-haiku-4-5",
+            "claude-haiku-5-5",
             "Say hello in 5 different languages",
             300,
         )
-        .add_simple_request("math", "claude-haiku-4-5", "What is 15 * 23 + 47?", 100)
+        .add_simple_request("math", "claude-haiku-5-5", "What is 15 * 23 + 47?", 100)
         // Creative writing request
         .add_creative(
             "poem",
-            "claude-haiku-4-5",
+            "claude-haiku-5-5",
             "Write a haiku about programming",
             200,
         )
         // Analytical request
         .add_analytical(
             "analysis",
-            "claude-haiku-4-5",
+            "claude-haiku-5-5",
             "Analyze the pros and cons of using Rust vs Python for web development",
             800,
         )
         // Code generation request
         .add_code_generation(
             "code",
-            "claude-haiku-4-5",
+            "claude-haiku-5-5",
             "Write a simple Rust function to calculate factorial",
             400,
         )
@@ -57,9 +57,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .add_with_builder(
             "conversation",
             MessageBuilder::new()
-                .model("claude-haiku-4-5")
+                .model("claude-haiku-5-5")
                 .max_tokens(500)
-                .temperature(0.6)
                 .system("You are a helpful tutor.")
                 .user("Explain recursion in programming with a simple example"),
         )
@@ -144,7 +143,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let variations_batch = BatchBuilder::new()
         .add_batch_variations(
             "translate",
-            "claude-haiku-4-5",
+            "claude-haiku-5-5",
             "Translate 'Hello, how are you?' to",
             vec!["Spanish", "French", "German", "Japanese", "Italian"],
             200,
@@ -174,7 +173,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let template_batch = BatchBuilder::new()
         .add_from_template(
             "explain",
-            "claude-haiku-4-5",
+            "claude-haiku-5-5",
             "Explain the concept of {concept} in {language} programming in one sentence.",
             vec![
                 ("concept", "variables"),
@@ -204,7 +203,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("{}", "=".repeat(60));
 
     let defaults_batch = BatchBuilder::new()
-        .with_defaults("claude-haiku-4-5", 250)
+        .with_defaults("claude-haiku-5-5", 250)
         .add("fact1", "Tell me a fun fact about space")
         .add("fact2", "Tell me a fun fact about the ocean")
         .add("fact3", "Tell me a fun fact about animals")
@@ -256,7 +255,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let cancel_batch = BatchBuilder::new()
         .add_simple_request(
             "cancel_test",
-            "claude-haiku-4-5",
+            "claude-haiku-5-5",
             "This will be cancelled",
             100,
         )

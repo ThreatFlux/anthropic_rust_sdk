@@ -16,7 +16,7 @@ mod config_tests {
         assert_eq!(config.api_key, "valid-api-key");
         assert_eq!(config.timeout, Duration::from_secs(60));
         assert_eq!(config.max_retries, 3);
-        assert_eq!(config.default_model, "claude-sonnet-4-6");
+        assert_eq!(config.default_model, "claude-haiku-5-5");
         // `Url::parse` normalizes a host-only URL by appending the root path,
         // so the stored base URL carries a trailing slash.
         assert_eq!(config.base_url.as_str(), "https://api.anthropic.com/");
@@ -241,7 +241,7 @@ mod config_tests {
         assert_eq!(config.base_url.as_str(), "https://api.anthropic.com/");
         assert_eq!(config.timeout, Duration::from_secs(60));
         assert_eq!(config.max_retries, 3);
-        assert_eq!(config.default_model, "claude-sonnet-4-6");
+        assert_eq!(config.default_model, "claude-haiku-5-5");
         assert!(config.enable_rate_limiting);
         assert_eq!(config.rate_limit_rps, 50);
     }
@@ -301,6 +301,9 @@ mod model_tests {
     #[test]
     fn test_all_models() {
         let all_models = models::all_models();
+        assert!(all_models.contains(&models::HAIKU_5_5));
+        assert!(all_models.contains(&models::FABLE_5_2));
+        assert!(all_models.contains(&models::MYTHOS_5_2));
         assert!(all_models.contains(&models::OPUS_5_5));
         assert!(all_models.contains(&models::SONNET_5_5));
         assert!(all_models.contains(&models::FABLE_5_1));
@@ -317,7 +320,7 @@ mod model_tests {
         assert!(all_models.contains(&models::OPUS_4_5));
         assert!(all_models.contains(&models::SONNET_4_5));
         assert!(all_models.contains(&models::OPUS_4_1));
-        assert_eq!(all_models.len(), 16);
+        assert_eq!(all_models.len(), 19);
     }
 
     #[test]
@@ -341,6 +344,12 @@ mod model_tests {
         assert!(models::HAIKU_4_5.starts_with("claude-haiku-4-5"));
         assert!(models::FABLE_5.starts_with("claude-fable-5"));
         assert!(models::MYTHOS_5.starts_with("claude-mythos-5"));
+        assert_eq!(models::HAIKU_5_5, "claude-haiku-5-5");
+        assert_eq!(models::SONNET_5_5, "claude-sonnet-5-5");
+        assert_eq!(models::OPUS_5_5, "claude-opus-5-5");
+        assert_eq!(models::FABLE_5_1, "claude-fable-5-1");
+        assert_eq!(models::FABLE_5_2, "claude-fable-5-2");
+        assert_eq!(models::MYTHOS_5_2, "claude-mythos-5-2");
 
         // Current catalog ids are all `claude-`-prefixed family/version slugs.
         for model in models::all_models() {

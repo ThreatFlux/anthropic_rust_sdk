@@ -33,6 +33,11 @@ for public API changes and the [coverage notes](docs/api-coverage.md) for limits
 The v0.4.0 GitHub release was not published to crates.io; install 0.4.1 or
 later from crates.io for the 0.4 API.
 
+Starting with 0.5, `DEFAULT_MODEL` is Claude Haiku 5.5 (`claude-haiku-5-5`)
+instead of Claude Sonnet 4.6. Requests that rely on the default now go to
+Haiku 5.5; set the model explicitly where a pipeline needs a more capable one.
+See [Models and beta features](#models-and-beta-features).
+
 ## Requirements
 
 - Rust 1.99.0 or newer (the minimum supported Rust version, or MSRV).
@@ -231,6 +236,31 @@ Model IDs are strings. `config::models` provides convenience constants, but
 the service catalog can change between crate releases. Check Anthropic's
 [models documentation](https://platform.claude.com/docs/en/about-claude/models/overview)
 and use a model available to your account.
+
+`DEFAULT_MODEL` is Claude Haiku 5.5, the fastest and lowest-cost current
+model. Use it for agents and high-volume work, and raise the model explicitly
+only in pipelines that need more capability:
+
+| Constant | Model ID | Context | Max output |
+| --- | --- | --- | --- |
+| `models::HAIKU_5_5` (default) | `claude-haiku-5-5` | 1M | 128K |
+| `models::SONNET_5_5` | `claude-sonnet-5-5` | 1M | 128K |
+| `models::OPUS_5_5` | `claude-opus-5-5` | 1M | 128K |
+| `models::FABLE_5_1` | `claude-fable-5-1` | 1M | 128K |
+| `models::FABLE_5_2` | `claude-fable-5-2` | 1M | 128K |
+
+Older constants such as `SONNET_4_6` and `HAIKU_4_5` remain available.
+`models::context_window` and `models::max_output_tokens` return these
+documented limits; the Models API reports live values.
+
+These models reject non-default `temperature`, `top_p` and `top_k` values with
+a 400 error. The SDK never sends sampling parameters unless asked:
+`creative()`, `analytical()`, `code_generation()` and `conversational()` presets
+omit their sampling values when the final model rejects them
+(`models::supports_sampling_parameters`), and `build_validated()` rejects
+explicit sampling values for those models. Haiku 5.5 runs adaptive thinking by
+default, rejects `budget_tokens` and assistant prefill, and defaults to
+`medium` effort.
 
 Beta headers are explicit through `RequestOptions`, for example:
 
