@@ -272,7 +272,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 "Stream tokens: {} in, {} out",
                 stream_input_tokens, stream_output_tokens
             );
-            tracker.track_usage(models::HAIKU_4_5, stream_input_tokens, stream_output_tokens);
+            tracker.track_usage(models::HAIKU_5_5, stream_input_tokens, stream_output_tokens);
         }
         Err(e) => println!("Stream error: {}", e),
     }
@@ -284,14 +284,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     match client
         .messages()
-        .count_tokens_simple(models::HAIKU_4_5, test_message, None)
+        .count_tokens_simple(models::HAIKU_5_5, test_message, None)
         .await
     {
         Ok(count) => {
             println!("Message: \"{}...\"", &test_message[..50]);
             println!("Would use {} input tokens", count.input_tokens);
 
-            if let Some(pricing) = tracker.pricing.get(models::HAIKU_4_5) {
+            if let Some(pricing) = tracker.pricing.get(models::HAIKU_5_5) {
                 let estimated_cost = pricing.calculate_cost(count.input_tokens, 100); // Assume 100 output
                 println!(
                     "Estimated cost: ${:.6} (assuming 100 output tokens)",
@@ -306,7 +306,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("\n📝 Test 4: Compare Token Usage Across Models");
     let test_prompt = "Explain quantum computing in one sentence.";
 
-    for model in &[models::HAIKU_4_5, models::SONNET_4_6] {
+    for model in &[models::HAIKU_5_5, models::SONNET_5_5] {
         println!("\nTesting {}", model);
 
         // Count tokens
