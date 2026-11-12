@@ -709,9 +709,10 @@ impl ParameterBuilder for MessageBuilder {
     fn with_preset(mut self, preset: PresetConfig) -> Self {
         self.request.temperature = None;
         self.request.top_p = None;
+        // Normalize like the explicit setters so deferred values match them.
         self.preset_sampling = Some(PresetSampling {
-            temperature: Some(preset.temperature),
-            top_p: Some(preset.top_p),
+            temperature: Some(preset.temperature.clamp(0.0, 1.0)),
+            top_p: Some(preset.top_p.clamp(0.0, 1.0)),
         });
         self.max_tokens(preset.max_tokens)
     }

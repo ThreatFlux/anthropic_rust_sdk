@@ -1,5 +1,5 @@
 use serde_json::json;
-use threatflux_anthropic_sdk::builders::{BatchBuilder, ParameterBuilder};
+use threatflux_anthropic_sdk::builders::{BatchBuilder, ParameterBuilder, PresetConfig};
 use threatflux_anthropic_sdk::config::models::{self, Feature, Support};
 use threatflux_anthropic_sdk::{
     Config, MessageBuilder, MessageRequest, Model, OutputEffort, ThinkingConfig, ToolChoice,
@@ -291,7 +291,10 @@ fn presets_omit_sampling_for_models_that_reject_it() {
     // A preset keeps its non-sampling settings.
     let creative = MessageBuilder::new().creative().build();
     assert_eq!(creative.max_tokens, 2000);
+}
 
+#[test]
+fn presets_resolve_against_the_final_model() {
     // Presets resolve against the final model, whatever the call order.
     let before = MessageBuilder::new()
         .creative()
@@ -311,7 +314,10 @@ fn presets_omit_sampling_for_models_that_reject_it() {
         .model(models::OPUS_5_5)
         .build();
     assert_eq!(raised.temperature, None);
+}
 
+#[test]
+fn explicit_sampling_values_win_over_presets() {
     // Explicit values always win and are always sent.
     let explicit = MessageBuilder::new()
         .model(models::SONNET_4_6)
@@ -326,7 +332,40 @@ fn presets_omit_sampling_for_models_that_reject_it() {
         .creative()
         .build();
     assert_eq!(overridden.temperature, Some(0.9));
+}
 
+#[test]
+fn every_preset_entry_point_is_model_aware() {
+    // Every preset entry point resolves against the model.
+    let applied = PresetConfig::CREATIVE
+        .apply_to_builder(MessageBuilder::new().user("hi"))
+        .build_validated()
+        .unwrap();
+    assert_eq!(applied.temperature, None);
+    assert_eq!(applied.top_p, None);
+    let applied = PresetConfig::CREATIVE
+        .apply_to_builder(MessageBuilder::new().model(models::SONNET_4_6))
+        .build();
+    assert_eq!(applied.temperature, Some(0.9));
+
+    // Deferred custom preset values are clamped like the explicit setters.
+    let custom = MessageBuilder::new()
+        .model(models::SONNET_4_6)
+        .with_preset(PresetConfig {
+            temperature: 2.0,
+            top_p: -1.0,
+            max_tokens: 10,
+        })
+        .user("hi")
+        .build_validated()
+        .unwrap();
+    assert_eq!(custom.temperature, Some(1.0));
+    assert_eq!(custom.top_p, Some(0.0));
+    assert_eq!(custom.max_tokens, 10);
+}
+
+#[test]
+fn batch_presets_are_model_aware() {
     // Batch presets go through the same resolution.
     let batch = BatchBuilder::new()
         .add_creative("haiku", models::HAIKU_5_5, "hi", 100)

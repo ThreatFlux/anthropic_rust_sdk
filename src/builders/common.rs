@@ -137,12 +137,13 @@ impl PresetConfig {
         max_tokens: 1000,
     };
 
-    /// Apply this preset to a builder with settable parameters
+    /// Apply this preset to a builder with settable parameters.
+    ///
+    /// Delegates to [`ParameterBuilder::with_preset`], so builders that resolve
+    /// presets against their model (such as `MessageBuilder`) apply the same
+    /// rules whichever entry point is used.
     pub fn apply_to_builder<B: ParameterBuilder>(self, builder: B) -> B {
-        builder
-            .temperature(self.temperature)
-            .top_p(self.top_p)
-            .max_tokens(self.max_tokens)
+        builder.with_preset(self)
     }
 }
 
@@ -152,9 +153,14 @@ pub trait ParameterBuilder: Sized {
     fn top_p(self, top_p: f32) -> Self;
     fn max_tokens(self, max_tokens: u32) -> Self;
 
-    /// Apply a preset configuration
+    /// Apply a preset configuration.
+    ///
+    /// The default sets every preset value directly. Implementations may
+    /// override it, for example to omit sampling values a model rejects.
     fn with_preset(self, preset: PresetConfig) -> Self {
-        preset.apply_to_builder(self)
+        self.temperature(preset.temperature)
+            .top_p(preset.top_p)
+            .max_tokens(preset.max_tokens)
     }
 
     /// Creative writing preset
