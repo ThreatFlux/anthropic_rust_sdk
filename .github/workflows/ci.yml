@@ -121,7 +121,7 @@ jobs:
       - name: Install tarpaulin
         uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
         with:
-          tool: cargo-tarpaulin@0.37.5
+          tool: cargo-tarpaulin@0.37.6
 
       - name: Generate coverage
         run: cargo tarpaulin --verbose --all-features --workspace --timeout 120 --out xml
@@ -133,6 +133,7 @@ jobs:
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
+          version: v11.3.2
           use_oidc: true
           files: ./cobertura.xml
           fail_ci_if_error: false
@@ -153,9 +154,8 @@ jobs:
           toolchain: stable
 
       - name: Install cargo-audit
-        uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
-        with:
-          tool: cargo-audit@0.22.2
+        # This version has no hash entry in the pinned binary installer manifest.
+        run: cargo install --locked --version 0.23.0 cargo-audit
 
       - name: Run security audit
         run: cargo audit
