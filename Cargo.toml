@@ -35,7 +35,7 @@ url = "2.5.8"
 # Base64 encoding/decoding
 base64 = "0.23.1"
 # UUID generation
-uuid = { version = "1.28.0", features = ["v4", "serde"] }
+uuid = { version = "1.29.2", features = ["v4", "serde"] }
 # Date/time handling
 chrono = { version = "0.4.45", features = ["serde"] }
 # Stream utilities
@@ -47,7 +47,7 @@ nonzero_ext = "0.3.0"
 # HTTP headers
 http = "1.5.0"
 # Mime types
-mime = "0.3.17"
+mime = "0.3.18"
 # Mime guessing
 mime_guess = "2.0.5"
 
