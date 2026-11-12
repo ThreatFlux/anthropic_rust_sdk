@@ -14,7 +14,7 @@
 # (scripts/check_docs.py enforces this).
 
 # rust 1.99.1 on Debian 13 (trixie); multi-arch index digest
-FROM rust:1.99.1-trixie@sha256:09027f873d45b8ecd1dc86f1fa13b7a62b875c961f017a0e331267b350430137 AS builder
+FROM rust:1.99.1-trixie@sha256:8a4e90c7946b74626488b1446f712c0fe0ed1a596cbd3d871684bc9c5433ae07 AS builder
 
 # tini is installed here so the runtime stage can copy it out: distroless ships
 # no init, and PID 1 must reap zombies and forward signals. Package revisions
