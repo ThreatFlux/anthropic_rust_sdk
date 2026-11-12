@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0](https://github.com/ThreatFlux/anthropic_rust_sdk/compare/v0.4.3...v0.5.0) (2026-11-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* DEFAULT_MODEL changes from claude-sonnet-4-6 to claude-haiku-5-5, so requests that rely on the default go to Haiku 5.5. Haiku 5.5 rejects non-default sampling parameters: presets on the default model no longer send temperature/top_p, and build_validated() now rejects explicit sampling values for models that refuse them. Set .model(...) explicitly to keep the previous behaviour.
+
+### Features
+
+* default to Claude Haiku 5.5 and add current model IDs ([#88](https://github.com/ThreatFlux/anthropic_rust_sdk/issues/88)) ([cac5e99](https://github.com/ThreatFlux/anthropic_rust_sdk/commit/cac5e999763c0fd3c59d7826311bd34342b8d588))
+
 ## [0.4.3](https://github.com/ThreatFlux/anthropic_rust_sdk/compare/v0.4.2...v0.4.3) (2026-10-31)
 
 
