@@ -52,8 +52,21 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
-          toolchain: ${{ matrix.rust }}
+          toolchain: ${{ env.RUSTUP_TOOLCHAIN }}
           components: rustfmt, clippy
+
+      - name: Verify selected compiler
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustc --version --verbose
+          cargo --version
+          actual=$(rustc --version | cut -d ' ' -f 2)
+          case "$RUSTUP_TOOLCHAIN" in
+            beta) [[ "$actual" == *-beta* ]] ;;
+            nightly) [[ "$actual" == *-nightly* ]] ;;
+            *) test "$actual" = "$RUSTUP_TOOLCHAIN" ;;
+          esac
 
       # Cargo.lock is not committed (library crate), so the manifest keys the
       # registry cache.
@@ -78,11 +91,11 @@ jobs:
             ${{ runner.os }}-cargo-build-${{ matrix.rust }}-
 
       - name: Check formatting
-        if: matrix.rust == 'stable'
+        if: matrix.rust == '1.100.0'
         run: cargo fmt --all -- --check
 
       - name: Run clippy
-        if: matrix.rust == 'stable'
+        if: matrix.rust == '1.100.0'
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Build
@@ -163,6 +176,8 @@ jobs:
   msrv:
     name: Minimum Supported Rust Version
     runs-on: ubuntu-latest
+    env:
+      RUSTUP_TOOLCHAIN: 1.99.0
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -171,7 +186,20 @@ jobs:
       - name: Install Rust ${{ env.MSRV }}
         uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
-          toolchain: ${{ env.MSRV }}
+          toolchain: ${{ env.RUSTUP_TOOLCHAIN }}
+
+      - name: Verify selected MSRV compiler
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustc --version --verbose
+          cargo --version
+          actual=$(rustc --version | cut -d ' ' -f 2)
+          case "$RUSTUP_TOOLCHAIN" in
+            beta) [[ "$actual" == *-beta* ]] ;;
+            nightly) [[ "$actual" == *-nightly* ]] ;;
+            *) test "$actual" = "$RUSTUP_TOOLCHAIN" ;;
+          esac
 
       - name: Check MSRV
         run: cargo +"${MSRV}" check --all-features
