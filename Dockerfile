@@ -16,6 +16,8 @@
 # Verified Rust 1.100.0 on Debian 13 (trixie); multi-arch index digest
 FROM rust:1.100.0-trixie@sha256:e19840879045c951c905d0eaa9887f3439c62000e429963371b376bac8d38c31 AS builder
 
+SHELL ["/bin/bash", "-eo", "pipefail", "-c"]
+
 # Install the source-requested components as root before unprivileged builds.
 ENV RUST_VERSION=1.100.0
 RUN rustup component add --toolchain 1.100.0 rustfmt clippy \
