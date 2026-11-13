@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.4](https://github.com/ThreatFlux/anthropic_rust_sdk/compare/v0.5.3...v0.5.4) (2026-11-13)
+
+
+### Bug Fixes
+
+* **ci:** adopt verified publisher and Rust 1.100.0 ([#96](https://github.com/ThreatFlux/anthropic_rust_sdk/issues/96)) ([60fe008](https://github.com/ThreatFlux/anthropic_rust_sdk/commit/60fe008259dce2b3c690d325a7aaff884095edc7))
+* **ci:** propagate container pipeline failures ([#98](https://github.com/ThreatFlux/anthropic_rust_sdk/issues/98)) ([f984330](https://github.com/ThreatFlux/anthropic_rust_sdk/commit/f9843305503415b2ed97b4e0e565cdc36bea2da3))
+
 ## [0.5.3](https://github.com/ThreatFlux/anthropic_rust_sdk/compare/v0.5.2...v0.5.3) (2026-11-12)
 
 
