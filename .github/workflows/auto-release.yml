@@ -3,7 +3,8 @@ name: Auto Release
 # Dry runs use their own group, so a rehearsal never cancels a real run.
 concurrency:
   group: auto-release-${{ github.ref_name }}${{ inputs.dry_run && '-dry-run' || '' }}
-  cancel-in-progress: true
+  cancel-in-progress: false
+  queue: max
 
 on:
   # Release Please owns automatic releases (release.yml). This optional manual
@@ -38,7 +39,7 @@ jobs:
       actions: write
       contents: write
       pull-requests: write
-    uses: ThreatFlux/github_actions/.github/workflows/reusable-auto-release.yml@e0e9e823a404f6d0ae22797e8b19514c63c4ceaf # v0.7.9
+    uses: ThreatFlux/github_actions/.github/workflows/reusable-auto-release.yml@c0af79c1d1cbce16cb627d1301942ac668c98beb # v0.7.11
     with:
       bump: ${{ inputs.version_bump }}
       dry-run: ${{ inputs.dry_run }}

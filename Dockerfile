@@ -10,11 +10,17 @@
 # Pinned-Dependencies). Dependabot refreshes both digests; refresh one by hand
 # with:
 #   docker buildx imagetools inspect <image> | awk '/^Digest:/{print $2}'
-# The builder tag must match the build toolchain in rust-toolchain.toml
-# (scripts/check_docs.py enforces this).
+# The builder tag matches rust-toolchain.toml (scripts/check_docs.py).
+# Install requested components as root before any source is built.
 
-# rust 1.99.1 on Debian 13 (trixie); multi-arch index digest
-FROM rust:1.99.1-trixie@sha256:8a4e90c7946b74626488b1446f712c0fe0ed1a596cbd3d871684bc9c5433ae07 AS builder
+# Verified Rust 1.100.0 on Debian 13 (trixie); multi-arch index digest
+FROM rust:1.100.0-trixie@sha256:e19840879045c951c905d0eaa9887f3439c62000e429963371b376bac8d38c31 AS builder
+
+# Install the source-requested components as root before unprivileged builds.
+ENV RUST_VERSION=1.100.0
+RUN rustup component add --toolchain 1.100.0 rustfmt clippy \
+    && rustup default 1.100.0 \
+    && test "$(rustc --version | cut -d ' ' -f 2)" = "1.100.0"
 
 # tini is installed here so the runtime stage can copy it out: distroless ships
 # no init, and PID 1 must reap zombies and forward signals. Package revisions

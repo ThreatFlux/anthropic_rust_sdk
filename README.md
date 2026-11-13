@@ -332,9 +332,9 @@ async fn send(client: &Client, request: MessageRequest) -> Result<(), AnthropicE
 The fast, credential-free validation path is:
 
 ```bash
-cargo +1.99.1 fmt --all -- --check
-cargo +1.99.1 clippy --all-targets --all-features -- -D warnings
-cargo +1.99.1 test --test unit_suite
+cargo +1.100.0 fmt --all -- --check
+cargo +1.100.0 clippy --all-targets --all-features -- -D warnings
+cargo +1.100.0 test --test unit_suite
 python3 scripts/check_docs.py
 ```
 

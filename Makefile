@@ -143,11 +143,11 @@ ci-coverage:
 # Install development dependencies
 install:
 	@echo "Installing development tools..."
-	@cargo install cargo-audit || true
-	@cargo install cargo-tarpaulin || true
-	@cargo install cargo-outdated || true
-	@cargo install cargo-deny || true
-	@cargo install cargo-criterion || true
+	@cargo install cargo-audit --locked --version 0.23.0
+	@cargo install cargo-tarpaulin --locked --version 0.37.6
+	@cargo install cargo-outdated --locked --version 0.19.0
+	@cargo install cargo-deny --locked --version 0.20.2
+	@cargo install cargo-criterion --locked --version 1.1.0
 
 # Full development setup
 dev-setup: install
