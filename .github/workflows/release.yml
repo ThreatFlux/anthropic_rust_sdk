@@ -787,7 +787,18 @@ jobs:
           done
           docker buildx imagetools create "${tag_args[@]}" "${IMAGE_NAME}@${DIGEST}"
           for tag in "${tags[@]}"; do
-            tagged="$(docker buildx imagetools inspect "${tag}" --format '{{json .Manifest}}' | jq -r .digest)"
+            # Newly pushed aliases can briefly return not-found from GHCR.
+            # Retry only unsuccessful reads; a returned wrong digest still fails.
+            for attempt in 1 2 3 4 5; do
+              if tagged="$(docker buildx imagetools inspect "${tag}" --format '{{json .Manifest}}' | jq -er .digest)"; then
+                break
+              fi
+              if [[ "$attempt" == 5 ]]; then
+                echo "Unable to read back ${tag} after five attempts" >&2
+                exit 1
+              fi
+              sleep 2
+            done
             if [[ "${tagged}" != "${DIGEST}" ]]; then
               echo "${tag} resolves to ${tagged}, expected ${DIGEST}" >&2
               exit 1

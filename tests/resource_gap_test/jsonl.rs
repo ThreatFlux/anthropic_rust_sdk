@@ -101,7 +101,6 @@ async fn dropping_batch_stream_closes_unfinished_http_response() {
         tokio::time::timeout(Duration::from_secs(2), socket.read(&mut byte))
             .await
             .unwrap()
-            .unwrap()
     });
     let api = Client::new(
         Config::new("sk-ant-test")
@@ -112,7 +111,14 @@ async fn dropping_batch_stream_closes_unfinished_http_response() {
     let mut stream = api.results_stream("batch", None).await.unwrap();
     stream.next().await.unwrap().unwrap();
     drop(stream);
-    assert_eq!(server.await.unwrap(), 0);
+    let response = server.await.unwrap();
+    // Closing an unfinished response can report EOF or a reset, depending on
+    // the platform. Both prove that the connection was closed instead of pooled.
+    assert!(
+        matches!(&response, Ok(0))
+            || matches!(&response, Err(error) if error.kind() == std::io::ErrorKind::ConnectionReset),
+        "dropping the stream must close the peer connection: {response:?}"
+    );
 }
 
 #[tokio::test]
