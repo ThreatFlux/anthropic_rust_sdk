@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["DreamInput","DreamModel","DreamStatus"],"struct":["Dream","DreamCreateRequest","DreamError","DreamListParams","DreamModelConfig","DreamOutput","DreamUsage"],"type":["DreamListResponse"]};

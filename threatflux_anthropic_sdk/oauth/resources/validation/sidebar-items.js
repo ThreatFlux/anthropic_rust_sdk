@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["validate_id","validate_issuer_url","validate_jwks","validate_jwt_lifetime","validate_kind_and_extra","validate_lifetime","validate_match","validate_name","validate_provider_url","validate_scope","validate_target","validate_workspace_role","workspace_query"]};
