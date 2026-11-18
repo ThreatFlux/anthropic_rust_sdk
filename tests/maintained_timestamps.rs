@@ -79,3 +79,63 @@ fn reset_header_bounds_do_not_panic_or_invent_current_time_and_backoff_stays_cap
         Some(Duration::from_secs(123))
     );
 }
+
+#[test]
+fn public_admin_builders_preserve_exact_timestamp_bounds() {
+    use threatflux_anthropic_sdk::models::admin::{
+        ApiKeyCreateRequest, MessageCostReportParams, UsageQuery,
+    };
+
+    let start: Timestamp = "1969-12-31T23:59:59.123456789Z".parse().unwrap();
+    let end: Timestamp = "2026-11-18T12:00:00.123+02:00".parse().unwrap();
+    let query = UsageQuery::new().start_date(start).end_date(end);
+    let wire = serde_json::to_value(query).unwrap();
+    assert_eq!(wire["start_date"], "1969-12-31T23:59:59.123456789Z");
+    assert_eq!(wire["end_date"], "2026-11-18T10:00:00.123Z");
+    let key = serde_json::to_value(ApiKeyCreateRequest::new("fixture").expires_at(end)).unwrap();
+    assert_eq!(key["expires_at"], wire["end_date"]);
+    let cost = serde_json::to_value(MessageCostReportParams::new(start).ending_at(end)).unwrap();
+    assert_eq!(cost["starting_at"], wire["start_date"]);
+    assert_eq!(cost["ending_at"], wire["end_date"]);
+}
+
+#[test]
+fn batches_preserve_signed_fractional_processing_duration_and_expiry() {
+    use threatflux_anthropic_sdk::models::batch::MessageBatch;
+
+    let mut batch: MessageBatch = serde_json::from_value(json!({
+        "id": "batch_fixture", "type": "message_batch", "processing_status": "ended",
+        "request_counts": {}, "created_at": "1969-12-31T23:59:59.5Z",
+        "in_progress_at": "1969-12-31T23:59:59.5Z", "ended_at": "1970-01-01T00:00:01.25Z",
+        "expires_at": Timestamp::MAX.to_string()
+    }))
+    .unwrap();
+    assert_eq!(
+        batch.processing_duration(),
+        Some(jiff::SignedDuration::new(1, 750_000_000))
+    );
+    assert!(!batch.is_expired());
+    batch.completed_at = Some("1969-12-31T23:59:58.25Z".parse().unwrap());
+    assert_eq!(
+        batch.processing_duration(),
+        Some(jiff::SignedDuration::new(-1, -250_000_000))
+    );
+    batch.expires_at = Timestamp::MIN;
+    assert!(batch.is_expired());
+    batch.in_progress_at = None;
+    assert_eq!(batch.processing_duration(), None);
+}
+
+#[test]
+fn response_constructor_uses_a_serializable_current_instant() {
+    use threatflux_anthropic_sdk::models::message::MessageResponse;
+
+    let before = Timestamp::now();
+    let usage = serde_json::from_value(json!({"input_tokens": 1, "output_tokens": 2})).unwrap();
+    let response = MessageResponse::new("message_fixture", "claude", usage);
+    let after = Timestamp::now();
+    assert!(response.created_at >= before && response.created_at <= after);
+    let wire = serde_json::to_value(&response).unwrap();
+    let decoded: MessageResponse = serde_json::from_value(wire).unwrap();
+    assert_eq!(decoded.created_at, response.created_at);
+}

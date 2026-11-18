@@ -103,6 +103,7 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(query_param("invoice_id", "inv_123"))
+            .and(query_param("ending_at", "2026-01-02T00:00:00+00:00"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "data": [],
                 "has_more": false,
@@ -119,9 +120,12 @@ mod tests {
         let api = UsageApi::new(client);
 
         let start = "2026-01-01T00:00:00Z".parse::<jiff::Timestamp>().unwrap();
+        let end = "2026-01-02T00:00:00Z".parse::<jiff::Timestamp>().unwrap();
         let _ = api
             .get_message_cost_report(
-                MessageCostReportParams::new(start).invoice_id("inv_123"),
+                MessageCostReportParams::new(start)
+                    .ending_at(end)
+                    .invoice_id("inv_123"),
                 None,
             )
             .await
@@ -136,6 +140,7 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(query_param("starting_at", "2026-01-01"))
+            .and(query_param("ending_at", "2026-01-02"))
             .and(query_param("limit", "20"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "data": [],
@@ -152,8 +157,9 @@ mod tests {
         let client = Client::new(config);
         let api = UsageApi::new(client);
 
-        let params =
-            ClaudeCodeUsageReportParams::new(Date::new(2026, 1, 1).expect("valid date")).limit(20);
+        let params = ClaudeCodeUsageReportParams::new(Date::new(2026, 1, 1).expect("valid date"))
+            .ending_at(Date::new(2026, 1, 2).expect("valid date"))
+            .limit(20);
 
         let _ = api
             .get_claude_code_usage_report(params, None)
