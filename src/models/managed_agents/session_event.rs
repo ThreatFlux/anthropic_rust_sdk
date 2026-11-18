@@ -3,7 +3,7 @@
 use crate::models::common::ContentBlock;
 use crate::models::managed_agents::session::SessionStopReason;
 use crate::types::PaginatedResponse;
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -13,7 +13,7 @@ pub struct SessionEventMeta {
     /// Unique event identifier.
     pub id: String,
     /// When the event was processed.
-    pub processed_at: DateTime<Utc>,
+    pub processed_at: Timestamp,
 }
 
 /// A heterogeneous session event delivered over the events stream or list.

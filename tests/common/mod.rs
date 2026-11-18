@@ -10,7 +10,7 @@
 //! - API response builders
 //! - Environment setup helpers
 
-use chrono::Utc;
+use jiff::Timestamp;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use threatflux_anthropic_sdk::models::{
@@ -56,7 +56,7 @@ pub mod fixtures {
         MessageResponse {
             id: "msg_test123".to_string(),
             object_type: "message".to_string(),
-            created_at: Utc::now(),
+            created_at: Timestamp::now(),
             model: "claude-3-5-haiku-20241022".to_string(),
             role: Role::Assistant,
             content: vec![ContentBlock::text("Test response")],
@@ -85,8 +85,8 @@ pub mod fixtures {
             input_cost_per_token: Some(0.00025),
             output_cost_per_token: Some(0.00125),
             capabilities: Some(vec!["vision".to_string(), "tool_use".to_string()].into()),
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
+            created_at: Timestamp::now(),
+            updated_at: Timestamp::now(),
             deprecated: Some(false),
             deprecation_date: None,
         }
@@ -116,12 +116,12 @@ pub mod fixtures {
                 expired: 0,
                 total: 1,
             },
-            created_at: Utc::now(),
+            created_at: Timestamp::now(),
             in_progress_at: None,
             completed_at: None,
             cancelled_at: None,
             failed_at: None,
-            expires_at: Utc::now() + chrono::Duration::hours(24),
+            expires_at: Timestamp::now() + jiff::SignedDuration::from_hours(24),
             error: None,
             results_file_id: None,
             results_url: None,
@@ -151,7 +151,7 @@ pub mod fixtures {
             expires_at: None,
             extra: Default::default(),
             status: Some(FileStatus::Ready),
-            created_at: Utc::now(),
+            created_at: Timestamp::now(),
             updated_at: None,
             error: None,
         }
@@ -183,8 +183,8 @@ pub mod fixtures {
             display_name: Some("Test Org".to_string()),
             description: None,
             settings: None,
-            created_at: Some(Utc::now()),
-            updated_at: Some(Utc::now()),
+            created_at: Some(Timestamp::now()),
+            updated_at: Some(Timestamp::now()),
             extra: HashMap::new(),
         }
     }
@@ -201,8 +201,8 @@ pub mod fixtures {
             settings: None,
             status: Some(WorkspaceStatus::Active),
             data_residency: None,
-            created_at: Some(Utc::now()),
-            updated_at: Some(Utc::now()),
+            created_at: Some(Timestamp::now()),
+            updated_at: Some(Timestamp::now()),
             archived_at: None,
             extra: HashMap::new(),
         }
@@ -235,7 +235,7 @@ pub mod fixtures {
             skills: Vec::new(),
             multiagent: None,
             metadata: HashMap::new(),
-            created_at: Some(Utc::now()),
+            created_at: Some(Timestamp::now()),
             extra: HashMap::new(),
         }
     }
@@ -253,7 +253,7 @@ pub mod fixtures {
             resources: Vec::new(),
             vault_ids: Vec::new(),
             metadata: HashMap::new(),
-            created_at: Some(Utc::now()),
+            created_at: Some(Timestamp::now()),
             extra: HashMap::new(),
         }
     }
@@ -267,7 +267,7 @@ pub mod fixtures {
             config: EnvironmentConfig::Cloud {
                 networking: NetworkingConfig::Unrestricted {},
             },
-            created_at: Some(Utc::now()),
+            created_at: Some(Timestamp::now()),
             extra: HashMap::new(),
         }
     }
@@ -278,7 +278,7 @@ pub mod fixtures {
             object_type: "vault".to_string(),
             id: "vault_test123".to_string(),
             name: "secrets".to_string(),
-            created_at: Some(Utc::now()),
+            created_at: Some(Timestamp::now()),
             extra: HashMap::new(),
         }
     }
@@ -290,7 +290,7 @@ pub mod fixtures {
             id: "mem_test123".to_string(),
             name: "notes".to_string(),
             description: Some("A test memory store".to_string()),
-            created_at: Some(Utc::now()),
+            created_at: Some(Timestamp::now()),
             extra: HashMap::new(),
         }
     }
@@ -306,7 +306,7 @@ pub mod fixtures {
             schedule: Some(DeploymentSchedule::cron("0 0 * * *")),
             resources: Vec::new(),
             metadata: HashMap::new(),
-            created_at: Some(Utc::now()),
+            created_at: Some(Timestamp::now()),
             extra: HashMap::new(),
         }
     }
@@ -325,7 +325,7 @@ pub mod fixtures {
             id: "cred_test123".to_string(),
             name: "github".to_string(),
             kind: CredentialKind::StaticBearer { token: None },
-            created_at: Some(Utc::now()),
+            created_at: Some(Timestamp::now()),
             extra: HashMap::new(),
         }
     }
@@ -339,7 +339,7 @@ pub mod fixtures {
             agent_id: Some("agent_test123".to_string()),
             title: Some("sub-task".to_string()),
             status: Some(SessionStatus::Running),
-            created_at: Some(Utc::now()),
+            created_at: Some(Timestamp::now()),
             extra: HashMap::new(),
         }
     }
@@ -351,8 +351,8 @@ pub mod fixtures {
             id: "memory_test123".to_string(),
             content: Some("remember this".to_string()),
             version: Some("v1".to_string()),
-            created_at: Some(Utc::now()),
-            updated_at: Some(Utc::now()),
+            created_at: Some(Timestamp::now()),
+            updated_at: Some(Timestamp::now()),
             extra: HashMap::new(),
         }
     }
@@ -364,7 +364,7 @@ pub mod fixtures {
             id: "memver_test123".to_string(),
             memory_id: Some("memory_test123".to_string()),
             content: Some("remember this (v1)".to_string()),
-            created_at: Some(Utc::now()),
+            created_at: Some(Timestamp::now()),
             extra: HashMap::new(),
         }
     }
@@ -377,7 +377,7 @@ pub mod fixtures {
             deployment_id: Some("deploy_test123".to_string()),
             session_id: Some("session_test123".to_string()),
             status: Some("running".to_string()),
-            created_at: Some(Utc::now()),
+            created_at: Some(Timestamp::now()),
             extra: HashMap::new(),
         }
     }

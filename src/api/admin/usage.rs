@@ -11,7 +11,7 @@ use crate::{
     },
     types::{HttpMethod, Pagination, RequestOptions},
 };
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 
 /// API client for Usage admin endpoints
 #[derive(Clone)]
@@ -29,7 +29,7 @@ mod tests {
         },
         Client, Config,
     };
-    use chrono::{NaiveDate, TimeZone, Utc};
+    use jiff::civil::Date;
     use serde_json::json;
     use wiremock::{
         matchers::{method, query_param},
@@ -38,8 +38,8 @@ mod tests {
 
     #[test]
     fn test_build_message_usage_report_query() {
-        let start = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
-        let end = Utc.with_ymd_and_hms(2026, 1, 2, 0, 0, 0).unwrap();
+        let start = "2026-01-01T00:00:00Z".parse::<jiff::Timestamp>().unwrap();
+        let end = "2026-01-02T00:00:00Z".parse::<jiff::Timestamp>().unwrap();
         let params = MessageUsageReportParams::new(start)
             .ending_at(end)
             .bucket_width("1h")
@@ -80,7 +80,7 @@ mod tests {
         let client = Client::new(config);
         let api = UsageApi::new(client);
 
-        let start = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        let start = "2026-01-01T00:00:00Z".parse::<jiff::Timestamp>().unwrap();
         let _ = api
             .get_message_usage_report(
                 MessageUsageReportParams::new(start)
@@ -118,7 +118,7 @@ mod tests {
         let client = Client::new(config);
         let api = UsageApi::new(client);
 
-        let start = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        let start = "2026-01-01T00:00:00Z".parse::<jiff::Timestamp>().unwrap();
         let _ = api
             .get_message_cost_report(
                 MessageCostReportParams::new(start).invoice_id("inv_123"),
@@ -152,10 +152,8 @@ mod tests {
         let client = Client::new(config);
         let api = UsageApi::new(client);
 
-        let params = ClaudeCodeUsageReportParams::new(
-            NaiveDate::from_ymd_opt(2026, 1, 1).expect("valid date"),
-        )
-        .limit(20);
+        let params =
+            ClaudeCodeUsageReportParams::new(Date::new(2026, 1, 1).expect("valid date")).limit(20);
 
         let _ = api
             .get_claude_code_usage_report(params, None)
@@ -187,10 +185,18 @@ impl UsageApi {
     }
 
     fn build_message_usage_report_query(params: MessageUsageReportParams) -> Vec<String> {
-        let mut query = vec![format!("starting_at={}", params.starting_at.to_rfc3339())];
+        let mut query = vec![format!(
+            "starting_at={}",
+            params
+                .starting_at
+                .display_with_offset(jiff::tz::Offset::UTC)
+        )];
 
         if let Some(ending_at) = params.ending_at {
-            query.push(format!("ending_at={}", ending_at.to_rfc3339()));
+            query.push(format!(
+                "ending_at={}",
+                ending_at.display_with_offset(jiff::tz::Offset::UTC)
+            ));
         }
         if let Some(bucket_width) = params.bucket_width {
             query.push(format!("bucket_width={}", bucket_width));
@@ -215,10 +221,18 @@ impl UsageApi {
     }
 
     fn build_message_cost_report_query(params: MessageCostReportParams) -> Vec<String> {
-        let mut query = vec![format!("starting_at={}", params.starting_at.to_rfc3339())];
+        let mut query = vec![format!(
+            "starting_at={}",
+            params
+                .starting_at
+                .display_with_offset(jiff::tz::Offset::UTC)
+        )];
 
         if let Some(ending_at) = params.ending_at {
-            query.push(format!("ending_at={}", ending_at.to_rfc3339()));
+            query.push(format!(
+                "ending_at={}",
+                ending_at.display_with_offset(jiff::tz::Offset::UTC)
+            ));
         }
         if let Some(bucket_width) = params.bucket_width {
             query.push(format!("bucket_width={}", bucket_width));
@@ -243,11 +257,11 @@ impl UsageApi {
     fn build_claude_code_usage_report_query(params: ClaudeCodeUsageReportParams) -> Vec<String> {
         let mut query = vec![format!(
             "starting_at={}",
-            params.starting_at.format("%Y-%m-%d")
+            params.starting_at.strftime("%Y-%m-%d")
         )];
 
         if let Some(ending_at) = params.ending_at {
-            query.push(format!("ending_at={}", ending_at.format("%Y-%m-%d")));
+            query.push(format!("ending_at={}", ending_at.strftime("%Y-%m-%d")));
         }
         if let Some(limit) = params.limit {
             query.push(format!("limit={}", limit));
@@ -320,8 +334,8 @@ impl UsageApi {
     )]
     pub async fn get_organization_usage(
         &self,
-        start_date: Option<DateTime<Utc>>,
-        end_date: Option<DateTime<Utc>>,
+        start_date: Option<Timestamp>,
+        end_date: Option<Timestamp>,
         granularity: Option<&str>, // "day", "hour"
         options: Option<RequestOptions>,
     ) -> Result<UsageReport> {
@@ -339,8 +353,8 @@ impl UsageApi {
     pub async fn get_workspace_usage(
         &self,
         workspace_id: &str,
-        start_date: Option<DateTime<Utc>>,
-        end_date: Option<DateTime<Utc>>,
+        start_date: Option<Timestamp>,
+        end_date: Option<Timestamp>,
         granularity: Option<&str>,
         options: Option<RequestOptions>,
     ) -> Result<UsageReport> {
@@ -362,8 +376,8 @@ impl UsageApi {
         &self,
         api_key_id: &str,
         workspace_id: Option<&str>,
-        start_date: Option<DateTime<Utc>>,
-        end_date: Option<DateTime<Utc>>,
+        start_date: Option<Timestamp>,
+        end_date: Option<Timestamp>,
         granularity: Option<&str>,
         options: Option<RequestOptions>,
     ) -> Result<UsageReport> {
@@ -434,8 +448,8 @@ impl UsageApi {
     )]
     pub async fn get_usage_summary(
         &self,
-        start_date: DateTime<Utc>,
-        end_date: DateTime<Utc>,
+        start_date: Timestamp,
+        end_date: Timestamp,
         workspace_id: Option<&str>,
         options: Option<RequestOptions>,
     ) -> Result<UsageReport> {
@@ -456,8 +470,8 @@ impl UsageApi {
         &self,
         limit: Option<u32>,
         workspace_id: Option<&str>,
-        start_date: Option<DateTime<Utc>>,
-        end_date: Option<DateTime<Utc>>,
+        start_date: Option<Timestamp>,
+        end_date: Option<Timestamp>,
         options: Option<RequestOptions>,
     ) -> Result<Vec<ApiKeyUsage>> {
         let _ = limit;
