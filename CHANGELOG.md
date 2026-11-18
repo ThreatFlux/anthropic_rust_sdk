@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0](https://github.com/ThreatFlux/anthropic_rust_sdk/compare/v0.5.5...v0.6.0) (2026-11-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* **sdk:** migrate Anthropic timestamps and calendar dates to Jiff ([#102](https://github.com/ThreatFlux/anthropic_rust_sdk/issues/102))
+
+### Bug Fixes
+
+* **sdk:** migrate Anthropic timestamps and calendar dates to Jiff ([#102](https://github.com/ThreatFlux/anthropic_rust_sdk/issues/102)) ([03cf307](https://github.com/ThreatFlux/anthropic_rust_sdk/commit/03cf307a17cd04e4dfb1a6991e011d3734fee44b))
+
 ## [Unreleased]
 
 ### Changed

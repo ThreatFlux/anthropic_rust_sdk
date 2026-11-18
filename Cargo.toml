@@ -1,6 +1,6 @@
 [package]
 name = "threatflux-anthropic-sdk"
-version = "0.5.5"
+version = "0.6.0"
 authors = ["Wyatt Roersma <wyattroersma@gmail.com>", "Claude Code", "Codex"]
 edition = "2021"
 rust-version = "1.99.0"
