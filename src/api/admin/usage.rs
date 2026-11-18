@@ -1,7 +1,7 @@
 //! Usage Admin API implementation
 
 use crate::{
-    api::utils::build_path_with_query,
+    api::utils::{build_path_with_query, encode_query_value},
     client::Client,
     error::{AnthropicError, Result},
     models::admin::{
@@ -63,6 +63,8 @@ mod tests {
     async fn test_get_message_usage_report_endpoint() {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
+            .and(query_param("starting_at", "2026-01-01T00:00:00+00:00"))
+            .and(query_param("ending_at", "2026-01-02T00:00:00+00:00"))
             .and(query_param("bucket_width", "1h"))
             .and(query_param("page", "page_1"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
@@ -81,9 +83,11 @@ mod tests {
         let api = UsageApi::new(client);
 
         let start = "2026-01-01T00:00:00Z".parse::<jiff::Timestamp>().unwrap();
+        let end = "2026-01-02T00:00:00Z".parse::<jiff::Timestamp>().unwrap();
         let _ = api
             .get_message_usage_report(
                 MessageUsageReportParams::new(start)
+                    .ending_at(end)
                     .bucket_width("1h")
                     .page("page_1"),
                 None,
@@ -103,6 +107,7 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(query_param("invoice_id", "inv_123"))
+            .and(query_param("starting_at", "2026-01-01T00:00:00+00:00"))
             .and(query_param("ending_at", "2026-01-02T00:00:00+00:00"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "data": [],
@@ -175,6 +180,10 @@ mod tests {
 }
 
 impl UsageApi {
+    fn timestamp_query_value(value: Timestamp) -> String {
+        encode_query_value(&value.display_with_offset(jiff::tz::Offset::UTC).to_string())
+    }
+
     /// Create a new Usage API client
     pub fn new(client: Client) -> Self {
         Self { client }
@@ -193,15 +202,13 @@ impl UsageApi {
     fn build_message_usage_report_query(params: MessageUsageReportParams) -> Vec<String> {
         let mut query = vec![format!(
             "starting_at={}",
-            params
-                .starting_at
-                .display_with_offset(jiff::tz::Offset::UTC)
+            Self::timestamp_query_value(params.starting_at)
         )];
 
         if let Some(ending_at) = params.ending_at {
             query.push(format!(
                 "ending_at={}",
-                ending_at.display_with_offset(jiff::tz::Offset::UTC)
+                Self::timestamp_query_value(ending_at)
             ));
         }
         if let Some(bucket_width) = params.bucket_width {
@@ -229,15 +236,13 @@ impl UsageApi {
     fn build_message_cost_report_query(params: MessageCostReportParams) -> Vec<String> {
         let mut query = vec![format!(
             "starting_at={}",
-            params
-                .starting_at
-                .display_with_offset(jiff::tz::Offset::UTC)
+            Self::timestamp_query_value(params.starting_at)
         )];
 
         if let Some(ending_at) = params.ending_at {
             query.push(format!(
                 "ending_at={}",
-                ending_at.display_with_offset(jiff::tz::Offset::UTC)
+                Self::timestamp_query_value(ending_at)
             ));
         }
         if let Some(bucket_width) = params.bucket_width {
