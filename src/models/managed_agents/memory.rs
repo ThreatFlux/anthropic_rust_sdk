@@ -1,7 +1,7 @@
 //! Managed Agents — Memory store data models (beta: managed-agents-2026-04-01)
 
 use crate::types::PaginatedResponse;
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -20,7 +20,7 @@ pub struct MemoryStore {
     pub description: Option<String>,
     /// ISO 8601 creation timestamp.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<DateTime<Utc>>,
+    pub created_at: Option<Timestamp>,
     /// Additional fields not yet modeled explicitly.
     #[serde(flatten, default)]
     pub extra: HashMap<String, serde_json::Value>,
@@ -42,10 +42,10 @@ pub struct Memory {
     pub version: Option<String>,
     /// ISO 8601 creation timestamp.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<DateTime<Utc>>,
+    pub created_at: Option<Timestamp>,
     /// ISO 8601 update timestamp.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<Timestamp>,
     /// Additional fields not yet modeled explicitly.
     #[serde(flatten, default)]
     pub extra: HashMap<String, serde_json::Value>,
@@ -67,7 +67,7 @@ pub struct MemoryVersion {
     pub content: Option<String>,
     /// ISO 8601 creation timestamp.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<DateTime<Utc>>,
+    pub created_at: Option<Timestamp>,
     /// Additional fields not yet modeled explicitly.
     #[serde(flatten, default)]
     pub extra: HashMap<String, serde_json::Value>,

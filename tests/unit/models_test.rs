@@ -2,7 +2,7 @@
 //!
 //! Tests serialization/deserialization of all model types and their functionality.
 
-use chrono::Utc;
+use jiff::Timestamp;
 use serde_json::{from_str, json, to_string};
 use threatflux_anthropic_sdk::models::{
     admin::{ApiKey, MemberRole, Organization, UsageReport, Workspace, WorkspaceStatus},
@@ -239,7 +239,7 @@ mod message_models_tests {
         let response = MessageResponse {
             id: "msg_123".to_string(),
             object_type: "message".to_string(),
-            created_at: Utc::now(),
+            created_at: Timestamp::now(),
             model: "claude-haiku-4-5".to_string(),
             role: Role::Assistant,
             content: vec![ContentBlock::text("Hello!")],
@@ -270,7 +270,7 @@ mod message_models_tests {
                 message: MessageResponse {
                     id: "msg_123".to_string(),
                     object_type: "message".to_string(),
-                    created_at: Utc::now(),
+                    created_at: Timestamp::now(),
                     model: "claude-haiku-4-5".to_string(),
                     role: Role::Assistant,
                     content: vec![],
@@ -390,8 +390,8 @@ mod model_info_tests {
             input_cost_per_token: Some(0.00025),
             output_cost_per_token: Some(0.00125),
             capabilities: Some(vec!["vision".to_string(), "tool_use".to_string()].into()),
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
+            created_at: Timestamp::now(),
+            updated_at: Timestamp::now(),
             deprecated: Some(false),
             deprecation_date: None,
         };
@@ -422,8 +422,8 @@ mod model_info_tests {
                 input_cost_per_token: Some(0.00025),
                 output_cost_per_token: Some(0.00125),
                 capabilities: Some(vec!["vision".to_string()].into()),
-                created_at: Utc::now(),
-                updated_at: Utc::now(),
+                created_at: Timestamp::now(),
+                updated_at: Timestamp::now(),
                 deprecated: Some(false),
                 deprecation_date: None,
             }],
@@ -473,12 +473,12 @@ mod batch_models_tests {
                 expired: 0,
                 total: 9,
             },
-            created_at: Utc::now(),
+            created_at: Timestamp::now(),
             in_progress_at: None,
             completed_at: None,
             cancelled_at: None,
             failed_at: None,
-            expires_at: Utc::now() + chrono::Duration::hours(24),
+            expires_at: Timestamp::now() + jiff::SignedDuration::from_hours(24),
             error: None,
             results_file_id: None,
             results_url: Some(
@@ -578,7 +578,7 @@ mod file_models_tests {
             expires_at: None,
             extra: Default::default(),
             status: Some(FileStatus::Ready),
-            created_at: Utc::now(),
+            created_at: Timestamp::now(),
             updated_at: None,
             error: None,
         };
@@ -634,8 +634,8 @@ mod admin_models_tests {
             display_name: Some("Test Org".to_string()),
             description: None,
             settings: None,
-            created_at: Some(Utc::now()),
-            updated_at: Some(Utc::now()),
+            created_at: Some(Timestamp::now()),
+            updated_at: Some(Timestamp::now()),
             extra: HashMap::new(),
         };
 
@@ -657,8 +657,8 @@ mod admin_models_tests {
             settings: None,
             status: Some(WorkspaceStatus::Active),
             data_residency: None,
-            created_at: Some(Utc::now()),
-            updated_at: Some(Utc::now()),
+            created_at: Some(Timestamp::now()),
+            updated_at: Some(Timestamp::now()),
             archived_at: None,
             extra: HashMap::new(),
         };
@@ -721,8 +721,8 @@ mod admin_models_tests {
             status: None,
             permissions: None,
             rate_limits: None,
-            created_at: Some(Utc::now()),
-            last_used_at: Some(Utc::now()),
+            created_at: Some(Timestamp::now()),
+            last_used_at: Some(Timestamp::now()),
             expires_at: None,
             extra: HashMap::new(),
         };

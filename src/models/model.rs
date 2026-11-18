@@ -1,7 +1,7 @@
 //! Model-related data models
 
 use crate::types::PaginatedResponse;
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 
 /// Information about an available model.
@@ -42,17 +42,17 @@ pub struct Model {
     #[serde(default)]
     pub capabilities: Option<ModelCapabilities>,
     /// When the model was created (synthesized if absent)
-    #[serde(default = "Utc::now")]
-    pub created_at: DateTime<Utc>,
+    #[serde(default = "Timestamp::now")]
+    pub created_at: Timestamp,
     /// When the model was last updated (synthesized if absent)
-    #[serde(default = "Utc::now")]
-    pub updated_at: DateTime<Utc>,
+    #[serde(default = "Timestamp::now")]
+    pub updated_at: Timestamp,
     /// Whether the model is deprecated
     #[serde(default)]
     pub deprecated: Option<bool>,
     /// Deprecation date if applicable
     #[serde(default)]
-    pub deprecation_date: Option<DateTime<Utc>>,
+    pub deprecation_date: Option<Timestamp>,
 }
 
 /// A single authoritative capability payload, retaining nested metadata.
@@ -196,7 +196,7 @@ pub struct BenchmarkResult {
     /// Units for the score
     pub units: Option<String>,
     /// When the benchmark was run
-    pub run_date: Option<DateTime<Utc>>,
+    pub run_date: Option<Timestamp>,
 }
 
 /// Model family information

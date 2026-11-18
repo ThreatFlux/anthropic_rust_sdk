@@ -5,8 +5,8 @@
 //!
 //! Run with: ANTHROPIC_API_KEY=your_key cargo run --example token_usage_tracker
 
-use chrono::{DateTime, Utc};
 use futures::StreamExt;
+use jiff::Timestamp;
 use std::collections::HashMap;
 use std::error::Error;
 use threatflux_anthropic_sdk::{
@@ -36,7 +36,7 @@ struct TokenUsageTracker {
     total_thinking_tokens: u64,
     model_usage: HashMap<String, (u64, u64)>, // (input, output) per model
     api_calls: u32,
-    start_time: Option<DateTime<Utc>>,
+    start_time: Option<Timestamp>,
     pricing: HashMap<String, ModelPricing>,
 }
 
@@ -115,7 +115,7 @@ impl TokenUsageTracker {
 
         Self {
             pricing,
-            start_time: Some(Utc::now()),
+            start_time: Some(Timestamp::now()),
             ..Default::default()
         }
     }
@@ -151,8 +151,8 @@ impl TokenUsageTracker {
         println!("{}", "=".repeat(60));
 
         if let Some(start_time) = self.start_time {
-            let duration = Utc::now().signed_duration_since(start_time);
-            println!("📅 Session Duration: {} minutes", duration.num_minutes());
+            let duration = Timestamp::now().duration_since(start_time);
+            println!("📅 Session Duration: {} minutes", duration.as_secs() / 60);
         }
 
         println!("🔢 Total API Calls: {}", self.api_calls);

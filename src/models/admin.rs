@@ -2,7 +2,7 @@
 
 use super::common::VecPush;
 use crate::types::PaginatedResponse;
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -23,9 +23,9 @@ pub struct Organization {
     /// Organization settings
     pub settings: Option<OrganizationSettings>,
     /// When the organization was created
-    pub created_at: Option<DateTime<Utc>>,
+    pub created_at: Option<Timestamp>,
     /// When the organization was last updated
-    pub updated_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<Timestamp>,
     /// Additional fields not yet modeled explicitly.
     #[serde(flatten, default)]
     pub extra: HashMap<String, serde_json::Value>,
@@ -58,7 +58,7 @@ pub struct User {
     /// Organization role.
     pub role: UserRole,
     /// Time this user was added to the organization.
-    pub added_at: DateTime<Utc>,
+    pub added_at: Timestamp,
 }
 
 /// Role values for organization users.
@@ -171,13 +171,13 @@ pub struct Member {
     pub status: MemberStatus,
     /// When the member was invited
     #[serde(default)]
-    pub invited_at: Option<DateTime<Utc>>,
+    pub invited_at: Option<Timestamp>,
     /// When the member joined
     #[serde(default)]
-    pub joined_at: Option<DateTime<Utc>>,
+    pub joined_at: Option<Timestamp>,
     /// When the member was last active
     #[serde(default)]
-    pub last_active_at: Option<DateTime<Utc>>,
+    pub last_active_at: Option<Timestamp>,
 }
 
 /// Member role
@@ -304,9 +304,9 @@ pub struct Invite {
     /// Invitee email.
     pub email: String,
     /// Invite expiration timestamp.
-    pub expires_at: DateTime<Utc>,
+    pub expires_at: Timestamp,
     /// Invite creation timestamp.
-    pub invited_at: DateTime<Utc>,
+    pub invited_at: Timestamp,
     /// Role granted when accepted.
     pub role: UserRole,
     /// Invite status.
@@ -460,11 +460,11 @@ pub struct Workspace {
     #[serde(default)]
     pub data_residency: Option<WorkspaceDataResidency>,
     /// When the workspace was created
-    pub created_at: Option<DateTime<Utc>>,
+    pub created_at: Option<Timestamp>,
     /// When the workspace was last updated
-    pub updated_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<Timestamp>,
     /// When the workspace was archived (if applicable)
-    pub archived_at: Option<DateTime<Utc>>,
+    pub archived_at: Option<Timestamp>,
     /// Additional fields not yet modeled explicitly.
     #[serde(flatten, default)]
     pub extra: HashMap<String, serde_json::Value>,
@@ -834,11 +834,11 @@ pub struct ApiKey {
     /// Rate limits for this key
     pub rate_limits: Option<HashMap<String, u32>>,
     /// When the key was created
-    pub created_at: Option<DateTime<Utc>>,
+    pub created_at: Option<Timestamp>,
     /// When the key was last used
-    pub last_used_at: Option<DateTime<Utc>>,
+    pub last_used_at: Option<Timestamp>,
     /// When the key expires
-    pub expires_at: Option<DateTime<Utc>>,
+    pub expires_at: Option<Timestamp>,
     /// Additional fields not yet modeled explicitly.
     #[serde(flatten, default)]
     pub extra: HashMap<String, serde_json::Value>,
@@ -856,7 +856,7 @@ pub struct ApiKeyCreateRequest {
     /// Rate limits
     pub rate_limits: Option<HashMap<String, u32>>,
     /// Expiration date
-    pub expires_at: Option<DateTime<Utc>>,
+    pub expires_at: Option<Timestamp>,
 }
 
 impl ApiKeyCreateRequest {
@@ -892,7 +892,7 @@ impl ApiKeyCreateRequest {
     }
 
     /// Set expiration date
-    pub fn expires_at(mut self, expires_at: DateTime<Utc>) -> Self {
+    pub fn expires_at(mut self, expires_at: Timestamp) -> Self {
         self.expires_at = Some(expires_at);
         self
     }
@@ -1040,9 +1040,9 @@ pub struct UsageReport {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UsagePeriod {
     /// Period start time
-    pub period_start: DateTime<Utc>,
+    pub period_start: Timestamp,
     /// Period end time
-    pub period_end: DateTime<Utc>,
+    pub period_end: Timestamp,
     /// Input tokens used in this period
     pub input_tokens: u64,
     /// Output tokens used in this period
@@ -1081,9 +1081,9 @@ pub struct CostInfo {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UsageQuery {
     /// Start date for the query
-    pub start_date: Option<DateTime<Utc>>,
+    pub start_date: Option<Timestamp>,
     /// End date for the query
-    pub end_date: Option<DateTime<Utc>>,
+    pub end_date: Option<Timestamp>,
     /// Granularity for the report
     pub granularity: Option<String>,
     /// Specific workspace ID
@@ -1108,13 +1108,13 @@ impl UsageQuery {
     }
 
     /// Set start date
-    pub fn start_date(mut self, start_date: DateTime<Utc>) -> Self {
+    pub fn start_date(mut self, start_date: Timestamp) -> Self {
         self.start_date = Some(start_date);
         self
     }
 
     /// Set end date
-    pub fn end_date(mut self, end_date: DateTime<Utc>) -> Self {
+    pub fn end_date(mut self, end_date: Timestamp) -> Self {
         self.end_date = Some(end_date);
         self
     }
@@ -1157,10 +1157,10 @@ pub type UsageReportListResponse = PaginatedResponse<UsageReport>;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MessageUsageReportParams {
     /// Inclusive start timestamp for the report window.
-    pub starting_at: DateTime<Utc>,
+    pub starting_at: Timestamp,
     /// Exclusive end timestamp for the report window.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub ending_at: Option<DateTime<Utc>>,
+    pub ending_at: Option<Timestamp>,
     /// Filter by API key IDs.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub api_key_ids: Option<Vec<String>>,
@@ -1198,7 +1198,7 @@ pub struct MessageUsageReportParams {
 
 impl MessageUsageReportParams {
     /// Create usage-report parameters.
-    pub fn new(starting_at: DateTime<Utc>) -> Self {
+    pub fn new(starting_at: Timestamp) -> Self {
         Self {
             starting_at,
             ending_at: None,
@@ -1217,7 +1217,7 @@ impl MessageUsageReportParams {
     }
 
     /// Set report ending timestamp.
-    pub fn ending_at(mut self, ending_at: DateTime<Utc>) -> Self {
+    pub fn ending_at(mut self, ending_at: Timestamp) -> Self {
         self.ending_at = Some(ending_at);
         self
     }
@@ -1305,10 +1305,10 @@ impl MessageUsageReportParams {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MessageCostReportParams {
     /// Inclusive start timestamp for the report window.
-    pub starting_at: DateTime<Utc>,
+    pub starting_at: Timestamp,
     /// Exclusive end timestamp for the report window.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub ending_at: Option<DateTime<Utc>>,
+    pub ending_at: Option<Timestamp>,
     /// Optional report granularity / bucket width.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bucket_width: Option<String>,
@@ -1334,7 +1334,7 @@ pub struct MessageCostReportParams {
 
 impl MessageCostReportParams {
     /// Create cost-report parameters.
-    pub fn new(starting_at: DateTime<Utc>) -> Self {
+    pub fn new(starting_at: Timestamp) -> Self {
         Self {
             starting_at,
             ending_at: None,
@@ -1349,7 +1349,7 @@ impl MessageCostReportParams {
     }
 
     /// Set report ending timestamp.
-    pub fn ending_at(mut self, ending_at: DateTime<Utc>) -> Self {
+    pub fn ending_at(mut self, ending_at: Timestamp) -> Self {
         self.ending_at = Some(ending_at);
         self
     }
@@ -1408,10 +1408,10 @@ impl MessageCostReportParams {
 pub struct MessageUsageReportBucket {
     /// Bucket start timestamp.
     #[serde(default)]
-    pub starting_at: Option<DateTime<Utc>>,
+    pub starting_at: Option<Timestamp>,
     /// Bucket end timestamp.
     #[serde(default)]
-    pub ending_at: Option<DateTime<Utc>>,
+    pub ending_at: Option<Timestamp>,
     /// Message request count.
     #[serde(default)]
     pub request_count: Option<u64>,
@@ -1437,10 +1437,10 @@ pub struct MessageUsageReportBucket {
 pub struct MessageCostReportBucket {
     /// Bucket start timestamp.
     #[serde(default)]
-    pub starting_at: Option<DateTime<Utc>>,
+    pub starting_at: Option<Timestamp>,
     /// Bucket end timestamp.
     #[serde(default)]
-    pub ending_at: Option<DateTime<Utc>>,
+    pub ending_at: Option<Timestamp>,
     /// Additional dynamic cost breakdown fields.
     #[serde(flatten)]
     pub extra: HashMap<String, serde_json::Value>,
@@ -1450,10 +1450,10 @@ pub struct MessageCostReportBucket {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ClaudeCodeUsageReportParams {
     /// Inclusive report start date.
-    pub starting_at: chrono::NaiveDate,
+    pub starting_at: jiff::civil::Date,
     /// Exclusive report end date.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub ending_at: Option<chrono::NaiveDate>,
+    pub ending_at: Option<jiff::civil::Date>,
     /// Optional page size.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limit: Option<u32>,
@@ -1473,7 +1473,7 @@ pub struct ClaudeCodeUsageReportParams {
 
 impl ClaudeCodeUsageReportParams {
     /// Create params with a required start date.
-    pub fn new(starting_at: chrono::NaiveDate) -> Self {
+    pub fn new(starting_at: jiff::civil::Date) -> Self {
         Self {
             starting_at,
             ending_at: None,
@@ -1486,7 +1486,7 @@ impl ClaudeCodeUsageReportParams {
     }
 
     /// Set report end date.
-    pub fn ending_at(mut self, ending_at: chrono::NaiveDate) -> Self {
+    pub fn ending_at(mut self, ending_at: jiff::civil::Date) -> Self {
         self.ending_at = Some(ending_at);
         self
     }
@@ -1581,7 +1581,7 @@ pub struct ClaudeCodeToolMetric {
 pub struct ClaudeCodeUsageReportRow {
     /// Report date.
     #[serde(default)]
-    pub date: Option<chrono::NaiveDate>,
+    pub date: Option<jiff::civil::Date>,
     /// Actor metadata.
     #[serde(default)]
     pub actor: Option<ClaudeCodeUsageActor>,
@@ -1654,13 +1654,12 @@ pub struct ApiKeyUsage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::{TimeZone, Utc};
     use serde_json::json;
 
     #[test]
     fn test_message_usage_report_params_builder() {
-        let start = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
-        let end = Utc.with_ymd_and_hms(2026, 1, 2, 0, 0, 0).unwrap();
+        let start = "2026-01-01T00:00:00Z".parse::<jiff::Timestamp>().unwrap();
+        let end = "2026-01-02T00:00:00Z".parse::<jiff::Timestamp>().unwrap();
 
         let params = MessageUsageReportParams::new(start)
             .ending_at(end)

@@ -202,9 +202,7 @@ impl HttpClient {
             .get("x-ratelimit-reset")
             .and_then(|v| v.to_str().ok())
             .and_then(|s| s.parse::<i64>().ok())
-            .map(|timestamp| {
-                chrono::DateTime::from_timestamp(timestamp, 0).unwrap_or_else(chrono::Utc::now)
-            });
+            .and_then(|timestamp| jiff::Timestamp::from_second(timestamp).ok());
 
         let retry_after = headers
             .get("retry-after")
@@ -229,7 +227,7 @@ pub struct RateLimitInfo {
     /// Total requests allowed in current window
     pub limit: Option<u32>,
     /// When the rate limit window resets
-    pub reset: Option<chrono::DateTime<chrono::Utc>>,
+    pub reset: Option<jiff::Timestamp>,
     /// How long to wait before retrying (from Retry-After header)
     pub retry_after: Option<Duration>,
 }
@@ -255,10 +253,9 @@ impl RateLimitInfo {
         // If we're close to the limit and have reset time, calculate delay
         if self.is_approaching_limit(0.8) {
             if let Some(reset_time) = self.reset {
-                let now = chrono::Utc::now();
+                let now = jiff::Timestamp::now();
                 if reset_time > now {
-                    let delay = (reset_time - now)
-                        .to_std()
+                    let delay = Duration::try_from(reset_time.duration_since(now))
                         .unwrap_or(Duration::from_secs(1));
                     return Some(delay.min(Duration::from_secs(60))); // Cap at 1 minute
                 }

@@ -399,18 +399,18 @@ mod json_handling_tests {
 #[cfg(test)]
 mod time_handling_tests {
     use super::*;
-    use chrono::{DateTime, Duration as ChronoDuration, Utc};
+    use jiff::{SignedDuration, Timestamp};
     use pretty_assertions::assert_eq;
 
     #[test]
     fn test_timestamp_creation() {
-        let now = Utc::now();
-        let timestamp = now.timestamp();
+        let now = Timestamp::now();
+        let timestamp = now.as_second();
 
         assert!(timestamp > 0);
 
-        let recreated = DateTime::from_timestamp(timestamp, 0).unwrap();
-        assert_eq!(recreated.timestamp(), timestamp);
+        let recreated = Timestamp::from_second(timestamp).unwrap();
+        assert_eq!(recreated.as_second(), timestamp);
     }
 
     #[test]
@@ -423,12 +423,12 @@ mod time_handling_tests {
     }
 
     #[test]
-    fn test_chrono_duration() {
-        let duration = ChronoDuration::seconds(30);
-        assert_eq!(duration.num_seconds(), 30);
+    fn test_signed_duration() {
+        let duration = SignedDuration::from_secs(30);
+        assert_eq!(duration.as_secs(), 30);
 
-        let future = Utc::now() + duration;
-        let past = Utc::now() - duration;
+        let future = Timestamp::now() + duration;
+        let past = Timestamp::now() - duration;
 
         assert!(future > past);
     }
@@ -449,7 +449,7 @@ mod time_handling_tests {
 #[cfg(test)]
 mod enhanced_utils_tests {
     use super::*;
-    use chrono::Utc;
+    use jiff::Timestamp;
     use pretty_assertions::assert_eq;
     use threatflux_anthropic_sdk::utils::{
         http::RateLimitInfo,
@@ -498,7 +498,7 @@ mod enhanced_utils_tests {
         assert_eq!(delay, Some(Duration::from_secs(30)));
 
         // Test with reset time in future
-        let future_time = Utc::now() + chrono::Duration::seconds(60);
+        let future_time = Timestamp::now() + jiff::SignedDuration::from_secs(60);
         let rate_limit_info = RateLimitInfo {
             remaining: Some(10),
             limit: Some(100),
@@ -589,7 +589,7 @@ mod enhanced_utils_tests {
         let rate_limit_info = RateLimitInfo {
             remaining: Some(50),
             limit: Some(200),
-            reset: Some(Utc::now() + chrono::Duration::seconds(300)),
+            reset: Some(Timestamp::now() + jiff::SignedDuration::from_secs(300)),
             retry_after: None,
         };
 

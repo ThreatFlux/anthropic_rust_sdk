@@ -289,3 +289,8 @@ pub use builders::{batch_builder::BatchBuilder, message_builder::MessageBuilder}
 
 // API version constant
 pub const API_VERSION: &str = "2023-06-01";
+
+/// Calendar date used by Claude Code usage reports.
+pub use jiff::civil::Date;
+/// Maintained UTC instant used by public SDK models.
+pub use jiff::Timestamp;

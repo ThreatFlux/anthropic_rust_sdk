@@ -259,7 +259,7 @@ mod legacy_error_tests {
 
 #[cfg(test)]
 mod legacy_model_tests {
-    use chrono::Utc;
+    use jiff::Timestamp;
     use threatflux_anthropic_sdk::models::{
         common::{ContentBlock, Role, Usage},
         message::Message,
@@ -343,8 +343,8 @@ mod legacy_model_tests {
             input_cost_per_token: Some(0.00025),
             output_cost_per_token: Some(0.00125),
             capabilities: Some(vec!["vision".to_string(), "tool_use".to_string()].into()),
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
+            created_at: Timestamp::now(),
+            updated_at: Timestamp::now(),
             deprecated: Some(false),
             deprecation_date: None,
         };

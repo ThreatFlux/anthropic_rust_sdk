@@ -2,8 +2,8 @@
 //!
 //! Tests SSE parsing, stream handling, event processing, and streaming functionality.
 
-use chrono::Utc;
 use futures::StreamExt;
+use jiff::Timestamp;
 use std::io::Cursor;
 use threatflux_anthropic_sdk::{
     error::AnthropicError,
@@ -265,7 +265,7 @@ mod message_stream_tests {
                 message: MessageResponse {
                     id: "msg_123".to_string(),
                     object_type: "message".to_string(),
-                    created_at: Utc::now(),
+                    created_at: Timestamp::now(),
                     model: "claude-haiku-4-5".to_string(),
                     role: Role::Assistant,
                     content: vec![],
@@ -321,7 +321,7 @@ mod message_stream_tests {
                 message: MessageResponse {
                     id: "msg_123".to_string(),
                     object_type: "message".to_string(),
-                    created_at: Utc::now(),
+                    created_at: Timestamp::now(),
                     model: "claude-haiku-4-5".to_string(),
                     role: Role::Assistant,
                     content: vec![],
@@ -382,7 +382,7 @@ mod message_stream_tests {
                 message: MessageResponse {
                     id: "msg_123".to_string(),
                     object_type: "message".to_string(),
-                    created_at: Utc::now(),
+                    created_at: Timestamp::now(),
                     model: "claude-haiku-4-5".to_string(),
                     role: Role::Assistant,
                     content: vec![],
@@ -425,7 +425,7 @@ mod message_stream_tests {
                 message: MessageResponse {
                     id: "msg_123".to_string(),
                     object_type: "message".to_string(),
-                    created_at: Utc::now(),
+                    created_at: Timestamp::now(),
                     model: "claude-haiku-4-5".to_string(),
                     role: Role::Assistant,
                     content: vec![],
@@ -473,7 +473,7 @@ mod message_stream_tests {
                 message: MessageResponse {
                     id: "msg_123".to_string(),
                     object_type: "message".to_string(),
-                    created_at: Utc::now(),
+                    created_at: Timestamp::now(),
                     model: "claude-haiku-4-5".to_string(),
                     role: Role::Assistant,
                     content: vec![],

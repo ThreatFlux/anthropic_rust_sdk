@@ -152,7 +152,7 @@ mod batches_api_tests {
         let mut canceled_batch = fixtures::test_batch();
         canceled_batch.processing_status =
             threatflux_anthropic_sdk::models::batch::MessageBatchStatus::Cancelled;
-        canceled_batch.cancelled_at = Some(chrono::Utc::now());
+        canceled_batch.cancelled_at = Some(jiff::Timestamp::now());
 
         Mock::given(method("POST"))
             .and(path("/v1/messages/batches/batch_test123/cancel"))

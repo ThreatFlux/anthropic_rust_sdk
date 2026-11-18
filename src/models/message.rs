@@ -4,7 +4,7 @@ use super::common::{
     CacheControl, CacheCreationUsage, ContentBlock, Metadata, OutputTokensDetails, Role,
     ServerToolUsage, StopDetails, StopReason, TextCitation, Tool, ToolChoice, Usage, VecPush,
 };
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -863,8 +863,8 @@ pub struct MessageResponse {
     #[serde(flatten, default)]
     pub extra: HashMap<String, serde_json::Value>,
     /// When the message was created (synthesized if absent from the response)
-    #[serde(default = "Utc::now")]
-    pub created_at: DateTime<Utc>,
+    #[serde(default = "Timestamp::now")]
+    pub created_at: Timestamp,
 }
 
 impl MessageResponse {
@@ -885,7 +885,7 @@ impl MessageResponse {
             context_management: None,
             input_transformations: None,
             extra: HashMap::new(),
-            created_at: Utc::now(),
+            created_at: Timestamp::now(),
         }
     }
 

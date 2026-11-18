@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Breaking:** public timestamp and calendar-date fields and API parameters use
+  the SDK's re-exported Jiff `Timestamp` and `Date`. RFC3339, calendar-only and
+  explicit UTC query formats are preserved; see the
+  [migration guide](docs/maintained-time-migration.md).
+- Rate-limit reset conversion is fallible: unrepresentable reset values are
+  ignored without fabricating the current time. Backoff caps and explicit
+  numeric Retry-After priority remain unchanged. No chrono advisory exception
+  is introduced.
+
 ## [0.5.5](https://github.com/ThreatFlux/anthropic_rust_sdk/compare/v0.5.4...v0.5.5) (2026-11-14)
 
 

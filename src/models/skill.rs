@@ -1,6 +1,6 @@
 //! Skills API data models
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -26,7 +26,7 @@ pub struct CurrentSkill {
     #[serde(rename = "type")]
     pub object_type: String,
     /// Creation timestamp.
-    pub created_at: DateTime<Utc>,
+    pub created_at: Timestamp,
     /// Human-readable display name.
     pub display_name: String,
     /// Newest version's ID, used in version paths.
@@ -34,7 +34,7 @@ pub struct CurrentSkill {
     /// Source object; distinct from the legacy string source.
     pub source: CurrentSkillSource,
     /// Last update timestamp.
-    pub updated_at: DateTime<Utc>,
+    pub updated_at: Timestamp,
     /// Future response fields.
     #[serde(flatten, default)]
     pub extra: HashMap<String, serde_json::Value>,
@@ -50,7 +50,7 @@ pub struct CurrentSkillVersion {
     #[serde(rename = "type")]
     pub object_type: String,
     /// Creation timestamp.
-    pub created_at: DateTime<Utc>,
+    pub created_at: Timestamp,
     /// Description from SKILL.md.
     pub description: String,
     /// Immutable skill slug.
@@ -217,7 +217,7 @@ pub struct Skill {
     pub id: String,
     /// ISO 8601 creation timestamp.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<DateTime<Utc>>,
+    pub created_at: Option<Timestamp>,
     /// Human-friendly display title.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_title: Option<String>,
@@ -229,7 +229,7 @@ pub struct Skill {
     pub source: Option<String>,
     /// ISO 8601 update timestamp.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<Timestamp>,
     /// Additional fields not yet modeled explicitly.
     #[serde(flatten, default)]
     pub extra: HashMap<String, serde_json::Value>,
@@ -245,7 +245,7 @@ pub struct SkillVersion {
     pub id: String,
     /// ISO 8601 creation timestamp.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<DateTime<Utc>>,
+    pub created_at: Option<Timestamp>,
     /// Description extracted from `SKILL.md`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,

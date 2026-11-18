@@ -2,7 +2,7 @@
 
 use super::message::{MessageRequest, MessageResponse};
 use crate::types::PaginatedResponse;
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -36,21 +36,21 @@ pub struct MessageBatch {
     /// Number of requests in the batch
     pub request_counts: RequestCounts,
     /// When the batch was created
-    pub created_at: DateTime<Utc>,
+    pub created_at: Timestamp,
     /// When the batch processing started
     #[serde(default)]
-    pub in_progress_at: Option<DateTime<Utc>>,
+    pub in_progress_at: Option<Timestamp>,
     /// When the batch processing completed
     #[serde(default, alias = "ended_at")]
-    pub completed_at: Option<DateTime<Utc>>,
+    pub completed_at: Option<Timestamp>,
     /// When the batch was cancelled
     #[serde(default)]
-    pub cancelled_at: Option<DateTime<Utc>>,
+    pub cancelled_at: Option<Timestamp>,
     /// When the batch failed
     #[serde(default)]
-    pub failed_at: Option<DateTime<Utc>>,
+    pub failed_at: Option<Timestamp>,
     /// When the batch expires (if not processed)
-    pub expires_at: DateTime<Utc>,
+    pub expires_at: Timestamp,
     /// Error information if the batch failed
     #[serde(default)]
     pub error: Option<BatchError>,
@@ -298,11 +298,11 @@ impl MessageBatch {
 
     /// Check if the batch has expired
     pub fn is_expired(&self) -> bool {
-        Utc::now() > self.expires_at
+        Timestamp::now() > self.expires_at
     }
 
     /// Get processing duration
-    pub fn processing_duration(&self) -> Option<chrono::Duration> {
+    pub fn processing_duration(&self) -> Option<jiff::SignedDuration> {
         match (
             self.in_progress_at,
             self.completed_at.or(self.failed_at).or(self.cancelled_at),

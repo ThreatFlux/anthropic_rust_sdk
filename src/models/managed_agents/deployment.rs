@@ -2,7 +2,7 @@
 
 use crate::models::managed_agents::session::{SessionAgentRef, SessionResourceSpec};
 use crate::types::PaginatedResponse;
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -62,7 +62,7 @@ pub struct Deployment {
     pub metadata: HashMap<String, String>,
     /// ISO 8601 creation timestamp.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<DateTime<Utc>>,
+    pub created_at: Option<Timestamp>,
     /// Additional fields not yet modeled explicitly.
     #[serde(flatten, default)]
     pub extra: HashMap<String, serde_json::Value>,
@@ -87,7 +87,7 @@ pub struct DeploymentRun {
     pub status: Option<String>,
     /// ISO 8601 creation timestamp.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<DateTime<Utc>>,
+    pub created_at: Option<Timestamp>,
     /// Additional fields not yet modeled explicitly.
     #[serde(flatten, default)]
     pub extra: HashMap<String, serde_json::Value>,

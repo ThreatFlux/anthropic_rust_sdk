@@ -1,6 +1,6 @@
 //! File-related data models
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -26,11 +26,11 @@ pub struct File {
     pub downloadable: Option<bool>,
     /// Expiration timestamp, absent for a file that does not expire.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub expires_at: Option<DateTime<Utc>>,
+    pub expires_at: Option<Timestamp>,
     /// When the file was uploaded
-    pub created_at: DateTime<Utc>,
+    pub created_at: Timestamp,
     /// When the file was last modified
-    pub updated_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<Timestamp>,
     /// File status
     pub status: Option<FileStatus>,
     /// Error information if file processing failed

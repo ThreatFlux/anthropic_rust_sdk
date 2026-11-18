@@ -2,7 +2,6 @@
 //!
 //! Tests Admin API operations with mocked responses.
 
-use chrono::TimeZone;
 use serde_json::json;
 use threatflux_anthropic_sdk::models::admin::{
     ApiKeyCreateRequest, InviteCreateRequest, InviteCreateRole, MessageUsageReportParams,
@@ -330,7 +329,7 @@ mod admin_api_tests {
         let client = setup_test_admin_client(&mock_server).await;
         let admin = client.admin().unwrap();
 
-        let start = chrono::Utc::now();
+        let start = jiff::Timestamp::now();
         let response = admin
             .usage()
             .get_message_usage_report(MessageUsageReportParams::new(start), None)
@@ -372,8 +371,8 @@ mod admin_api_tests {
         let client = setup_test_admin_client(&mock_server).await;
         let admin = client.admin().unwrap();
 
-        let start = chrono::Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
-        let end = chrono::Utc.with_ymd_and_hms(2024, 1, 31, 0, 0, 0).unwrap();
+        let start = "2024-01-01T00:00:00Z".parse::<jiff::Timestamp>().unwrap();
+        let end = "2024-01-31T00:00:00Z".parse::<jiff::Timestamp>().unwrap();
 
         let params = MessageUsageReportParams::new(start)
             .ending_at(end)
