@@ -68,7 +68,10 @@ fn reset_header_bounds_do_not_panic_or_invent_current_time_and_backoff_stays_cap
         Timestamp::MAX.as_second().to_string().parse().unwrap(),
     );
     let info = HttpClient::parse_rate_limit_headers(&headers);
-    assert_eq!(info.reset, Some(Timestamp::MAX));
+    // The HTTP field carries integer seconds; Timestamp::MAX also contains a
+    // fractional second that was never sent by the provider.
+    let expected = Timestamp::from_second(Timestamp::MAX.as_second()).unwrap();
+    assert_eq!(info.reset, Some(expected));
     assert_eq!(info.recommended_delay(), Some(Duration::from_secs(60)));
     headers.insert("retry-after", HeaderValue::from_static("123"));
     assert_eq!(
