@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["TextCitation"],"fn":["deserialize_unknown_textcitation"],"struct":["DocumentCitations"]};

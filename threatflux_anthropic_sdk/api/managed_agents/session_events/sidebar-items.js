@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["validate_initial_event","validate_send_event"],"struct":["SessionEventsApi"]};

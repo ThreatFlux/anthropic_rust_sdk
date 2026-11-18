@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["Tunnel","TunnelCertificate","TunnelCertificateCreateRequest","TunnelCreateRequest","TunnelListParams","TunnelRotateTokenRequest","TunnelToken"],"type":["TunnelCertificateListResponse","TunnelListResponse"]};

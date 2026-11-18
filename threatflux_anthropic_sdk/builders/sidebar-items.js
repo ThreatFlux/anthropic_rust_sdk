@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["batch_builder","common","message_builder"]};
