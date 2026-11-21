@@ -1,21 +1,24 @@
+---
 version: 2
+multi-ecosystem-groups:
+  nightly-dependencies:
+    schedule:
+      interval: "cron"
+      cronjob: "0 4 * * *"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+
 updates:
   # Enable version updates for Rust dependencies
   - package-ecosystem: "cargo"
     directory: "/"
-    schedule:
-      interval: "cron"
-      cronjob: "0 4 * * *"
+    patterns: ["*"]
+    multi-ecosystem-group: "nightly-dependencies"
     open-pull-requests-limit: 10
-    reviewers:
-      - "ThreatFlux/maintainers"
     labels:
       - "dependencies"
       - "rust"
-    commit-message:
-      prefix: "chore"
-      prefix-development: "chore"
-      include: "scope"
     ignore:
       # Ignore major version updates for stable dependencies
       - dependency-name: "tokio"
@@ -24,53 +27,28 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "serde"
         update-types: ["version-update:semver-major"]
-    groups:
-      dev-dependencies:
-        patterns:
-          - "*"
-        dependency-type: "development"
-      production-dependencies:
-        patterns:
-          - "*"
-        dependency-type: "production"
 
   # Enable version updates for GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
-    schedule:
-      interval: "cron"
-      cronjob: "0 4 * * *"
+    patterns: ["*"]
+    multi-ecosystem-group: "nightly-dependencies"
     open-pull-requests-limit: 5
-    reviewers:
-      - "ThreatFlux/maintainers"
     labels:
       - "dependencies"
       - "github-actions"
-    commit-message:
-      prefix: "ci"
-      include: "scope"
-    groups:
-      github-actions:
-        patterns:
-          - "*"
 
   # Refresh the digest-pinned Docker base images (Dockerfile)
+  # A rust builder bump must land together with `rust-version` in Cargo.toml
+  # and rust-toolchain.toml: the docs contract (scripts/check_docs.py) fails
+  # the Dependabot PR until they match. Dependabot does not refresh the digest
+  # of an unchanged versioned tag, so these bumps are how a rebuilt base image
+  # arrives; the distroless `nonroot` digest is refreshed in place.
   - package-ecosystem: "docker"
     directory: "/"
-    schedule:
-      interval: "cron"
-      cronjob: "0 4 * * *"
+    patterns: ["*"]
+    multi-ecosystem-group: "nightly-dependencies"
     open-pull-requests-limit: 3
-    reviewers:
-      - "ThreatFlux/maintainers"
     labels:
       - "dependencies"
       - "docker"
-    commit-message:
-      prefix: "chore"
-      include: "scope"
-    # A rust builder bump must land together with `rust-version` in Cargo.toml
-    # and rust-toolchain.toml: the docs contract (scripts/check_docs.py) fails
-    # the Dependabot PR until they match. Dependabot does not refresh the digest
-    # of an unchanged versioned tag, so these bumps are how a rebuilt base image
-    # arrives; the distroless `nonroot` digest is refreshed in place.
