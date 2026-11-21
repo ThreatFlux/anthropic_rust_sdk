@@ -5,6 +5,7 @@ multi-ecosystem-groups:
     schedule:
       interval: "cron"
       cronjob: "0 4 * * *"
+    open-pull-requests-limit: 1
     commit-message:
       prefix: "chore"
       include: "scope"
@@ -15,7 +16,6 @@ updates:
     directory: "/"
     patterns: ["*"]
     multi-ecosystem-group: "nightly-dependencies"
-    open-pull-requests-limit: 10
     labels:
       - "dependencies"
       - "rust"
@@ -33,7 +33,6 @@ updates:
     directory: "/"
     patterns: ["*"]
     multi-ecosystem-group: "nightly-dependencies"
-    open-pull-requests-limit: 5
     labels:
       - "dependencies"
       - "github-actions"
@@ -48,7 +47,6 @@ updates:
     directory: "/"
     patterns: ["*"]
     multi-ecosystem-group: "nightly-dependencies"
-    open-pull-requests-limit: 3
     labels:
       - "dependencies"
       - "docker"
