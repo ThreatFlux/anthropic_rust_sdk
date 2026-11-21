@@ -4,9 +4,8 @@ updates:
   - package-ecosystem: "cargo"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "04:00"
+      interval: "cron"
+      cronjob: "0 4 * * *"
     open-pull-requests-limit: 10
     reviewers:
       - "ThreatFlux/maintainers"
@@ -39,9 +38,8 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "04:00"
+      interval: "cron"
+      cronjob: "0 4 * * *"
     open-pull-requests-limit: 5
     reviewers:
       - "ThreatFlux/maintainers"
@@ -60,9 +58,8 @@ updates:
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "04:00"
+      interval: "cron"
+      cronjob: "0 4 * * *"
     open-pull-requests-limit: 3
     reviewers:
       - "ThreatFlux/maintainers"
