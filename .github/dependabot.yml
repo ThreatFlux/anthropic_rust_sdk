@@ -5,6 +5,7 @@ multi-ecosystem-groups:
     schedule:
       interval: "cron"
       cronjob: "0 4 * * *"
+      timezone: "UTC"
     open-pull-requests-limit: 1
     commit-message:
       prefix: "chore"
