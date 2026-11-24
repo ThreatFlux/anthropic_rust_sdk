@@ -54,7 +54,7 @@ RUN rustc --version --verbose && cargo --version \
 
 # Wolfi GNU runtime with glibc 2.44-r8; multi-arch index digest.
 # GNU ABI is retained; native TLS uses statically linked vendored OpenSSL.
-FROM cgr.dev/chainguard/glibc-dynamic:latest@sha256:3359c6ba6b3bcf3b1d2179849f782365564cb262789e732e2833b25b9a8c00f1 AS runtime
+FROM cgr.dev/chainguard/glibc-dynamic:latest@sha256:d553920723f9c0dedef07166a6295d35b9f7173a3c37f5a7b5692b4b5f62a7b3 AS runtime
 
 ARG VERSION=dev
 ARG VCS_REF=unknown
