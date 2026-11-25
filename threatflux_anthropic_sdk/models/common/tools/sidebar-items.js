@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ToolChoice"],"fn":["parse_tool_choice"],"struct":["Tool"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["SessionAgentRef","SessionResourceSpec","SessionStatus","SessionStopReason"],"struct":["Session","SessionCreateRequest","SessionResource","SessionResourceUpdateRequest","SessionThread","SessionUpdateRequest"],"type":["SessionListResponse","SessionResourceListResponse","SessionThreadListResponse"]};
