@@ -52,9 +52,9 @@ RUN rustc --version --verbose && cargo --version \
     && mkdir -p /home/builder/out/bin \
     && cp target/release/check_my_usage target/release/test_api /home/builder/out/bin/
 
-# Wolfi GNU runtime with glibc 2.44-r8; multi-arch index digest.
+# Wolfi GNU runtime with glibc 2.44-r29; multi-arch index digest.
 # GNU ABI is retained; native TLS uses statically linked vendored OpenSSL.
-FROM cgr.dev/chainguard/glibc-dynamic:latest@sha256:838b58dceeba88a5dc8b088bca1a2e1e8e26ebe88d5e23a87137de09cc910e61 AS runtime
+FROM cgr.dev/chainguard/glibc-dynamic:latest@sha256:a96ba3c8d5ffc646e1092c03d72000b5e2ccd9f6cda695d6342a0e31ce4d52ee AS runtime
 
 ARG VERSION=dev
 ARG VCS_REF=unknown
